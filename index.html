@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RNB Dancehall Lovers — Sound Redefined</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;
+    --bg-soft:#f5f4f1;
+    --card:#f0efec;
+    --line:#e2e0db;
+    --text:#141210;
+    --muted:#68655f;
+    --pink:#ff5c7e;
+    --yellow:#ffe95f;
+    --mint:#5fe3c0;
+    --purple:#c11fd6;
+    --blue:#4fa8ff;
+    --orange:#f2994a;
+    --green:#aaff5f;
+    --cream:#efece6;
+    --violet:#5b266c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Archivo', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .display{
+    font-family:'Anton', sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.01em;
+    line-height:0.92;
+  }
+  a{color:inherit; text-decoration:none;}
+  img{display:block; width:100%; height:100%; object-fit:cover;}
+  .wrap{max-width:1280px; margin:0 auto; padding:0 32px;}
+  .eyebrow{
+    font-size:12px; letter-spacing:0.18em; text-transform:uppercase;
+    color:var(--muted); font-weight:700;
+  }
+
+  /* placeholder photo blocks — used in place of real photography */
+  .ph{
+    position:relative;
+    background:linear-gradient(135deg,#2a2a2a,#161616);
+    overflow:hidden;
+    border-radius:14px;
+  }
+  .ph::after{
+    content:attr(data-tag);
+    position:absolute; left:10px; bottom:10px;
+    font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    color:rgba(245,243,239,0.55); font-weight:700;
+    background:rgba(0,0,0,0.5); padding:4px 8px; border-radius:999px;
+  }
+  .ph[data-tag=""]::after{content:none;}
+  .ph.p1{background:linear-gradient(rgba(10,10,10,.15),rgba(10,10,10,.45)), url('https://images.unsplash.com/photo-1551873521-929040ff8bc4?w=800&q=70&auto=format&fit=crop') center/cover;}
+  .ph.p2{background:linear-gradient(rgba(10,10,10,.15),rgba(10,10,10,.45)), url('https://images.unsplash.com/photo-1572327918628-bf61496743ce?w=800&q=70&auto=format&fit=crop') center/cover;}
+  .ph.p3{background:linear-gradient(rgba(10,10,10,.15),rgba(10,10,10,.45)), url('https://images.unsplash.com/photo-1619229724165-4792c82a8305?w=800&q=70&auto=format&fit=crop') center/cover;}
+  .ph.p4{background:linear-gradient(rgba(10,10,10,.15),rgba(10,10,10,.45)), url('https://images.unsplash.com/photo-1585575271898-9f3a76920f4b?w=800&q=70&auto=format&fit=crop') center/cover;}
+  .ph.p5{background:linear-gradient(rgba(10,10,10,.15),rgba(10,10,10,.45)), url('https://images.unsplash.com/photo-1689783101582-98feb9393a57?w=800&q=70&auto=format&fit=crop') center/cover;}
+  .ph.p6{background:linear-gradient(rgba(10,10,10,.15),rgba(10,10,10,.45)), url('https://images.unsplash.com/photo-1577733564058-9b46301e7661?w=800&q=70&auto=format&fit=crop') center/cover;}
+
+  /* BUTTONS */
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    padding:15px 24px; border-radius:14px;
+    font-weight:700; font-size:14px; letter-spacing:0.01em;
+    border:none; cursor:pointer; transition:transform .18s ease, background .18s ease;
+  }
+  .btn:hover{transform:translateY(-2px);}
+  .btn-primary{background:var(--green); color:#0f2400;}
+  .btn-primary:hover{background:#bcff81;}
+  .btn-outline{background:var(--cream); color:#1a1a1a; border:1px solid rgba(20,18,16,0.08);}
+  .btn-outline:hover{background:#ffffff;}
+  .btn-dark{background:#161616; color:#f5f3ef; border:1px solid rgba(245,243,239,0.18);}
+  .btn-pill{border-radius:999px; padding:10px 18px; font-size:13px;}
+
+  /* HEADER */
+  header{
+    position:sticky; top:0; z-index:50;
+    background:rgba(255,255,255,0.94);
+    border-bottom:1px solid var(--line);
+  }
+  .nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 32px; max-width:1280px; margin:0 auto;
+  }
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; font-size:14px; letter-spacing:.04em;}
+  .logo .mark{
+    width:34px; height:34px; border-radius:8px;
+    background:linear-gradient(135deg,var(--pink),var(--purple));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Anton',sans-serif; font-size:15px; color:#0a0a0a;
+  }
+  .nav-links{display:flex; gap:34px; font-size:14px; font-weight:600; color:#3a3733;}
+  .nav-links a{opacity:.85; transition:opacity .15s;}
+  .nav-links a:hover{opacity:1;}
+  .nav-cta{display:flex; align-items:center;}
+  .burger{display:none;}
+
+  /* HERO */
+  .hero{
+    position:relative; width:100%;
+    background:linear-gradient(rgba(8,6,10,.55),rgba(8,6,10,.82)), url('https://images.unsplash.com/photo-1619229724165-4792c82a8305?w=1920&q=70&auto=format&fit=crop') center 30%/cover;
+  }
+  .hero-inner{padding:110px 32px 120px;}
+  .hero-grid{display:flex; flex-direction:column; align-items:center; text-align:center; max-width:640px; margin:0 auto;}
+  .hero h1{font-size:clamp(52px,7vw,96px); position:relative; color:#faf8f4;}
+  .hero h1 .accent{color:var(--purple); position:relative; z-index:2;}
+  .hero p{margin:18px auto 0; max-width:360px; color:#d8d5cf; font-size:15px; line-height:1.6;}
+  .hero-ctas{display:flex; gap:12px; margin-top:26px; flex-wrap:wrap; justify-content:center;}
+
+  /* MAKE MERCH SECTION */
+  .make-merch{padding:100px 0 60px; text-align:center; position:relative;}
+  .make-merch .display{font-size:clamp(34px,5.2vw,58px);}
+  .make-merch p{max-width:520px; margin:20px auto 0; color:var(--muted); font-size:15px; line-height:1.7;}
+  .floaters{position:relative; height:0;}
+  .floater{
+    position:absolute; border-radius:50%; overflow:hidden; border:3px solid var(--bg);
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+  .f1{width:78px; height:78px; top:-210px; left:calc(50% - 40px);}
+  .f2{width:96px; height:96px; top:-110px; left:calc(50% - 260px);}
+  .f3{width:110px; height:110px; top:-50px; left:calc(50% + 190px);}
+  .f4{width:70px; height:70px; top:60px; left:calc(50% + 260px);}
+  .make-merch .btn{margin-top:30px;}
+
+  /* LOGO STRIP */
+  .logos{
+    padding:44px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:24px;
+    overflow-x:auto;
+  }
+  .logos span{
+    font-family:'Anton',sans-serif; letter-spacing:.03em; font-size:19px; color:#84817c;
+    white-space:nowrap; flex:0 0 auto; text-transform:uppercase;
+  }
+
+  /* PHOTO ROW */
+  .photo-row{display:grid; grid-template-columns:repeat(6,1fr); gap:6px; padding:36px 0 0;}
+  .photo-row .ph{aspect-ratio:0.78/1; border-radius:999px;}
+
+  /* THE EXPERIENCE */
+  .section-title{padding:120px 0 0;}
+  .section-title .display{font-size:clamp(48px,9vw,110px); color:transparent; -webkit-text-stroke:1.5px var(--text);}
+  .section-title .display.filled{color:var(--text); -webkit-text-stroke:none; margin-top:-14px;}
+
+  .exp-row{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:18px; padding:48px 0 60px;
+  }
+  .exp-card{position:relative; border-radius:16px; overflow:visible; aspect-ratio:3/4;}
+  .exp-card .photo{position:absolute; inset:0; border-radius:16px; overflow:hidden;}
+  .exp-card .cap{
+    position:absolute; left:0; bottom:-0.28em; z-index:2; width:100%;
+    font-family:'Anton',sans-serif; font-size:clamp(30px,3.6vw,46px); color:var(--text);
+    text-transform:uppercase; letter-spacing:.01em; -webkit-text-stroke:2px var(--bg); paint-order:stroke fill;
+  }
+
+  /* PINK BANNER */
+  .promo{
+    margin-top:24px; border-radius:18px; overflow:hidden;
+    display:grid; grid-template-columns:1fr 1fr;
+    min-height:340px;
+  }
+  .promo-photo{position:relative;}
+  .promo-copy{
+    background:var(--pink); color:#1a0511;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:48px;
+  }
+  .promo-copy .display{font-size:clamp(28px,3.4vw,46px); line-height:0.98;}
+  .promo-copy p{margin-top:16px; max-width:320px; font-size:14px; line-height:1.6; opacity:.85; font-weight:600;}
+
+  .gen-btn-wrap{display:flex; justify-content:center; padding:40px 0;}
+
+  /* DESIGN CREATE CONNECT */
+  .dcc{padding:90px 0; display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center;}
+  .dcc .display{font-size:clamp(38px,5vw,64px);}
+  .dcc p{margin-top:18px; max-width:380px; color:var(--muted); font-size:15px; line-height:1.7;}
+  .dcc p b{color:var(--text);}
+  .dcc .btn{margin-top:24px;}
+  .tablet{
+    background:linear-gradient(160deg,#3a2f6e,#1a1330);
+    border-radius:28px; padding:14px; box-shadow:0 30px 60px rgba(0,0,0,.5);
+    border:1px solid rgba(255,255,255,.06);
+  }
+  .tablet-screen{
+    background:#0f0b22; border-radius:18px; padding:34px 26px 26px;
+  }
+  .tablet-screen .lbl{font-size:11px; letter-spacing:.14em; color:#c9c1ff; font-weight:700; margin-bottom:8px; text-transform:uppercase;}
+  .tablet-input{
+    background:#191234; border:1px solid #33285e; border-radius:10px;
+    padding:14px 16px; color:#8f86b8; font-size:13px; margin-bottom:18px;
+  }
+  .tablet-btn{
+    background:var(--orange); color:#2b1400; text-align:center; font-weight:800;
+    padding:13px; border-radius:10px; font-size:13px; margin-bottom:22px; letter-spacing:.04em;
+  }
+  .keyboard{display:grid; grid-template-columns:repeat(10,1fr); gap:5px;}
+  .keyboard div{background:#1e1740; height:22px; border-radius:4px;}
+
+  /* CUSTOMIZATION EXPERIENCES */
+  .custom-exp{padding:90px 0; display:grid; grid-template-columns:1fr 1.2fr; gap:40px; align-items:center;}
+  .custom-exp .display{font-size:clamp(36px,5vw,56px);}
+  .custom-exp p{margin-top:18px; max-width:360px; color:var(--muted); font-size:15px; line-height:1.7;}
+  .custom-exp .btn{margin-top:24px;}
+  .pills{position:relative; display:flex; flex-direction:column; gap:10px; padding:10px 10px 10px 60px; max-width:420px; margin:0 auto;}
+  .pill{
+    padding:14px 24px; border-radius:26px; font-weight:800; font-size:14px;
+    color:#0a0a0a; box-shadow:0 8px 18px rgba(0,0,0,.35);
+    border:2px solid rgba(10,10,10,0.5);
+    align-self:flex-start;
+    transform:rotate(var(--r,0deg)) translateX(var(--x,0px));
+    width:fit-content;
+  }
+  .pill:nth-child(1){background:var(--mint); --r:-4deg; --x:0px;}
+  .pill:nth-child(2){background:var(--pink); --r:3deg; --x:26px;}
+  .pill:nth-child(3){background:var(--orange); --r:-3deg; --x:8px;}
+  .pill:nth-child(4){background:var(--purple); color:#fff; --r:6deg; --x:70px;}
+  .pill:nth-child(5){background:#ff7a6b; --r:-5deg; --x:4px;}
+  .pill:nth-child(6){background:var(--yellow); --r:4deg; --x:60px;}
+  .pill:nth-child(7){background:#8ce65c; --r:-2deg; --x:-10px;}
+  .pill:nth-child(8){background:var(--blue); --r:3deg; --x:50px;}
+
+  /* CASE STUDIES */
+  .cases-grid{
+    display:grid; grid-template-columns:repeat(8,1fr); gap:4px; padding:48px 0 0;
+  }
+  .case-card{position:relative; border-radius:6px; overflow:hidden; aspect-ratio:0.62/1;}
+  .case-card::before{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0) 45%); z-index:1;
+  }
+  .case-card .meta{
+    position:absolute; left:10px; bottom:10px; right:10px; z-index:2;
+    font-size:10px; font-weight:700; letter-spacing:.04em; color:#e9e6df;
+  }
+  .case-card .meta small{display:block; color:#a9a5a0; font-weight:600; margin-top:2px;}
+
+  /* STACKED HEADLINE BANNER */
+  .stat-banner{
+    margin:110px 0 0; border-radius:22px; padding:56px 48px; overflow:hidden;
+    background:linear-gradient(rgba(10,10,10,.72),rgba(10,10,10,.82)), url('https://images.unsplash.com/photo-1572327918628-bf61496743ce?w=1600&q=70&auto=format&fit=crop') center/cover;
+  }
+  .stat-line{
+    display:flex; align-items:center; flex-wrap:wrap; gap:14px;
+    font-family:'Anton',sans-serif; text-transform:uppercase;
+    font-size:clamp(26px,4.6vw,52px); line-height:1.12; color:#faf8f4;
+  }
+  .stat-line .outline{color:transparent; -webkit-text-stroke:1.5px #faf8f4;}
+  .stat-line.outline{color:transparent; -webkit-text-stroke:1.5px #faf8f4;}
+  .arrow-pill{
+    background:var(--yellow); color:#141108; border-radius:999px;
+    padding:0.18em 0.5em; font-size:0.55em; display:inline-flex; gap:0.5em;
+    font-weight:800; align-items:center; align-self:center;
+  }
+  .gradient-pill{
+    width:3.2em; height:1.05em; border-radius:999px; align-self:center;
+    background:linear-gradient(120deg,#8fd9a8,#2f6b45,#c9d6c3);
+    opacity:.95;
+  }
+  .tape-pill{
+    width:4.6em; height:1.15em; border-radius:999px; align-self:center;
+    background:repeating-linear-gradient(100deg,#3fa9f5 0 10%,#ff4fa3 10% 20%,#8ee65c 20% 30%,#3fa9f5 30% 40%);
+    box-shadow:0 6px 14px rgba(0,0,0,.4);
+  }
+  .cta-pill-row{
+    margin-top:18px; background:var(--purple); border-radius:999px;
+    padding:14px 10px; overflow:hidden; align-self:center;
+  }
+  .cta-pill-track{display:flex; gap:28px; white-space:nowrap; animation:scroll 14s linear infinite;}
+  .cta-pill-track span{
+    font-family:'Archivo',sans-serif; font-weight:800; font-size:15px; color:#f5f3ef;
+    display:flex; align-items:center; gap:10px; text-transform:none;
+  }
+  @keyframes scroll{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+
+  /* TRENDING */
+  .trending-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:24px; padding:48px 0 0;}
+  .trend-card .ph{aspect-ratio:16/11; margin-bottom:16px;}
+  .trend-card .cat{font-size:11px; color:var(--muted); font-weight:700; letter-spacing:.06em; text-transform:uppercase;}
+  .trend-card h3{font-size:19px; margin-top:8px; line-height:1.3; font-weight:700;}
+  .trend-card .date{font-size:12px; color:#7c7974; margin-top:10px;}
+  .trend-card .read{
+    font-size:13px; font-weight:700; margin-top:14px; color:#1a1a1a; background:var(--cream);
+    display:inline-flex; gap:6px; align-items:center; padding:10px 16px; border-radius:10px;
+  }
+
+  /* JOIN / CTA STRIP */
+  .join{
+    margin-top:130px; position:relative;
+    display:flex; justify-content:center; gap:20px;
+    padding:50px 0 30px; flex-wrap:wrap;
+  }
+  .join-panel{
+    position:relative; width:340px; height:230px; border-radius:10px; overflow:hidden;
+    box-shadow:0 30px 50px rgba(0,0,0,.5);
+  }
+  .join-panel:first-child{transform:rotate(-4deg);}
+  .join-panel:last-child{transform:rotate(3deg); margin-top:40px;}
+  .ribbon{
+    position:absolute; left:-15%; width:130%; top:42%;
+    background:var(--yellow); color:#141108;
+    font-family:'Anton',sans-serif; text-transform:uppercase; font-size:15px;
+    padding:9px 0; text-align:center; transform:rotate(-8deg);
+    display:flex; justify-content:center; gap:10px; letter-spacing:.02em;
+    box-shadow:0 6px 14px rgba(0,0,0,.35);
+  }
+  .join-panel.right .ribbon{background:var(--mint); transform:rotate(7deg); color:#0a2b22;}
+
+  /* FOOTER */
+  footer{padding:80px 0 40px; margin-top:90px; border-top:1px solid var(--line);}
+  .footer-grid{display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:32px; align-items:start;}
+  .footer-col h4{font-size:14px; font-weight:700; margin-bottom:16px;}
+  .footer-col a{display:block; font-size:14px; margin-bottom:10px; color:#3a3733;}
+  .footer-col a:hover{color:var(--text);}
+  .footer-brand p{margin-top:14px; font-size:13px; color:var(--muted); max-width:260px; line-height:1.6;}
+  .footer-socials{display:flex; gap:10px; margin-top:18px;}
+  .footer-socials a{width:32px; height:32px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:12px;}
+  .footer-buttons{display:flex; flex-direction:column; gap:10px;}
+  .footer-buttons .btn{justify-content:center;}
+  .footer-buttons .btn-cta{background:var(--green); color:#0f2400;}
+  .footer-bottom{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:60px; padding-top:24px; border-top:1px solid var(--line);
+    font-size:12px; color:#7c7974; flex-wrap:wrap; gap:16px;
+  }
+  .socials{display:flex; gap:14px;}
+  .socials a{width:34px; height:34px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:13px;}
+
+  /* RESPONSIVE */
+  @media (max-width: 980px){
+    .nav-links{display:none;}
+    .exp-row{grid-template-columns:1fr 1fr;}
+    .photo-row{grid-template-columns:repeat(4,1fr);}
+    .promo{grid-template-columns:1fr;}
+    .dcc{grid-template-columns:1fr;}
+    .custom-exp{grid-template-columns:1fr;}
+    .cases-grid{grid-template-columns:repeat(3,1fr);}
+    .trending-grid{grid-template-columns:1fr;}
+    .join{grid-template-columns:1fr;}
+    .footer-grid{grid-template-columns:1fr 1fr; row-gap:36px;}
+  }
+  @media (max-width: 560px){
+    .wrap{padding:0 18px;}
+    .exp-row{grid-template-columns:1fr;}
+    .photo-row{grid-template-columns:repeat(3,1fr);}
+    .cases-grid{grid-template-columns:repeat(2,1fr);}
+    .footer-grid{grid-template-columns:1fr;}
+    .floater{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <a class="logo" href="https://www.instagram.com/rnbdancehalllovers/" target="_blank" rel="noopener"><span class="mark">R</span> RNB DANCEHALL LOVERS</a>
+    <nav class="nav-links">
+      <a href="#software">Platform</a>
+      <a href="#cases">Events</a>
+      <a href="#experience">Experiences</a>
+      <a href="#team">Artists</a>
+      <a href="#stories">Stories</a>
+    </nav>
+    <div class="nav-cta"><button class="btn btn-outline">Get Tickets</button></div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner wrap">
+    <div class="hero-grid">
+      <div>
+        <h1 class="display">SOUND<br>REDEFI<span class="accent">NED</span></h1>
+        <p>Our R&B and dancehall events transform every night into an unforgettable experience for artists, dancers, and fans.</p>
+        <div class="hero-ctas">
+          <button class="btn btn-primary">Get Tickets</button>
+          <button class="btn btn-outline">Explore Lineup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <!-- MAKE THE NIGHT THE EXPERIENCE -->
+  <section class="make-merch">
+    <div class="eyebrow">RNB Dancehall Lovers</div>
+    <div class="floaters">
+      <div class="floater f1 ph p1"></div>
+      <div class="floater f2 ph p3"></div>
+      <div class="floater f3 ph p2"></div>
+      <div class="floater f4 ph p4"></div>
+    </div>
+    <h2 class="display">MAKE THE NIGHT<br>THE EXPERIENCE</h2>
+    <p>We believe the strongest connections happen on the dance floor. Our R&B and dancehall events have organically connected the world's best sound systems and artists with thousands of fans at events across the globe.</p>
+    <button class="btn btn-outline">Learn More →</button>
+  </section>
+
+  <!-- LOGOS -->
+
+  <div class="logos">
+    <span>Spotify</span><span>Apple Music</span><span>TIDAL</span><span>SoundCloud</span>
+    <span>Ticketmaster</span><span>Live Nation</span><span>Red Bull</span><span>VEVO</span>
+    <span>Heineken</span><span>Bacardi</span><span>TikTok</span>
+  </div>
+
+  <!-- PHOTO ROW -->
+  <div class="photo-row">
+    <div class="ph p1" data-tag=""></div>
+    <div class="ph p2" data-tag=""></div>
+    <div class="ph p3" data-tag=""></div>
+    <div class="ph p4" data-tag=""></div>
+    <div class="ph p5" data-tag=""></div>
+    <div class="ph p6" data-tag=""></div>
+  </div>
+
+  <!-- THE EXPERIENCE -->
+  <section id="experience" class="section-title">
+    <div class="display">THE</div>
+    <div class="display filled">EXPERIENCE</div>
+
+    <div class="exp-row">
+      <div class="exp-card"><div class="photo ph p1" data-tag=""></div><span class="cap">Personal</span></div>
+      <div class="exp-card"><div class="photo ph p3" data-tag=""></div><span class="cap">Captivating</span></div>
+      <div class="exp-card"><div class="photo ph p2" data-tag=""></div><span class="cap">Engaging</span></div>
+    </div>
+
+    <div class="promo">
+      <div class="promo-photo ph p5" data-tag="Live Set"></div>
+      <div class="promo-copy">
+        <div class="display">ANY VIBE,<br><span style="color:#141108">ANY NIGHT.</span></div>
+        <p>Unleash infinite possibilities. Whether it's R&B slow jams or dancehall riddims, our lineups and sound are tailored to any crowd, any night. Let us find the perfect vibe to make your night unforgettable.</p>
+      </div>
+    </div>
+
+    <div class="gen-btn-wrap"><button class="btn btn-outline">See Upcoming Events</button></div>
+  </section>
+
+  <!-- BOOK VIBE CONNECT -->
+  <section class="dcc">
+    <div>
+      <h2 class="display">BOOK.<br>VIBE &<br>CONNECT.</h2>
+      <p>Discover the magic of our booking platform, the powerhouse behind every unforgettable night. Dive into a <b>personal</b> touch, an <b>immersive</b> journey, and forge a lasting <b>connection</b> between the artist and the crowd.</p>
+      <button class="btn btn-outline">See Our Platform →</button>
+    </div>
+    <div class="tablet">
+      <div class="tablet-screen">
+        <div class="lbl">Enter your first name</div>
+        <div class="tablet-input">First Name</div>
+        <div class="lbl">Pick your vibe</div>
+        <div class="tablet-input">R&B or Dancehall ▾</div>
+        <div class="tablet-btn">SUBMIT</div>
+        <div class="keyboard">
+          <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+          <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVENT EXPERIENCES -->
+  <section class="custom-exp">
+    <div>
+      <h2 class="display">EVENT<br>EXPERIENCES</h2>
+      <p>Don't settle for an ordinary night out. Make an impact with one of our signature R&B and dancehall event experiences. Watch as the crowd transforms into dancers, singers, and loyal fans.</p>
+      <button class="btn btn-outline">Learn More →</button>
+    </div>
+    <div class="pills">
+      <div class="pill">Live DJ Sets</div>
+      <div class="pill">Sound System Clash</div>
+      <div class="pill">VIP Lounge</div>
+      <div class="pill">Artist Meet & Greet</div>
+      <div class="pill">Dance Battles</div>
+      <div class="pill">Live Band</div>
+      <div class="pill">Photo Booth</div>
+      <div class="pill">Afterparty</div>
+    </div>
+  </section>
+
+  <!-- RECENT EVENTS -->
+  <section id="cases">
+    <div class="section-title" style="padding-top:60px;">
+      <div class="display">RECENT</div>
+      <div class="display filled">EVENTS</div>
+    </div>
+    <div class="cases-grid">
+      <div class="case-card ph p1"><div class="meta">Reggae Sumfest<small>Jamaica 2023</small></div></div>
+      <div class="case-card ph p2"><div class="meta">Wireless Festival<small>London 2023</small></div></div>
+      <div class="case-card ph p3"><div class="meta">Notting Hill Carnival<small>2023</small></div></div>
+      <div class="case-card ph p4"><div class="meta">Rolling Loud<small>Miami 2023</small></div></div>
+      <div class="case-card ph p5"><div class="meta">Afro Nation<small>Portugal 2023</small></div></div>
+      <div class="case-card ph p6"><div class="meta">Dancehall Takeover<small>NYC 2023</small></div></div>
+      <div class="case-card ph p1"><div class="meta">SOB's R&B Night<small>NYC 2023</small></div></div>
+      <div class="case-card ph p2"><div class="meta">Carnival Miami<small>2023</small></div></div>
+    </div>
+  </section>
+
+  <!-- STACKED HEADLINE BANNER -->
+  <div class="stat-banner">
+    <div class="stat-line">WORLDWIDE <span class="arrow-pill">→ → → → →</span> LIVE</div>
+    <div class="stat-line">R&B & DANCEHALL <span class="outline">EXPERTS</span> <span class="gradient-pill"></span></div>
+    <div class="stat-line"><span class="tape-pill"></span> UNFORGETTABLE NIGHTS</div>
+    <div class="stat-line outline">SINCE 2009</div>
+    <div class="cta-pill-row">
+      <div class="cta-pill-track">
+        <span>GET TICKETS →</span><span>GET TICKETS →</span><span>GET TICKETS →</span><span>GET TICKETS →</span>
+        <span>GET TICKETS →</span><span>GET TICKETS →</span><span>GET TICKETS →</span><span>GET TICKETS →</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRENDING -->
+  <section id="stories">
+    <div class="section-title">
+      <div class="display filled">WHAT'S</div>
+      <div class="display">TRENDING</div>
+    </div>
+    <div class="trending-grid">
+      <article class="trend-card">
+        <div class="ph p1" data-tag="Story"></div>
+        <div class="cat">Dancehall Culture</div>
+        <h3>Behind the Riddim: The Rise of Dancehall Sound Clashes</h3>
+        <div class="date">Aug 09, 2026</div>
+        <div class="read">Read more →</div>
+      </article>
+      <article class="trend-card">
+        <div class="ph p2" data-tag="Story"></div>
+        <div class="cat">R&B, Live Music</div>
+        <h3>Slow Jams Live: Why R&B Nights Are Back</h3>
+        <div class="date">Aug 02, 2026</div>
+        <div class="read">Read more →</div>
+      </article>
+      <article class="trend-card">
+        <div class="ph p3" data-tag="Story"></div>
+        <div class="cat">Events, Nightlife</div>
+        <h3>Carnival Season: The Ultimate Dancehall Event Guide</h3>
+        <div class="date">Jul 26, 2026</div>
+        <div class="read">Read more →</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- JOIN STRIP -->
+  <div class="join">
+    <div class="join-panel ph p4" data-tag="">
+      <div class="ribbon">JOIN US &nbsp;→&nbsp; BOOK YOUR NIGHT &nbsp;→&nbsp; JOIN US</div>
+    </div>
+    <div class="join-panel right ph p5" data-tag="">
+      <div class="ribbon">OUR EVENTS &nbsp;→&nbsp; SEE THE LINEUP</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-col footer-brand">
+        <div class="logo"><span class="mark">R</span> RNB DANCEHALL<br>LOVERS</div>
+        <div class="footer-socials">
+          <a href="#">f</a><a href="#">t</a><a href="https://www.instagram.com/rnbdancehalllovers/" target="_blank" rel="noopener">ig</a><a href="#">yt</a>
+        </div>
+        <p>RNB Dancehall Lovers Worldwide Headquarters: 2755 Fruitdale St., Los Angeles, CA 90039</p>
+      </div>
+      <div class="footer-col">
+        <h4>Events</h4>
+        <a href="#">Live DJ Sets</a>
+        <a href="#">R&B Nights</a>
+        <a href="#">Dancehall Sessions</a>
+        <a href="#">VIP Experiences</a>
+        <a href="#">Artist Bookings</a>
+        <a href="#">Private Events</a>
+      </div>
+      <div class="footer-col">
+        <h4>About</h4>
+        <a href="#">Our Story</a>
+        <a href="#">Blog</a>
+      </div>
+      <div class="footer-col">
+        <h4>Contact</h4>
+        <a href="#">RNB Dancehall Lovers</a>
+        <a href="#">323 227 1547</a>
+        <a href="#">Get In Touch</a>
+        <div class="footer-buttons" style="margin-top:14px;">
+          <a class="btn btn-cta" href="https://www.instagram.com/rnbdancehalllovers/" target="_blank" rel="noopener">@rnbdancehalllovers →</a>
+          <button class="btn btn-outline">Get Tickets →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
