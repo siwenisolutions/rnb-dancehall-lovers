@@ -143,10 +143,17 @@
   .hero-ctas{display:flex; gap:12px; margin-top:26px; flex-wrap:wrap; justify-content:center;}
 
   @media (max-width:980px){
-    .hero-inner{padding:180px 32px 100px;}
+    header{
+      position:sticky; top:0;
+      background:#faf8f4; border-bottom:1px solid var(--line);
+    }
+    .logo img{width:48px;}
+    .nav-links{color:#3a3733;}
+    .burger span{background:#3a3733;}
+    .hero-inner{padding:60px 32px 100px;}
   }
   @media (max-width:560px){
-    .hero-inner{padding:210px 24px 90px;}
+    .hero-inner{padding:50px 24px 90px;}
     .hero p{max-width:300px;}
     .hero-ctas{margin-top:28px;}
   }
@@ -407,6 +414,7 @@
     .wrap{padding:0 18px;}
     .footer-grid{grid-template-columns:1fr;}
     .floater{display:none;}
+    .make-merch{padding-top:60px;}
   }
 </style>
 </head>
