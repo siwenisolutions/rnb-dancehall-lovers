@@ -137,6 +137,7 @@
   }
   .hero-inner{padding:110px 32px 120px; position:relative; z-index:2;}
   .hero-grid{display:flex; flex-direction:column; align-items:center; text-align:center; max-width:640px; margin:0 auto;}
+  .hero-spacer{height:0; visibility:hidden;}
   .hero h1{font-size:clamp(52px,7vw,96px); position:relative; color:#faf8f4;}
   .hero h1 .accent{color:var(--purple); position:relative; z-index:2;}
   .hero p{margin:18px auto 0; max-width:360px; color:#d8d5cf; font-size:15px; line-height:1.6;}
@@ -151,18 +152,22 @@
     .nav-links{color:#3a3733;}
     .burger span{background:#3a3733;}
     .hero-inner{padding:60px 32px 100px;}
+    .hero-spacer{height:24px;}
   }
   @media (max-width:560px){
     .hero-inner{padding:50px 24px 90px;}
     .hero p{max-width:300px;}
     .hero-ctas{margin-top:28px;}
+    .hero-spacer{height:32px;}
   }
   @supports (-webkit-touch-callout: none){
     @media (max-width:980px){
       .hero-inner{padding-top:96px;}
+      .hero-spacer{height:40px;}
     }
     @media (max-width:560px){
       .hero-inner{padding-top:88px;}
+      .hero-spacer{height:48px;}
     }
   }
 
@@ -450,6 +455,7 @@
   <div class="hero-inner wrap">
     <div class="hero-grid">
       <div>
+        <div class="hero-spacer" aria-hidden="true"></div>
         <h1 class="display">SOUND<br>REDEFI<span class="accent">NED</span></h1>
         <p>Our R&B and dancehall events transform every night into an unforgettable experience for artists, dancers, and fans.</p>
         <div class="hero-ctas">
