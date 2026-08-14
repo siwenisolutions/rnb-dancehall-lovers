@@ -157,6 +157,14 @@
     .hero p{max-width:300px;}
     .hero-ctas{margin-top:28px;}
   }
+  @supports (-webkit-touch-callout: none){
+    @media (max-width:980px){
+      .hero-inner{padding-top:96px;}
+    }
+    @media (max-width:560px){
+      .hero-inner{padding-top:88px;}
+    }
+  }
 
   /* MAKE MERCH SECTION */
   .make-merch{padding:170px 0 60px; text-align:center; position:relative; overflow:hidden;}
