@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event — RNB Dancehall Lovers</title>
+<link rel="icon" href="/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="subpage">
+<header data-site class="is-scrolled"></header>
+
+<main class="wrap">
+  <section class="page-head">
+    <a class="back-link" href="/events">← All events</a>
+    <div id="detail"><p class="status-msg">Loading event…</p></div>
+  </section>
+  <section id="photosSection" hidden>
+    <h2 class="sub-title">Photos</h2>
+    <div class="gallery-grid" id="grid"></div>
+  </section>
+</main>
+
+<footer data-site></footer>
+
+<script src="/js/common.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.RNB, el = R.el;
+  var detail = document.getElementById('detail');
+  var id = location.pathname.split('/').filter(Boolean)[1];
+
+  R.api('/api/events/' + encodeURIComponent(id)).then(function (data) {
+    var ev = data.event;
+    document.title = ev.title + ' — RNB Dancehall Lovers';
+    var ticket = R.safeLink(ev.ticket_url);
+    var poster = ev.cover_media_id
+      ? el('div', { class: 'poster ph media', style: "background-image:url('" + R.mediaUrl(ev.cover_media_id) + "')", role: 'img', 'aria-label': ev.title + ' poster' })
+      : el('div', { class: 'poster ph', style: 'background:linear-gradient(135deg,#5b266c,#c11fd6)' });
+    detail.textContent = '';
+    detail.appendChild(el('div', { class: 'event-detail' }, [
+      poster,
+      el('div', null, [
+        el('span', { class: 'tag ' + (ev.is_upcoming ? 'up' : 'past'), text: ev.is_upcoming ? 'Upcoming' : 'Past event' }),
+        el('h1', { class: 'display', text: ev.title }),
+        el('div', { class: 'when', text: R.fmtLong(ev.starts_at) }),
+        ev.venue ? el('div', { class: 'venue', text: ev.venue }) : null,
+        ev.description ? el('div', { class: 'desc', text: ev.description }) : null,
+        ticket && ev.is_upcoming ? el('a', { class: 'btn btn-primary', href: ticket, target: '_blank', rel: 'noopener', text: 'Get Tickets →' }) : null
+      ])
+    ]));
+    if (data.photos.length) {
+      var grid = document.getElementById('grid');
+      data.photos.forEach(function (p, i) { grid.appendChild(R.galleryItem(data.photos, i)); });
+      document.getElementById('photosSection').hidden = false;
+    }
+  }).catch(function () {
+    detail.textContent = '';
+    detail.appendChild(el('div', { class: 'empty-state' }, [
+      el('b', { text: 'Event not found' }), 'It may have been removed. ',
+      el('a', { href: '/events', text: 'See all events', style: 'text-decoration:underline;' })
+    ]));
+  });
+})();
+</script>
+</body>
+</html>

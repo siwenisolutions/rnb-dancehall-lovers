@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery — RNB Dancehall Lovers</title>
+<meta name="description" content="Photos from RNB Dancehall Lovers events in Harare, Zimbabwe.">
+<link rel="icon" href="/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="subpage">
+<header data-site class="is-scrolled"></header>
+
+<main class="wrap">
+  <section class="page-head section-title" style="padding-top:140px;">
+    <a class="back-link" href="/">← Back to home</a>
+    <div class="display">PHOTO</div>
+    <div class="display filled">GALLERY</div>
+    <div class="tabs" role="group" aria-label="Filter photos">
+      <button type="button" data-cat="" aria-pressed="true">All photos</button>
+      <button type="button" data-cat="experience" aria-pressed="false">The Experience</button>
+      <button type="button" data-cat="event" aria-pressed="false">Event photos</button>
+      <button type="button" data-cat="gallery" aria-pressed="false">Highlights</button>
+    </div>
+  </section>
+
+  <div class="gallery-grid" id="grid" aria-live="polite"></div>
+  <p class="status-msg" id="status">Loading photos…</p>
+  <div class="load-more"><button class="btn btn-outline" id="more" hidden>Load more photos</button></div>
+</main>
+
+<footer data-site></footer>
+
+<script src="/js/common.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.RNB;
+  var grid = document.getElementById('grid');
+  var status = document.getElementById('status');
+  var more = document.getElementById('more');
+  var buttons = document.querySelectorAll('[data-cat]');
+  var PAGE = 40, items = [], category = '', request = 0;
+
+  function load(reset) {
+    var mine = ++request;
+    if (reset) { items = []; grid.textContent = ''; status.hidden = false; status.textContent = 'Loading photos…'; }
+    more.hidden = true;
+    var url = '/api/photos?limit=' + PAGE + '&offset=' + items.length + (category ? '&category=' + category : '');
+    R.api(url).then(function (data) {
+      if (mine !== request) return; // a newer filter was picked meanwhile
+      var start = items.length;
+      items = items.concat(data.photos);
+      for (var i = start; i < items.length; i++) grid.appendChild(R.galleryItem(items, i));
+      status.hidden = items.length > 0;
+      status.textContent = 'No photos here yet.';
+      more.hidden = !data.more;
+    }).catch(function () {
+      status.hidden = false;
+      status.textContent = 'Could not load photos. Please refresh the page.';
+    });
+  }
+
+  function select(cat) {
+    category = ['experience', 'event', 'gallery'].indexOf(cat) >= 0 ? cat : '';
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.cat === category ? 'true' : 'false'); });
+    var url = new URL(location.href);
+    if (category) url.searchParams.set('category', category); else url.searchParams.delete('category');
+    history.replaceState(null, '', url);
+    load(true);
+  }
+
+  buttons.forEach(function (b) { b.addEventListener('click', function () { select(b.dataset.cat); }); });
+  more.addEventListener('click', function () { load(false); });
+  select(new URLSearchParams(location.search).get('category') || '');
+})();
+</script>
+</body>
+</html>

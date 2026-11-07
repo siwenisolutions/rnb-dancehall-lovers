@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Website Admin — RNB Dancehall Lovers</title>
+<link rel="icon" href="/img/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f5f4f1;--card:#fff;--line:#e2e0db;--text:#141210;--muted:#68655f;--green:#aaff5f;--purple:#c11fd6;--red:#d93a3a;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;-webkit-font-smoothing:antialiased;}
+  img{display:block;max-width:100%;}
+  a{color:inherit;}
+  [hidden]{display:none !important;}
+  .display{font-family:'Anton',sans-serif;text-transform:uppercase;letter-spacing:.01em;}
+  .top{background:#141210;color:#fff;}
+  .top-inner{max-width:1100px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;}
+  .top img{width:44px;}
+  .top .brand{display:flex;align-items:center;gap:12px;font-weight:800;}
+  .top a,.top button{color:#fff;font-size:14px;font-weight:700;}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px 16px 80px;}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
+  .tabs button{border:1px solid var(--line);background:#fff;padding:11px 18px;border-radius:999px;font:700 15px 'Archivo',sans-serif;cursor:pointer;}
+  .tabs button[aria-selected="true"]{background:#141210;color:#fff;border-color:#141210;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:20px;}
+  .card h2{font-size:20px;margin-bottom:6px;}
+  .card .hint{color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:16px;}
+  label{display:block;font-weight:700;font-size:14px;margin:14px 0 6px;}
+  label small{font-weight:500;color:var(--muted);}
+  input[type=text],input[type=url],input[type=email],input[type=tel],input[type=password],input[type=datetime-local],textarea,select{
+    width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:16px 'Archivo',sans-serif;background:#fff;color:var(--text);
+  }
+  textarea{min-height:110px;resize:vertical;}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--purple);outline-offset:1px;}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border-radius:12px;border:none;cursor:pointer;font:700 15px 'Archivo',sans-serif;text-decoration:none;}
+  .btn-primary{background:var(--green);color:#0f2400;}
+  .btn-dark{background:#141210;color:#fff;}
+  .btn-light{background:#efece6;color:#1a1a1a;}
+  .btn-danger{background:#fff;color:var(--red);border:1px solid #f0c9c9;}
+  .btn-sm{padding:8px 12px;font-size:13px;border-radius:9px;}
+  .btn[disabled]{opacity:.55;cursor:wait;}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center;}
+  .msg{padding:12px 14px;border-radius:10px;font-size:14px;font-weight:600;margin-top:14px;}
+  .msg.ok{background:#e9ffd6;color:#1d4a00;}
+  .msg.err{background:#ffe3e3;color:#7a1414;}
+  .login{max-width:400px;margin:10vh auto;padding:0 16px;}
+  .login .card{padding:30px;}
+  .login .display{font-size:34px;margin:14px 0 4px;}
+  .ev-list{display:flex;flex-direction:column;gap:10px;}
+  .ev{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;}
+  .ev .thumb{width:64px;height:80px;border-radius:8px;background:#ddd center/cover;flex:0 0 auto;}
+  .ev .info{flex:1;min-width:0;}
+  .ev .info b{display:block;font-size:16px;}
+  .ev .info span{display:block;color:var(--muted);font-size:13px;margin-top:3px;}
+  .ev .btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  .pill{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:999px;margin-left:6px;vertical-align:middle;}
+  .pill.up{background:var(--green);color:#0f2400;}
+  .pill.past{background:#efece6;color:#3a3733;}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:16px;}
+  .ph{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;display:flex;flex-direction:column;}
+  .ph img{width:100%;aspect-ratio:1;object-fit:cover;}
+  .ph .p-body{padding:8px;display:flex;flex-direction:column;gap:6px;}
+  .ph input{padding:7px 9px;font-size:13px;}
+  .ph .p-btns{display:flex;gap:6px;flex-wrap:wrap;}
+  .badge{font-size:11px;font-weight:800;color:#0f2400;background:var(--green);padding:3px 7px;border-radius:999px;align-self:flex-start;}
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;background:#faf9f7;}
+  .drop input{margin-top:8px;max-width:100%;}
+  .subhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .empty{color:var(--muted);font-size:14px;padding:12px 0;}
+  @media (max-width:640px){
+    .row{grid-template-columns:1fr;}
+    .ev{flex-wrap:wrap;}
+    .ev .btns{width:100%;justify-content:flex-start;}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginView" hidden>
+  <div class="card">
+    <img src="/img/logo.png" alt="" width="70">
+    <div class="display">Website admin</div>
+    <p class="hint" style="color:var(--muted)">Log in to update events, photos and contact details.</p>
+    <form id="loginForm">
+      <label for="password">Password</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+      <div class="actions"><button class="btn btn-dark" type="submit">Log in</button></div>
+      <div class="msg err" id="loginMsg" hidden></div>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appView" hidden>
+  <div class="top">
+    <div class="top-inner">
+      <div class="brand"><img src="/img/logo.png" alt="">Website admin</div>
+      <div style="display:flex;gap:18px;align-items:center;">
+        <a href="/" target="_blank" rel="noopener">View website ↗</a>
+        <button class="btn-link" id="logoutBtn" style="background:none;border:none;cursor:pointer;">Log out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="events" aria-selected="true">Events</button>
+      <button role="tab" data-tab="photos" aria-selected="false">Photos</button>
+      <button role="tab" data-tab="details" aria-selected="false">Website details</button>
+    </div>
+
+    <!-- EVENTS TAB -->
+    <section data-panel="events">
+      <div class="card" id="eventFormCard">
+        <h2 id="eventFormTitle">Add an event</h2>
+        <p class="hint">Upcoming events show on the home page automatically. Once the date has passed, they move to "Recent events".</p>
+        <form id="eventForm">
+          <input type="hidden" id="evId">
+          <label for="evTitle">Event name</label>
+          <input type="text" id="evTitle" maxlength="200" required placeholder="e.g. Old Is The New Vibe">
+          <div class="row">
+            <div>
+              <label for="evStart">Date &amp; start time <small>(Zimbabwe time)</small></label>
+              <input type="datetime-local" id="evStart" required>
+            </div>
+            <div>
+              <label for="evVenue">Venue</label>
+              <input type="text" id="evVenue" maxlength="200" placeholder="e.g. Bakerloo Bar, Harare">
+            </div>
+          </div>
+          <label for="evTicket">Ticket link <small>(optional — e.g. your Megaticket page)</small></label>
+          <input type="url" id="evTicket" placeholder="https://">
+          <label for="evDesc">Description <small>(optional — lineup, dress code, prices…)</small></label>
+          <textarea id="evDesc" maxlength="5000"></textarea>
+          <label for="evPoster" id="evPosterLabel">Poster / cover photo <small>(optional)</small></label>
+          <input type="file" id="evPoster" accept="image/*">
+          <div class="actions">
+            <button class="btn btn-primary" type="submit" id="evSubmit">Save event</button>
+            <button class="btn btn-light" type="button" id="evCancel" hidden>Cancel editing</button>
+          </div>
+          <div class="msg" id="evMsg" hidden></div>
+        </form>
+      </div>
+
+      <div class="card" id="eventPhotosCard" hidden>
+        <div class="subhead">
+          <h2 id="eventPhotosTitle">Event photos</h2>
+          <button class="btn btn-light btn-sm" type="button" id="closeEventPhotos">Done</button>
+        </div>
+        <p class="hint">Add photos from this event. They appear on the event page and in the gallery. Pick one as the cover.</p>
+        <div class="drop">
+          <b>Add photos</b> <span style="color:var(--muted);font-size:13px;">(up to 20 at a time)</span><br>
+          <input type="file" id="evPhotosInput" accept="image/*" multiple>
+          <div class="actions" style="justify-content:center;margin-top:10px;"><button class="btn btn-primary btn-sm" id="evPhotosUpload" type="button">Upload</button></div>
+        </div>
+        <div class="msg" id="evPhotosMsg" hidden></div>
+        <div class="photo-grid" id="eventPhotoGrid"></div>
+      </div>
+
+      <div class="card">
+        <h2>Your events</h2>
+        <div class="ev-list" id="eventList"><p class="empty">Loading…</p></div>
+      </div>
+    </section>
+
+    <!-- PHOTOS TAB -->
+    <section data-panel="photos" hidden>
+      <div class="card">
+        <h2>Upload photos</h2>
+        <p class="hint">"The Experience" photos show on the home page (newest 3) and in the gallery. "Highlights" only show in the gallery. For photos from a specific event, use <b>Events → Photos</b> instead.</p>
+        <form id="photoForm">
+          <div class="row">
+            <div>
+              <label for="photoCat">Where should they go?</label>
+              <select id="photoCat">
+                <option value="experience">The Experience (home page + gallery)</option>
+                <option value="gallery">Highlights (gallery only)</option>
+              </select>
+            </div>
+            <div>
+              <label for="photoCaption">Caption <small>(optional, short)</small></label>
+              <input type="text" id="photoCaption" maxlength="200" placeholder="e.g. Personal">
+            </div>
+          </div>
+          <label for="photoFiles">Photos <small>(up to 20 at a time)</small></label>
+          <input type="file" id="photoFiles" accept="image/*" multiple required>
+          <div class="actions"><button class="btn btn-primary" type="submit" id="photoSubmit">Upload photos</button></div>
+          <div class="msg" id="photoMsg" hidden></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="subhead">
+          <h2>All photos</h2>
+          <select id="photoFilter" style="width:auto;">
+            <option value="">All</option>
+            <option value="experience">The Experience</option>
+            <option value="gallery">Highlights</option>
+            <option value="event">Event photos</option>
+          </select>
+        </div>
+        <div class="photo-grid" id="photoGrid"></div>
+        <div class="actions" style="justify-content:center;"><button class="btn btn-light" id="photoMore" type="button" hidden>Load more</button></div>
+      </div>
+    </section>
+
+    <!-- DETAILS TAB -->
+    <section data-panel="details" hidden>
+      <form class="card" id="settingsForm">
+        <h2>Website details</h2>
+        <p class="hint">These appear on the home page and in the footer of every page.</p>
+        <label for="s_hero_text">Home page tagline <small>(under "Sound Redefined")</small></label>
+        <textarea id="s_hero_text" name="hero_text" maxlength="2000" style="min-height:80px;"></textarea>
+        <label for="s_about_text">About us <small>("Make the night the experience" section)</small></label>
+        <textarea id="s_about_text" name="about_text" maxlength="2000"></textarea>
+        <div class="row">
+          <div><label for="s_contact_email">Email</label><input type="email" id="s_contact_email" name="contact_email"></div>
+          <div><label for="s_phone">Phone</label><input type="tel" id="s_phone" name="phone"></div>
+        </div>
+        <label for="s_address">Address</label>
+        <input type="text" id="s_address" name="address" maxlength="300">
+        <h2 style="margin-top:26px;">Social media <small style="font-weight:500;color:var(--muted);font-size:14px;">(leave blank to hide)</small></h2>
+        <div class="row">
+          <div><label for="s_instagram_url">Instagram link</label><input type="url" id="s_instagram_url" name="instagram_url" placeholder="https://"></div>
+          <div><label for="s_facebook_url">Facebook link</label><input type="url" id="s_facebook_url" name="facebook_url" placeholder="https://"></div>
+          <div><label for="s_tiktok_url">TikTok link</label><input type="url" id="s_tiktok_url" name="tiktok_url" placeholder="https://"></div>
+          <div><label for="s_youtube_url">YouTube link</label><input type="url" id="s_youtube_url" name="youtube_url" placeholder="https://"></div>
+        </div>
+        <h2 style="margin-top:26px;">Ticket buttons in the footer <small style="font-weight:500;color:var(--muted);font-size:14px;">(leave link blank to hide)</small></h2>
+        <div class="row">
+          <div><label for="s_ticket1_label">Button 1 text</label><input type="text" id="s_ticket1_label" name="ticket1_label" maxlength="60"></div>
+          <div><label for="s_ticket1_url">Button 1 link</label><input type="url" id="s_ticket1_url" name="ticket1_url" placeholder="https://"></div>
+          <div><label for="s_ticket2_label">Button 2 text</label><input type="text" id="s_ticket2_label" name="ticket2_label" maxlength="60"></div>
+          <div><label for="s_ticket2_url">Button 2 link</label><input type="url" id="s_ticket2_url" name="ticket2_url" placeholder="https://"></div>
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit" id="settingsSubmit">Save details</button></div>
+        <div class="msg" id="settingsMsg" hidden></div>
+      </form>
+    </section>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>

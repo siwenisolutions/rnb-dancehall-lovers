@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events — RNB Dancehall Lovers</title>
+<meta name="description" content="Upcoming and past R&B and dancehall events by RNB Dancehall Lovers in Harare, Zimbabwe.">
+<link rel="icon" href="/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="subpage">
+<header data-site class="is-scrolled"></header>
+
+<main class="wrap">
+  <section class="page-head section-title" style="padding-top:140px;">
+    <a class="back-link" href="/">← Back to home</a>
+    <div class="display">ALL</div>
+    <div class="display filled">EVENTS</div>
+    <div class="tabs" role="group" aria-label="Filter events">
+      <button type="button" data-tab="upcoming" aria-pressed="true">Upcoming</button>
+      <button type="button" data-tab="past" aria-pressed="false">Past events</button>
+    </div>
+  </section>
+
+  <section id="upcoming">
+    <h2 class="sub-title">Upcoming</h2>
+    <div class="event-grid" id="upcomingList"><p class="status-msg">Loading events…</p></div>
+  </section>
+
+  <section id="past">
+    <h2 class="sub-title">Past events</h2>
+    <div class="event-grid" id="pastList"><p class="status-msg">Loading events…</p></div>
+  </section>
+</main>
+
+<footer data-site></footer>
+
+<script src="/js/common.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.RNB, el = R.el;
+  var sections = { upcoming: document.getElementById('upcoming'), past: document.getElementById('past') };
+  var buttons = document.querySelectorAll('[data-tab]');
+
+  function show(tab) {
+    if (!sections[tab]) tab = 'upcoming';
+    Object.keys(sections).forEach(function (k) { sections[k].hidden = k !== tab; });
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.tab === tab ? 'true' : 'false'); });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { history.replaceState(null, '', '#' + b.dataset.tab); show(b.dataset.tab); });
+  });
+  show(location.hash.slice(1));
+  window.addEventListener('hashchange', function () { show(location.hash.slice(1)); });
+
+  function fill(list, events, emptyText) {
+    list.textContent = '';
+    if (!events.length) {
+      list.appendChild(el('div', { class: 'empty-state', style: 'grid-column:1/-1; margin-top:0;' }, [el('b', { text: emptyText })]));
+      return;
+    }
+    events.forEach(function (ev) { list.appendChild(R.eventCard(ev)); });
+  }
+
+  R.api('/api/events').then(function (data) {
+    fill(document.getElementById('upcomingList'), data.upcoming, 'No upcoming events yet. New dates coming soon.');
+    fill(document.getElementById('pastList'), data.past, 'No past events added yet.');
+  }).catch(function () {
+    ['upcomingList', 'pastList'].forEach(function (id) {
+      document.getElementById(id).textContent = 'Could not load events. Please refresh the page.';
+    });
+  });
+})();
+</script>
+</body>
+</html>
