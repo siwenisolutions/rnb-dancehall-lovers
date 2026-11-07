@@ -1,5 +1,6 @@
 'use strict';
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
@@ -475,11 +476,48 @@ app.use('/api/admin', admin);
 // ---------- pages & static files ----------
 
 const PUBLIC = path.join(__dirname, 'public');
-app.get('/admin', (req, res) => res.sendFile(path.join(PUBLIC, 'admin.html')));
-app.get('/events', (req, res) => res.sendFile(path.join(PUBLIC, 'events.html')));
-app.get('/events/:id', (req, res) => res.sendFile(path.join(PUBLIC, 'event.html')));
-app.get('/gallery', (req, res) => res.sendFile(path.join(PUBLIC, 'gallery.html')));
-app.use(express.static(PUBLIC, { extensions: ['html'], maxAge: '1h' }));
+
+// Pages are sent with "?v=<content hash>" on their CSS/JS links, so a browser
+// never pairs a new page with an old cached stylesheet or script.
+const ASSET_LINK = /(href|src)="(\/(?:css|js)\/[^"?]+)"/g;
+const assetVersions = new Map();
+const pageCache = new Map();
+function assetVersion(urlPath) {
+  if (!assetVersions.has(urlPath) || !IS_PROD) {
+    let v = '0';
+    try {
+      v = crypto.createHash('md5').update(fs.readFileSync(path.join(PUBLIC, urlPath))).digest('hex').slice(0, 10);
+    } catch { /* missing file: leave unversioned */ }
+    assetVersions.set(urlPath, v);
+  }
+  return assetVersions.get(urlPath);
+}
+function sendPage(res, file, status = 200) {
+  let html = IS_PROD && pageCache.get(file);
+  if (!html) {
+    html = fs.readFileSync(path.join(PUBLIC, file), 'utf8')
+      .replace(ASSET_LINK, (m, attr, p) => `${attr}="${p}?v=${assetVersion(p)}"`);
+    if (IS_PROD) pageCache.set(file, html);
+  }
+  res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
+}
+
+const PAGES = {
+  '/': 'index.html', '/index.html': 'index.html',
+  '/admin': 'admin.html', '/events': 'events.html', '/gallery': 'gallery.html',
+  '/events.html': 'events.html', '/gallery.html': 'gallery.html', '/admin.html': 'admin.html', '/event.html': 'event.html',
+};
+for (const [route, file] of Object.entries(PAGES)) app.get(route, (req, res) => sendPage(res, file));
+app.get('/events/:id', (req, res) => sendPage(res, 'event.html'));
+// Photos rarely change; CSS/JS are versioned by the pages and revalidated otherwise.
+app.use(express.static(PUBLIC, {
+  index: false,
+  setHeaders(res, filePath) {
+    if (filePath.includes(`${path.sep}img${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=86400');
+    else if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+    else res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  },
+}));
 
 app.use((req, res, next) => next(httpError(404, 'Not found.')));
 
@@ -498,7 +536,7 @@ app.use((err, req, res, next) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/media/')) {
     return res.status(status).json({ error: message });
   }
-  res.status(status).sendFile(path.join(PUBLIC, '404.html'));
+  sendPage(res, '404.html', status);
 });
 
 if (require.main === module) {

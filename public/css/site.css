@@ -551,3 +551,21 @@ section[id]{scroll-margin-top:90px;}
   .ticket-grid{grid-template-columns:1fr;}
   .tickets{padding-top:80px;}
 }
+
+/* Join panels: moving ribbons and a clear call to action */
+.join-panel{cursor:pointer;}
+.join-panel:hover{scale:1.03;}
+.join-panel .ribbon{overflow:hidden; justify-content:flex-start; gap:0;}
+.ribbon-track{display:flex; gap:22px; width:max-content; white-space:nowrap; animation:scroll 14s linear infinite;}
+.join-panel.right .ribbon-track{animation-direction:reverse;}
+.join-cta{
+  position:absolute; right:14px; bottom:14px; z-index:2;
+  background:#fff; color:#141210; font-weight:800; font-size:13px;
+  padding:9px 15px; border-radius:999px; box-shadow:0 6px 16px rgba(0,0,0,.3);
+  transition:background .2s ease;
+}
+.join-panel:hover .join-cta{background:var(--green); color:#0f2400;}
+.floater{will-change:translate;}
+@media (prefers-reduced-motion: reduce){
+  .ribbon-track,.photo-track,.cta-pill-track{animation:none;}
+}
