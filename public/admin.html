@@ -259,14 +259,41 @@
             <label for="s_tiktok_url">TikTok</label><input type="url" id="s_tiktok_url" name="tiktok_url" placeholder="https://">
             <label for="s_youtube_url">YouTube</label><input type="url" id="s_youtube_url" name="youtube_url" placeholder="https://">
           </div>
-          <div class="card">
-            <h3>Footer ticket buttons <small class="muted">(blank link = hidden)</small></h3>
-            <div class="two">
-              <div><label for="s_ticket1_label">Button 1 text</label><input type="text" id="s_ticket1_label" name="ticket1_label" maxlength="60"></div>
-              <div><label for="s_ticket1_url">Button 1 link</label><input type="url" id="s_ticket1_url" name="ticket1_url" placeholder="https://"></div>
-              <div><label for="s_ticket2_label">Button 2 text</label><input type="text" id="s_ticket2_label" name="ticket2_label" maxlength="60"></div>
-              <div><label for="s_ticket2_url">Button 2 link</label><input type="url" id="s_ticket2_url" name="ticket2_url" placeholder="https://"></div>
+          <div class="card span-2">
+            <h3>Tickets on sale <small class="muted">(cards on the home page and buttons in the footer)</small></h3>
+            <div class="ticket-edit">
+              <label class="ticket-thumb-pick" for="t1Image" title="Change thumbnail">
+                <span class="ticket-thumb-img" id="t1Preview" style="background-image:url('/img/p6.jpg')"></span>
+                <span class="ticket-thumb-btn" id="t1ImageBtn">Change thumbnail</span>
+                <input type="file" id="t1Image" accept="image/*" data-ticket-image="1">
+              </label>
+              <div class="ticket-fields">
+                <b class="ticket-label">Ticket card 1</b>
+                <div class="two">
+                  <div><label for="s_ticket1_title">Event name</label><input type="text" id="s_ticket1_title" name="ticket1_title" maxlength="120"></div>
+                  <div><label for="s_ticket1_subtitle">Location · platform</label><input type="text" id="s_ticket1_subtitle" name="ticket1_subtitle" maxlength="120" placeholder="e.g. Zimbabwe · Megaticket"></div>
+                  <div><label for="s_ticket1_label">Button text</label><input type="text" id="s_ticket1_label" name="ticket1_label" maxlength="60"></div>
+                  <div><label for="s_ticket1_url">Ticket link <small>(blank = hide card)</small></label><input type="url" id="s_ticket1_url" name="ticket1_url" placeholder="https://"></div>
+                </div>
+              </div>
             </div>
+            <div class="ticket-edit">
+              <label class="ticket-thumb-pick" for="t2Image" title="Change thumbnail">
+                <span class="ticket-thumb-img" id="t2Preview" style="background-image:url('/img/p5.jpg')"></span>
+                <span class="ticket-thumb-btn" id="t2ImageBtn">Change thumbnail</span>
+                <input type="file" id="t2Image" accept="image/*" data-ticket-image="2">
+              </label>
+              <div class="ticket-fields">
+                <b class="ticket-label">Ticket card 2</b>
+                <div class="two">
+                  <div><label for="s_ticket2_title">Event name</label><input type="text" id="s_ticket2_title" name="ticket2_title" maxlength="120"></div>
+                  <div><label for="s_ticket2_subtitle">Location · platform</label><input type="text" id="s_ticket2_subtitle" name="ticket2_subtitle" maxlength="120" placeholder="e.g. South Africa · Sahwigate"></div>
+                  <div><label for="s_ticket2_label">Button text</label><input type="text" id="s_ticket2_label" name="ticket2_label" maxlength="60"></div>
+                  <div><label for="s_ticket2_url">Ticket link <small>(blank = hide card)</small></label><input type="url" id="s_ticket2_url" name="ticket2_url" placeholder="https://"></div>
+                </div>
+              </div>
+            </div>
+            <div class="msg" id="ticketMsg" hidden></div>
           </div>
         </div>
       </form>

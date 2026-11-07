@@ -12,7 +12,8 @@ const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const SESSION_HOURS = 12;
 const COOKIE = 'rnb_admin';
-const EDITABLE_SETTINGS = Object.keys(SETTING_DEFAULTS);
+// *_image settings are media ids, changed only through the thumbnail upload endpoint.
+const EDITABLE_SETTINGS = Object.keys(SETTING_DEFAULTS).filter((k) => !k.endsWith('_image'));
 const CATEGORIES = ['experience', 'gallery', 'event'];
 // Event times are entered and shown in Zimbabwe time (CAT, UTC+2, no DST).
 const ZW_OFFSET = '+02:00';
@@ -237,7 +238,7 @@ app.get('/api/photos', wrap(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 1), 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   const params = [limit + 1, offset];
-  let where = '';
+  let where = "WHERE m.category <> 'site'";
   if (category) {
     if (!CATEGORIES.includes(category)) throw httpError(400, 'Unknown category.');
     params.push(category);
@@ -297,10 +298,10 @@ admin.get('/stats', wrap(async (req, res) => {
     SELECT
       (SELECT count(*)::int FROM events e WHERE ${UPCOMING}) AS upcoming,
       (SELECT count(*)::int FROM events e WHERE NOT (${UPCOMING})) AS past,
-      (SELECT count(*)::int FROM media) AS photos,
+      (SELECT count(*)::int FROM media WHERE category <> 'site') AS photos,
       (SELECT count(*)::int FROM media WHERE category = 'experience') AS experience,
       (SELECT count(*)::int FROM media WHERE category = 'event') AS event_photos,
-      (SELECT count(*)::int FROM media WHERE created_at > now() - interval '30 days') AS photos_30d,
+      (SELECT count(*)::int FROM media WHERE category <> 'site' AND created_at > now() - interval '30 days') AS photos_30d,
       pg_database_size(current_database())::bigint AS db_bytes`);
   const s = rows[0];
   res.json({ ...s, db_bytes: Number(s.db_bytes), storage_limit_bytes: STORAGE_LIMIT_BYTES });
@@ -409,6 +410,40 @@ admin.post('/photos', upload.array('photos', 20), wrap(async (req, res) => {
   res.status(201).json({ ids });
 }));
 
+// Thumbnail for ticket card 1 or 2. Replaces (and deletes) the previous one.
+admin.post('/ticket-image/:n', upload.single('photo'), wrap(async (req, res) => {
+  const n = req.params.n;
+  if (n !== '1' && n !== '2') throw httpError(404, 'Not found.');
+  if (!req.file) throw httpError(400, 'Choose a photo.');
+  const img = await processImage(req.file.buffer);
+  const key = `ticket${n}_image`;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb)
+       VALUES ('site', NULL, $1, $2, $3, $4, $5, $6) RETURNING id`,
+      [`Ticket card ${n}`, img.mime, img.width, img.height, img.data, img.thumb]
+    );
+    const old = await client.query('SELECT value FROM settings WHERE key = $1', [key]);
+    await client.query(
+      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+      [key, String(rows[0].id)]
+    );
+    const oldId = Number(old.rows[0] && old.rows[0].value);
+    if (Number.isInteger(oldId) && oldId > 0) {
+      await client.query("DELETE FROM media WHERE id = $1 AND category = 'site'", [oldId]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}));
+
 admin.put('/photos/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   const caption = cleanText((req.body || {}).caption, 200, 'Caption');
@@ -430,7 +465,7 @@ admin.post('/events/:id/cover', wrap(async (req, res) => {
 
 admin.delete('/photos/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
-  const r = await pool.query('DELETE FROM media WHERE id = $1', [id]);
+  const r = await pool.query("DELETE FROM media WHERE id = $1 AND category <> 'site'", [id]);
   if (r.rowCount === 0) throw httpError(404, 'Photo not found.');
   res.json({ ok: true });
 }));

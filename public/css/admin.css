@@ -278,3 +278,15 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 /* Closed drawers are fully hidden (not focusable, no layout effect). */
 .drawer{visibility:hidden; transition:transform .25s ease, visibility 0s linear .25s;}
 .drawer.open{visibility:visible; transition:transform .25s ease;}
+
+/* Ticket cards editor */
+.span-2{grid-column:1/-1;}
+.ticket-edit{display:grid; grid-template-columns:260px 1fr; gap:20px; align-items:start; padding-top:18px; border-top:1px solid var(--line); margin-top:16px;}
+.ticket-label{display:block; font-size:15px;}
+.ticket-thumb-pick{position:relative; display:block; margin:0; border-radius:16px; overflow:hidden; cursor:pointer; aspect-ratio:16/9; background:#e7e5e0;}
+.ticket-thumb-img{position:absolute; inset:0; background:center/cover;}
+.ticket-thumb-btn{position:absolute; left:10px; bottom:10px; background:rgba(20,18,16,.78); color:#fff; font-size:12px; font-weight:700; padding:6px 12px; border-radius:999px;}
+.ticket-thumb-pick:hover .ticket-thumb-btn{background:var(--text);}
+.ticket-thumb-pick input{position:absolute; width:1px; height:1px; opacity:0;}
+.ticket-thumb-pick:focus-within{outline:2px solid var(--purple); outline-offset:2px;}
+@media (max-width:720px){ .ticket-edit{grid-template-columns:1fr;} }

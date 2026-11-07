@@ -556,11 +556,35 @@
 
   // ---------- website details ----------
   var settingsForm = $('settingsForm');
+  var TICKET_FALLBACK = { 1: '/img/p6.jpg', 2: '/img/p5.jpg' };
   function fillSettings() {
     Array.prototype.forEach.call(settingsForm.elements, function (input) {
       if (input.name && input.name in settings && document.activeElement !== input) input.value = settings[input.name];
     });
+    [1, 2].forEach(function (n) {
+      var id = settings['ticket' + n + '_image'];
+      $('t' + n + 'Preview').style.backgroundImage = "url('" + (id ? media(id, true) : TICKET_FALLBACK[n]) + "')";
+    });
   }
+
+  // Ticket card thumbnails upload straight away (no need to press Save).
+  $$('[data-ticket-image]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      var n = input.dataset.ticketImage;
+      var file = input.files[0];
+      if (!file) return;
+      var btn = $('t' + n + 'ImageBtn');
+      btn.textContent = 'Uploading…';
+      var fd = new FormData();
+      fd.append('photo', file);
+      call('POST', '/api/admin/ticket-image/' + n, fd).then(function (r) {
+        settings['ticket' + n + '_image'] = String(r.id);
+        $('t' + n + 'Preview').style.backgroundImage = "url('" + media(r.id, true) + "')";
+        toast('Ticket card ' + n + ' thumbnail updated');
+      }).catch(function (err) { say($('ticketMsg'), err.message, false); })
+        .then(function () { btn.textContent = 'Change thumbnail'; input.value = ''; });
+    });
+  });
   settingsForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var body = {};

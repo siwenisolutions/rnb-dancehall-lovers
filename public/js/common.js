@@ -69,7 +69,7 @@
   function renderHeader() {
     var header = document.querySelector('header[data-site]');
     if (!header) return;
-    var links = [['/#upcoming', 'Upcoming'], ['/events', 'Events'], ['/gallery', 'Gallery'], ['/#experience', 'Experiences']];
+    var links = [['/#tickets', 'Tickets'], ['/#upcoming', 'Upcoming'], ['/events', 'Events'], ['/gallery', 'Gallery'], ['/#experience', 'Experiences']];
     var nav = el('nav', { class: 'nav-links', id: 'navLinks' }, links.map(function (l) {
       return el('a', { href: l[0], text: l[1] });
     }));

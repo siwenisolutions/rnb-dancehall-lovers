@@ -27,10 +27,18 @@ const SETTING_DEFAULTS = {
   facebook_url: '',
   tiktok_url: '',
   youtube_url: '',
+  // Ticket cards on the home page (also used for the footer buttons).
+  // ticketN_image is a media id set by uploading a thumbnail in the admin panel.
+  ticket1_title: '1 Year Anniversary',
+  ticket1_subtitle: 'Zimbabwe · Megaticket',
   ticket1_label: 'Get Tickets',
   ticket1_url: 'https://www.megaticket.africa/events/rnb-dancehall-lovers-1-year-anniversary',
+  ticket1_image: '',
+  ticket2_title: 'Old Is The New Vibe',
+  ticket2_subtitle: 'South Africa · Sahwigate',
   ticket2_label: 'Get Tickets (South Africa)',
   ticket2_url: 'https://sahwigate.com/event/rb-dancehall-lovers-old-is-the-new-vibe',
+  ticket2_image: '',
 };
 
 const SCHEMA = `
@@ -53,7 +61,7 @@ CREATE INDEX IF NOT EXISTS events_starts_at_idx ON events (starts_at);
 
 CREATE TABLE IF NOT EXISTS media (
   id         serial PRIMARY KEY,
-  category   text NOT NULL CHECK (category IN ('experience', 'gallery', 'event')),
+  category   text NOT NULL,
   event_id   integer REFERENCES events(id) ON DELETE CASCADE,
   caption    text NOT NULL DEFAULT '',
   mime       text NOT NULL,
@@ -65,6 +73,18 @@ CREATE TABLE IF NOT EXISTS media (
 );
 CREATE INDEX IF NOT EXISTS media_category_idx ON media (category, created_at DESC);
 CREATE INDEX IF NOT EXISTS media_event_idx ON media (event_id);
+
+-- 'site' = images used by the site itself (e.g. ticket card thumbnails), not shown in the gallery.
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'media_category_check' AND pg_get_constraintdef(oid) LIKE '%site%'
+  ) THEN
+    ALTER TABLE media DROP CONSTRAINT IF EXISTS media_category_check;
+    ALTER TABLE media ADD CONSTRAINT media_category_check
+      CHECK (category IN ('experience', 'gallery', 'event', 'site'));
+  END IF;
+END $$;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_cover_media_fk') THEN

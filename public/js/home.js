@@ -42,11 +42,41 @@
     });
   }
 
+  // Ticket cards: one per ticket link set in the admin panel. Falls back to
+  // the site's own photos when no thumbnail has been uploaded.
+  function renderTickets(s) {
+    var grid = document.getElementById('ticketGrid');
+    var fallback = { 1: '/img/p6.jpg', 2: '/img/p5.jpg' };
+    var cards = [1, 2].map(function (n) {
+      var url = R.safeLink(s['ticket' + n + '_url']);
+      if (!url) return null;
+      var img = s['ticket' + n + '_image'] ? R.mediaUrl(s['ticket' + n + '_image'], true) : fallback[n];
+      var title = s['ticket' + n + '_title'] || 'RNB Dancehall Lovers';
+      var host = '';
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
+      return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
+        el('div', { class: 'ticket-thumb', style: "background-image:url('" + img + "')" }, [el('span', { class: 'ticket-chip', text: 'Tickets on sale' })]),
+        el('div', { class: 'ticket-body' }, [
+          el('div', { class: 'ticket-sub', text: s['ticket' + n + '_subtitle'] || host }),
+          el('h3', { text: title }),
+          el('span', { class: 'btn btn-primary', text: (s['ticket' + n + '_label'] || 'Get Tickets') + ' →' })
+        ])
+      ]);
+    }).filter(Boolean);
+    var section = document.getElementById('tickets');
+    section.hidden = cards.length === 0;
+    document.getElementById('heroTickets').hidden = cards.length === 0;
+    grid.textContent = '';
+    grid.classList.toggle('single', cards.length === 1);
+    cards.forEach(function (c) { grid.appendChild(c); });
+  }
+
   R.api('/api/home').then(function (data) {
     var s = data.settings || {};
     if (s.hero_text) document.getElementById('heroText').textContent = s.hero_text;
     if (s.about_text) document.getElementById('aboutText').textContent = s.about_text;
     R.renderFooter(s);
+    renderTickets(s);
     renderUpcoming(data.upcoming || [], s);
     renderExperience(data.experience || []);
     renderRecent(data.past || []);
