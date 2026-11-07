@@ -464,3 +464,10 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .ph-btns{gap:8px; justify-content:space-between;}
 .ph-btns .btn{flex:1 1 auto;}
 .ph-body{padding:12px;}
+
+/* ---------- login background (the website's header video or photo) ---------- */
+.login{position:relative; overflow:hidden;}
+.login-bg{position:fixed; inset:0; z-index:0; background:#141210 url('/img/p6.jpg') center/cover no-repeat;}
+.login-bg video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+.login-bg::after{content:''; position:absolute; inset:0; background:radial-gradient(ellipse at center, rgba(20,18,16,.35) 0%, rgba(20,18,16,.78) 100%);}
+.login-card{position:relative; z-index:1; box-shadow:0 30px 80px rgba(0,0,0,.45);}

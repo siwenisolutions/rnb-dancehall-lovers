@@ -87,7 +87,30 @@
   function catLabel(c) { return c === 'experience' ? 'Experience' : c === 'event' ? 'Event' : 'Highlight'; }
 
   // ---------- login ----------
+  // Login background: the website's header video (or its first header photo).
+  var loginBgDone = false;
+  function loadLoginBg() {
+    if (loginBgDone) return;
+    loginBgDone = true;
+    var bg = $('loginBg');
+    fetch('/api/home').then(function (r) { return r.json(); }).then(function (d) {
+      var hero = (d.slots && d.slots.hero) || [];
+      var video = hero.filter(function (i) { return /^video\//.test(i.mime); })[0];
+      var photo = hero.filter(function (i) { return /^image\//.test(i.mime); })[0];
+      if (video && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        var v = el('video', { src: media(video.id), autoplay: true, loop: true, playsinline: true, preload: 'auto' });
+        v.muted = true;
+        bg.appendChild(v);
+        var p = v.play();
+        if (p && p.catch) p.catch(function () {});
+      } else if (photo) {
+        bg.style.backgroundImage = "url('" + media(photo.id) + "')";
+      }
+    }).catch(function () { /* keep the built-in photo */ });
+  }
+
   function showLogin() {
+    loadLoginBg();
     $('appView').hidden = true;
     $('loginView').hidden = false;
     setTimeout(function () { $('password').focus(); }, 50);

@@ -198,6 +198,8 @@ const eventColumns = `e.id, e.title, e.venue, e.starts_at, e.description, e.tick
         ORDER BY (m.id = e.cover_media_id) DESC, m.created_at, m.id LIMIT ${SLOT_MAX}) AS photo_ids`;
 // An event counts as "upcoming" until 12 hours after it starts.
 const UPCOMING = "e.starts_at >= now() - interval '12 hours'";
+// How long a past event stays in the home page's Recent events.
+const RECENT_DAYS = 30;
 
 async function getSettings() {
   const { rows } = await pool.query("SELECT key, value FROM settings WHERE key NOT LIKE '\\_%'");
@@ -215,7 +217,9 @@ app.get('/api/home', wrap(async (req, res) => {
   const [settings, upcoming, past, slots] = await Promise.all([
     getSettings(),
     pool.query(`SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} ORDER BY e.starts_at ASC LIMIT 3`),
-    pool.query(`SELECT ${eventColumns} FROM events e WHERE NOT (${UPCOMING}) ORDER BY e.starts_at DESC LIMIT 8`),
+    // Home page "Recent events": past events from the last 30 days only. Older ones
+    // stay on the Events page (event history), photos and all.
+    pool.query(`SELECT ${eventColumns} FROM events e WHERE NOT (${UPCOMING}) AND e.starts_at >= now() - interval '${RECENT_DAYS} days' ORDER BY e.starts_at DESC LIMIT 8`),
     getSlots(),
   ]);
   res.json({ settings, upcoming: upcoming.rows, past: past.rows, slots });
