@@ -146,6 +146,7 @@
             <div class="card-row"><h3>Latest photos</h3><button class="btn btn-ghost btn-sm" type="button" data-action="upload-photos">+ Add new</button></div>
             <div class="latest" id="latestPhotos"></div>
           </div>
+          <div class="card storage-card" data-storage></div>
           <div class="card">
             <div class="card-row"><h3>Website details</h3><button class="btn btn-ghost btn-sm" type="button" data-goto="details">Edit</button></div>
             <dl class="facts" id="facts"></dl>
@@ -182,11 +183,16 @@
           <div class="quick-add" id="quickAdd">
             <div class="qa-head">
               <span class="qa-ic"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></span>
-              <div><b>Quick add from your social media post</b><small>Copy the caption of your Instagram or Facebook promo and paste it here. We'll fill in the form for you.</small></div>
+              <div><b>Quick add from your social media post</b><small>On your Instagram, TikTok or Facebook post, tap Share, then Copy link, and paste it here. We'll fill in the form and use the post's picture as the poster.</small></div>
             </div>
-            <textarea id="qaText" rows="4" placeholder="Paste your post here…"></textarea>
-            <button class="btn btn-green btn-block" type="button" id="qaFill">Fill in the form for me</button>
+            <input type="text" id="qaLink" inputmode="url" autocomplete="off" placeholder="Paste the link to your post">
+            <button class="btn btn-green btn-block" type="button" id="qaFetch">Fill in the form for me</button>
             <div class="msg" id="qaMsg" hidden></div>
+            <button class="qa-toggle" type="button" id="qaToggle" aria-expanded="false" aria-controls="qaPaste">Story, or the link didn't work? Paste the text instead</button>
+            <div id="qaPaste" hidden>
+              <textarea id="qaText" rows="4" placeholder="Paste the caption or the words on your story…"></textarea>
+              <button class="btn btn-light btn-block" type="button" id="qaFill">Fill in the form from this text</button>
+            </div>
           </div>
           <label for="evTitle">Event name</label>
           <input type="text" id="evTitle" maxlength="200" required placeholder="e.g. Old Is The New Vibe">

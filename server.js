@@ -6,6 +6,7 @@ const express = require('express');
 const multer = require('multer');
 const { pool, migrate, insertMedia, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
 const { processImage, detectVideo } = require('./images');
+const { importPost } = require('./social');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -19,8 +20,11 @@ const EDITABLE_SETTINGS = Object.keys(SETTING_DEFAULTS).filter((k) => !k.endsWit
 const CATEGORIES = ['event'];
 // Event times are entered and shown in Zimbabwe time (CAT, UTC+2, no DST).
 const ZW_OFFSET = '+02:00';
-// Neon free plan storage, shown as a usage bar in the admin overview.
-const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_MB || 500) * 1024 * 1024;
+// Storage cap of the Neon project (its branch limit is 1 GiB on the current plan).
+// The gauge measures the database's real size against this.
+const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_MB || 1024) * 1024 * 1024;
+// Real size of everything stored: all databases on the branch, as Neon counts it.
+const STORAGE_USED_SQL = '(SELECT sum(pg_database_size(datname)) FROM pg_database WHERE NOT datistemplate)';
 
 if (ADMIN_PASSWORD.length < 10 || SESSION_SECRET.length < 32) {
   throw new Error('ADMIN_PASSWORD (10+ chars) and SESSION_SECRET (32+ chars) must be set');
@@ -351,7 +355,7 @@ admin.get('/stats', wrap(async (req, res) => {
       (SELECT count(*)::int FROM media WHERE category = 'event') AS event_photos,
       (SELECT count(*)::int FROM media WHERE mime LIKE 'image/%' AND created_at > now() - interval '30 days') AS photos_30d,
       (SELECT COALESCE(avg(octet_length(data) + octet_length(thumb)), 400000)::bigint FROM media WHERE mime LIKE 'image/%') AS avg_photo_bytes,
-      pg_database_size(current_database())::bigint AS db_bytes`);
+      ${STORAGE_USED_SQL}::bigint AS db_bytes`);
   const s = rows[0];
   const used = Number(s.db_bytes);
   res.json({
@@ -435,6 +439,11 @@ admin.put('/events/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Quick add: read a public social media post (caption + picture) from its link.
+admin.post('/import-post', wrap(async (req, res) => {
+  res.json(await importPost((req.body || {}).url));
+}));
+
 admin.delete('/events/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   // Event photos are removed with the event (ON DELETE CASCADE).
@@ -487,7 +496,7 @@ const uploadMedia = multer({
 });
 
 async function storageUsed() {
-  const { rows } = await pool.query('SELECT pg_database_size(current_database())::bigint AS b');
+  const { rows } = await pool.query(`SELECT ${STORAGE_USED_SQL}::bigint AS b`);
   return Number(rows[0].b);
 }
 async function assertRoomFor(bytes) {

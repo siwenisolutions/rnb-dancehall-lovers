@@ -253,7 +253,7 @@
     $('sStorage').textContent = (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
     $('storageBar').style.width = Math.max(pct, 2) + '%';
     $('storageBar').style.background = pct > 85 ? 'var(--red)' : 'var(--purple)';
-    $('storageFoot').textContent = Math.round(pct) + '% of ' + Math.round(limitMb) + ' MB · room for ~' + stats.photos_left.toLocaleString() + ' photos';
+    $('storageFoot').textContent = Math.round(pct) + '% of ' + fmtMb(stats.storage_limit_bytes) + ' · ' + fmtMb(Math.max(0, stats.storage_limit_bytes - stats.db_bytes)) + ' free';
 
     renderChart();
 
@@ -833,7 +833,11 @@
   });
 
   // ---------- storage gauge ----------
-  function fmtMb(bytes) { var mb = bytes / 1048576; return (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB'; }
+  function fmtMb(bytes) {
+    var mb = bytes / 1048576;
+    if (mb >= 1000) return (Math.round(mb / 102.4) / 10) + ' GB';
+    return (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+  }
   function renderStorage(stats) {
     var pct = Math.min(100, (stats.db_bytes / stats.storage_limit_bytes) * 100);
     var color = pct > 90 ? 'var(--red)' : pct > 75 ? '#e08a00' : 'var(--purple)';
@@ -847,14 +851,18 @@
         el('div', { class: 'gauge-in' }, [el('b', { text: Math.round(pct) + '%' }), el('small', { text: 'used' })])
       ]));
       box.appendChild(el('p', { class: 'storage-line' }, [el('b', { text: fmtMb(stats.db_bytes) }), ' of ' + fmtMb(stats.storage_limit_bytes) + ' used']));
+      box.appendChild(el('p', { class: 'storage-free' }, [el('b', { text: fmtMb(Math.max(0, stats.storage_limit_bytes - stats.db_bytes)) }), ' free']));
       box.appendChild(el('p', { class: 'hint', style: 'text-align:center' }, [
         'Room for about ' + stats.photos_left.toLocaleString() + ' more photos. ' +
         plural(stats.photos, 'photo') + (stats.videos ? ' and ' + plural(stats.videos, 'video') : '') + ' on your site.' +
         (pct > 90 ? ' Almost full: delete old photos or ask Siweni to add more space.' : '')
       ]));
+      box.appendChild(el('p', { class: 'storage-live' }, [el('span', { class: 'live-dot' }), 'Live from your database · checked ' + new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date())]));
     });
   }
   function refreshStats() { get('/api/admin/stats').then(function (st) { renderStorage(st); }).catch(function () {}); }
+  // Re-check storage every minute while the admin panel is open.
+  setInterval(function () { if (!$('appView').hidden && !document.hidden) refreshStats(); }, 60000);
 
   // ---------- quick add from a social media post ----------
   var MONTHS_IDX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
@@ -935,9 +943,8 @@
     return out;
   }
 
-  $('qaFill').addEventListener('click', function () {
-    var text = $('qaText').value.trim();
-    if (!text) { say($('qaMsg'), 'Paste your post into the box first.', false); return; }
+  // Fills the event form from a post's words. hasPoster: the post's picture was set as the poster.
+  function fillFromText(text, hasPoster) {
     var r = parsePost(text);
     var found = [], missing = [];
     if (r.title) { $('evTitle').value = r.title; found.push('name'); } else missing.push('event name');
@@ -946,11 +953,63 @@
     if (r.venue) { $('evVenue').value = r.venue; found.push('venue'); } else missing.push('venue');
     if (r.ticket) { $('evTicket').value = r.ticket; found.push('ticket link'); }
     if (r.description) $('evDesc').value = r.description;
-    var msg = found.length ? 'Done! We filled in the ' + found.join(', ') + '. ' : "We couldn't find the details in that post. ";
+    if (hasPoster) found.push('poster');
+    var msg = found.length ? 'Done! We filled in the ' + found.join(', ') + '. ' : "We couldn't find the event details in that post. ";
     if (missing.length) msg += 'Please check or add: ' + missing.join(', ') + '. ';
-    msg += 'Add the flyer as the poster, then press Add event.';
+    msg += hasPoster ? 'Check everything, then press Add event.' : 'Add the flyer as the poster, then press Add event.';
     say($('qaMsg'), msg, found.length > 0);
     $('qaMsg').className = 'msg ' + (missing.length ? 'warn' : 'ok');
+  }
+
+  // Puts the post's picture into the poster box, as if it had been chosen by hand.
+  function setPosterFromDataUrl(dataUrl) {
+    try {
+      var bytes = atob(dataUrl.split(',')[1]);
+      var arr = new Uint8Array(bytes.length);
+      for (var i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      var file = new File([arr], 'poster-from-post.webp', { type: 'image/webp' });
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      $('evPoster').files = dt.files;
+      $('evPoster').dispatchEvent(new Event('change'));
+      return true;
+    } catch (e) { return false; }
+  }
+
+  $('qaFetch').addEventListener('click', function () {
+    var link = $('qaLink').value.trim();
+    if (!link) { say($('qaMsg'), 'Paste the link to your post first.', false); return; }
+    var btn = this;
+    busy(btn, true, 'Reading your post…');
+    call('POST', '/api/admin/import-post', { url: link }).then(function (r) {
+      var hasPoster = r.poster ? setPosterFromDataUrl(r.poster) : false;
+      if (r.caption) {
+        $('qaText').value = r.caption;
+        fillFromText(r.caption, hasPoster);
+      } else {
+        say($('qaMsg'), 'We got the picture but the post has no caption. ' + (hasPoster ? "It's set as the poster. " : '') + 'Please type the name, date and venue, or paste the words below.', false);
+        $('qaMsg').className = 'msg warn';
+        openPaste();
+      }
+    }).catch(function (err) {
+      say($('qaMsg'), err.message, false);
+      openPaste();
+    }).then(function () { busy(btn, false); });
+  });
+  $('qaLink').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('qaFetch').click(); } });
+
+  function openPaste() { $('qaPaste').hidden = false; $('qaToggle').setAttribute('aria-expanded', 'true'); }
+  $('qaToggle').addEventListener('click', function () {
+    var open = $('qaPaste').hidden;
+    $('qaPaste').hidden = !open;
+    this.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) $('qaText').focus();
+  });
+
+  $('qaFill').addEventListener('click', function () {
+    var text = $('qaText').value.trim();
+    if (!text) { say($('qaMsg'), 'Paste the words from your post into the box first.', false); return; }
+    fillFromText(text, false);
   });
 
   // ---------- website details ----------
