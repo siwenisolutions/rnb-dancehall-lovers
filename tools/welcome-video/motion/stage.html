@@ -1,0 +1,143 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1280px;height:720px;overflow:hidden;background:transparent;font-family:Archivo,sans-serif;color:#141210}
+.bg{position:absolute;inset:0;background:#f4f2ee}
+.doodles{position:absolute;inset:0}
+.doodles svg{position:absolute;overflow:visible}
+.chip{position:absolute;left:50%;top:30px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e4e1db;border-radius:999px;padding:7px 14px 7px 12px;font-weight:800;font-size:12px;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;box-shadow:0 4px 14px rgba(20,18,16,.06)}
+.chip i{width:8px;height:8px;border-radius:50%;background:#c11fd6;display:block}
+.chip span{color:#8a857d;font-weight:700}
+.title{position:absolute;left:0;right:0;top:66px;text-align:center;font-family:Anton,sans-serif;font-size:46px;line-height:1;text-transform:uppercase;letter-spacing:.01em}
+.title b{font-weight:400;color:#c11fd6}
+/* device */
+.win{position:absolute;left:40px;top:30px;width:880px;height:525px;border-radius:16px;box-shadow:0 28px 60px rgba(20,18,16,.24),0 6px 16px rgba(20,18,16,.10)}
+.bar{position:absolute;left:0;top:0;right:0;height:30px;background:#fff;border-radius:16px 16px 0 0;border-bottom:1px solid #ebe8e2;display:flex;align-items:center;gap:7px;padding:0 14px}
+.bar i{width:10px;height:10px;border-radius:50%;display:block}
+.url{margin-left:18px;flex:1;max-width:420px;height:18px;border-radius:999px;background:#f1efea;font-size:11px;font-weight:600;color:#6b665e;display:flex;align-items:center;gap:6px;padding:0 10px}
+.url svg{width:10px;height:10px}
+.mask{position:absolute;left:0;top:0;width:880px;height:495px;background:#fff;border-radius:0 0 16px 16px}
+/* cards */
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 80px}
+.logo{width:150px;margin-bottom:22px}
+.big{font-family:Anton,sans-serif;font-weight:400;text-transform:uppercase;font-size:78px;line-height:.96}
+.big b{font-weight:400;background:linear-gradient(100deg,#c11fd6,#ff5c7e);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{margin-top:20px;font-size:24px;color:#4f4a43;font-weight:500}
+.pill{display:inline-flex;align-items:center;gap:8px;margin-top:26px;background:#141210;color:#fff;font-weight:800;padding:13px 22px;border-radius:999px;font-size:17px}
+.pill .dot{width:9px;height:9px;border-radius:50%;background:#aaff5f}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px;width:1080px;text-align:left}
+.t{background:#fff;border:1px solid #e7e4de;border-radius:22px;padding:22px;display:flex;gap:16px;align-items:flex-start;box-shadow:0 10px 30px rgba(20,18,16,.06)}
+.t .ic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.t .ic svg{width:24px;height:24px;fill:none;stroke:#141210;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.t b{display:block;font-size:20px;line-height:1.2}
+.t small{display:block;font-size:15px;color:#6b665e;margin-top:5px;font-weight:600;line-height:1.35}
+.help{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#c11fd6,#ff5c7e);color:#fff;padding:4px 14px;border-radius:999px;font-weight:700}
+/* motion (driven frame by frame) */
+@keyframes up{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{opacity:0;transform:scale(.55) rotate(-8deg)}70%{opacity:1;transform:scale(1.06) rotate(2deg)}100%{opacity:1;transform:none}}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-10px) rotate(4deg)}}
+@keyframes bob2{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(8px) rotate(-5deg)}}
+@keyframes glow{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+.a-up{animation:up .8s cubic-bezier(.2,.8,.2,1) both}
+.a-pop{animation:pop .9s cubic-bezier(.2,.9,.3,1) both}
+</style></head>
+<body>
+<script>
+// Layers for the composite are chosen with #mode=...; cards animate frame by frame.
+const P = JSON.parse(decodeURIComponent(location.hash.slice(1) || '{}'));
+const LOGO = 'http://localhost:3999/img/logo.png';
+const COLORS = ['#c11fd6', '#ff5c7e', '#3cc9a3', '#f2994a', '#4fa8ff'];
+const SHAPES = [
+  'M6 2v12.5a3.5 3.5 0 1 1-2-3.2V2h10v4H6', // music note
+  'M2 4h12M2 4v10a3 3 0 1 1-2-2.8M14 4v8a3 3 0 1 1-2-2.8', // double note
+  'M8 1l2 5h5l-4 3.5 1.5 5L8 11.5 3.5 14.5 5 9.5 1 6h5z', // star
+  'M8 1v14M1 8h14M3 3l10 10M13 3 3 13', // sparkle
+  'M1 8c2-4 4-4 6 0s4 4 6 0', // squiggle
+  'C', // vinyl (circle)
+];
+function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+function doodles(animated) {
+  const r = rng(7);
+  const box = document.createElement('div'); box.className = 'doodles';
+  const cols = 11, rows = 6;
+  for (let i = 0; i < cols * rows; i++) {
+    const x = (i % cols) * (1280 / cols) + r() * 70, y = Math.floor(i / cols) * (720 / rows) + r() * 60;
+    const shape = SHAPES[Math.floor(r() * SHAPES.length)], col = COLORS[Math.floor(r() * COLORS.length)];
+    const size = 16 + r() * 14, rot = Math.floor(r() * 360);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16'); svg.setAttribute('width', size); svg.setAttribute('height', size);
+    svg.style.left = x + 'px'; svg.style.top = y + 'px'; svg.style.opacity = '.22';
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `rotate(${rot} 8 8)`);
+    if (shape === 'C') {
+      g.innerHTML = `<circle cx="8" cy="8" r="7" fill="none" stroke="${col}" stroke-width="1.6"/><circle cx="8" cy="8" r="2" fill="${col}"/>`;
+    } else {
+      g.innerHTML = `<path d="${shape}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    svg.appendChild(g);
+    if (animated) svg.style.animation = `${r() > .5 ? 'bob' : 'bob2'} ${4 + r() * 4}s ease-in-out ${-r() * 6}s infinite`;
+    box.appendChild(svg);
+  }
+  return box;
+}
+const ICON = {
+  phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+  people: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>',
+  rocket: '<path d="M5 19c1-3 2-4 4-5M14 4c3 0 6 3 6 6l-7 7-6-6z"/><circle cx="14.5" cy="9.5" r="1.5"/>',
+  ticket: '<path d="M3 8a2 2 0 0 0 0 4v4h18v-4a2 2 0 0 1 0-4V4H3z"/><path d="M14 4v12"/>',
+  photos: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-9 7"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+};
+function tile(icon, bg, title, small, delay) {
+  return `<div class="t a-up" style="animation-delay:${delay}s"><span class="ic" style="background:${bg}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg></span><span><b>${title}</b><small>${small}</small></span></div>`;
+}
+const root = document.body;
+if (P.mode === 'bg') {
+  root.innerHTML = '<div class="bg"></div>'; root.appendChild(doodles(false));
+} else if (P.mode === 'title') {
+  root.innerHTML = `<div class="chip"><i></i>${P.chip}${P.count ? ` <span>${P.count}</span>` : ''}</div><div class="title">${P.title}</div>`;
+} else if (P.mode === 'bezel') {
+  document.documentElement.style.width = document.body.style.width = '960px';
+  document.documentElement.style.height = document.body.style.height = '600px';
+  root.innerHTML = `<div class="win"><div class="bar"><i style="background:#ff5c7e"></i><i style="background:#ffd23f"></i><i style="background:#3cc9a3"></i>
+    <div class="url"><svg viewBox="0 0 24 24" fill="none" stroke="#6b665e" stroke-width="3"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>${P.url}</div></div></div>`;
+} else if (P.mode === 'mask') {
+  document.documentElement.style.width = document.body.style.width = '880px';
+  document.documentElement.style.height = document.body.style.height = '495px';
+  document.body.style.background = '#000';
+  root.innerHTML = '<div class="mask"></div>';
+} else if (P.mode === 'card') {
+  root.innerHTML = '<div class="bg"></div>';
+  root.appendChild(doodles(true));
+  const c = document.createElement('div'); c.className = 'center';
+  if (P.scene === 'welcome') {
+    c.innerHTML = `<img class="logo a-pop" src="${LOGO}" style="animation-delay:.2s">
+      <div class="big a-up" style="animation-delay:.7s">Welcome to</div>
+      <div class="big a-up" style="animation-delay:1s"><b>RNB Dancehall Lovers</b></div>
+      <div class="sub a-up" style="animation-delay:1.6s">Your new website, built for you by Siweni Solutions</div>
+      <div class="pill a-up" style="animation-delay:2.2s"><span class="dot"></span>Thank you for trusting Siweni</div>`;
+  } else if (P.scene === 'capabilities') {
+    c.innerHTML = `<div class="chip a-up" style="position:static;transform:none;animation-delay:.1s"><i></i>What your website can do</div>
+      <div class="big a-up" style="font-size:60px;margin-top:16px;animation-delay:.3s">Built for <b>event nights</b></div>
+      <div class="grid">
+        ${tile('phone', '#f3e1f7', 'Phones, tablets &amp; computers', 'Looks great on every screen', 2.3)}
+        ${tile('people', '#ffe1e8', '~100 people at once', 'Thousands of visitors a day', 5.6)}
+        ${tile('rocket', '#ddf6ee', 'Upgradable in minutes', 'Ready for bigger crowds', 11.6)}
+        ${tile('ticket', '#fff1c9', 'Tickets via your partners', 'Payments handled securely by them', 15.9)}
+        ${tile('photos', '#e2efff', 'Slideshows everywhere', 'Up to 5 photos per spot, or a header video', 21.3)}
+        ${tile('bolt', '#efffd9', 'Changes go live instantly', 'Update it yourself, any time', 27.1)}
+      </div>`;
+  } else if (P.scene === 'goodbye') {
+    c.innerHTML = `<img class="logo a-pop" src="${LOGO}" style="animation-delay:.2s">
+      <div class="big a-up" style="animation-delay:.6s">Here's to many more</div>
+      <div class="big a-up" style="animation-delay:.9s"><b>unforgettable nights</b></div>
+      <div class="sub a-up" style="animation-delay:1.6s">Watch this video again any time with the <span class="help">Help</span> button in your admin panel</div>
+      <div class="pill a-up" style="animation-delay:2.4s"><span class="dot"></span>Built with care by Siweni Solutions</div>`;
+  }
+  root.appendChild(c);
+  window.__seek = t => document.getAnimations().forEach(a => { a.pause(); a.currentTime = t * 1000; });
+}
+</script>
+</body></html>

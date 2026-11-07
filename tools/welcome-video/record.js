@@ -327,7 +327,7 @@ const SCENES = {
 
 (async () => {
   const browser = await chromium.launch();
-  const out = path.join(HERE, 'clips');
+  const out = path.join(HERE, process.env.CLIPDIR || 'clips');
   fs.mkdirSync(out, { recursive: true });
 
   // Logged-in session for the admin scenes.
@@ -340,7 +340,8 @@ const SCENES = {
   const state = await auth.storageState();
   await auth.close();
 
-  const manifest = fs.existsSync(path.join(HERE, 'manifest.json')) ? JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'))) : {};
+  const MF = path.join(HERE, process.env.MANIFEST || 'manifest.json');
+  const manifest = fs.existsSync(MF) ? JSON.parse(fs.readFileSync(MF)) : {};
   for (const s of scenes) {
     if (only && !only.includes(s.id)) continue;
     const def = SCENES[s.id];
@@ -358,7 +359,7 @@ const SCENES = {
     await page.evaluate(() => document.fonts && document.fonts.ready);
     if (def.setup) await def.setup(page);
     await page.waitForTimeout(400);
-    if (!def.html) await page.evaluate(c => window.__caption(c), s.caption);
+    if (!def.html && !process.env.NOCAP) await page.evaluate(c => window.__caption(c), s.caption);
     const tReady = Date.now();
     const dur = durations[s.id] * 1000 + 900;
     await def.run(page, dur);
@@ -372,6 +373,6 @@ const SCENES = {
     manifest[s.id] = { file, offset: (tReady - t0) / 1000, len: len / 1000 };
     console.log(s.id, 'len', (len / 1000).toFixed(1), 'offset', ((tReady - t0) / 1000).toFixed(2));
   }
-  fs.writeFileSync(path.join(HERE, 'manifest.json'), JSON.stringify(manifest, null, 1));
+  fs.writeFileSync(path.join(HERE, process.env.MANIFEST || 'manifest.json'), JSON.stringify(manifest, null, 1));
   await browser.close();
 })();
