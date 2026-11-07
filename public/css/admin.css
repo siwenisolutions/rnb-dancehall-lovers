@@ -290,3 +290,59 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .ticket-thumb-pick input{position:absolute; width:1px; height:1px; opacity:0;}
 .ticket-thumb-pick:focus-within{outline:2px solid var(--purple); outline-offset:2px;}
 @media (max-width:720px){ .ticket-edit{grid-template-columns:1fr;} }
+
+/* ---------- plain-language helper text ---------- */
+.hint{font-size:13px; color:var(--muted); line-height:1.5; margin-top:8px;}
+
+/* ---------- empty state: message with the button underneath ---------- */
+.empty-block{display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; padding:40px 16px; margin-top:16px; border:1px dashed var(--line); border-radius:18px; background:var(--soft); grid-column:1/-1;}
+.empty-block b{font-size:17px;}
+.empty-block .btn{margin-top:8px;}
+.empty-ic{width:46px; height:46px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; color:var(--purple); margin-bottom:4px;}
+.empty-ic svg{width:22px; height:22px;}
+
+/* ---------- events page: event cards ---------- */
+.event-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; margin-top:16px;}
+.ev-card{background:var(--soft); border-radius:18px; overflow:hidden; display:flex; flex-direction:column; border:2px solid transparent;}
+.ev-card.editing{border-color:var(--purple);}
+.ev-poster{position:relative; aspect-ratio:4/3; background:linear-gradient(135deg,var(--violet),var(--purple)) center/cover;}
+.ev-date{position:absolute; top:10px; left:10px; background:var(--yellow); color:#141108; border-radius:12px; padding:6px 10px; text-align:center; line-height:1; font-family:'Anton',sans-serif; text-transform:uppercase;}
+.ev-date b{display:block; font-size:22px; font-weight:400;}
+.ev-date small{font-size:11px; letter-spacing:.06em;}
+.ev-status{position:absolute; top:10px; right:10px; font-size:11px; font-weight:800; padding:4px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.04em;}
+.ev-status.up{background:var(--green); color:#0f2400;}
+.ev-status.past{background:rgba(255,255,255,.92); color:#3a3733;}
+.ev-noposter{position:absolute; inset:auto 12px 12px 12px; color:#fff; font-family:'Anton',sans-serif; text-transform:uppercase; font-size:22px; line-height:1;}
+.ev-body{padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px; flex:1;}
+.ev-body .card-row{align-items:flex-start;}
+.ev-title{font-size:16px; line-height:1.25;}
+.ev-body small{font-size:12px;}
+.ev-actions{display:flex; gap:6px; margin-top:auto; padding-top:10px; flex-wrap:wrap;}
+.ev-body .dots{width:30px; height:30px; margin:-4px -6px 0 0; flex:0 0 auto;}
+
+/* ---------- website details: overview-style layout ---------- */
+.details-top{display:grid; grid-template-columns:1.25fr 1fr 1fr; gap:18px; align-items:start;}
+.card-head{display:flex; align-items:center; gap:10px; margin-bottom:4px;}
+.card-ic{width:36px; height:36px; border-radius:50%; background:var(--soft); display:flex; align-items:center; justify-content:center; color:var(--purple);}
+.section-head-admin{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin:34px 0 16px;}
+.section-head-admin h2{font-family:'Anton',sans-serif; font-weight:400; text-transform:uppercase; font-size:30px; line-height:1;}
+.section-head-admin p{margin-top:8px; font-size:14px; max-width:620px;}
+.ticket-cards-edit{display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start;}
+.ticket-card-edit .ticket-thumb-pick{margin-bottom:6px;}
+.ticket-num{position:absolute; top:10px; left:10px; background:var(--yellow); color:#141108; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:5px 11px; border-radius:999px;}
+.save-bar{position:sticky; bottom:14px; z-index:5; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:22px; padding:12px 12px 12px 22px; background:var(--card); border-radius:999px; box-shadow:0 14px 40px rgba(20,18,16,.14);}
+.save-bar .muted{font-size:14px;}
+
+@media (max-width:1180px){
+  .details-top{grid-template-columns:1fr 1fr;}
+  .details-top > :first-child{grid-column:1/-1;}
+}
+@media (max-width:720px){
+  .details-top,.ticket-cards-edit{grid-template-columns:1fr;}
+  .event-grid{grid-template-columns:1fr 1fr;}
+  .save-bar{border-radius:18px; padding:12px 14px;}
+  .save-bar .muted{display:none;}
+  .save-bar .btn{width:100%;}
+}
+@media (max-width:420px){ .event-grid{grid-template-columns:1fr;} }
+.ticket-card-edit .ticket-thumb-pick{aspect-ratio:21/9;}

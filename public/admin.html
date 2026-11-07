@@ -117,7 +117,7 @@
             <div class="tile-foot"><span class="trend" id="s30Trend">+0</span> this month</div>
           </div>
           <div class="tile">
-            <div class="tile-head"><span>Storage used</span><span class="tile-ic"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span></div>
+            <div class="tile-head"><span>Photo space used</span><span class="tile-ic"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></span></div>
             <div class="tile-num" id="sStorage">0 MB</div>
             <div class="progress"><span id="storageBar" style="width:0%"></span></div>
             <div class="tile-foot" id="storageFoot">of 500 MB</div>
@@ -162,22 +162,57 @@
 
     <!-- ===== EVENTS ===== -->
     <section data-panel="events" hidden>
-      <div class="page-head row">
-        <div>
-          <h1>Events</h1>
-          <p class="muted">Upcoming events show on the home page and move to "Recent events" once they've passed.</p>
-        </div>
-        <button class="btn btn-dark" type="button" data-action="new-event"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add event</button>
+      <div class="page-head">
+        <h1>Events</h1>
+        <p class="muted">Upcoming events show on the home page. Once the date has passed, they move to "Recent events" by themselves.</p>
       </div>
-      <div class="card table-card">
-        <div class="card-row wrap">
-          <h3>All events</h3>
-          <div class="table-tools">
-            <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search" data-search="events" aria-label="Search events"></label>
-            <select class="filter" data-filter="events" aria-label="Filter events"><option value="">All</option><option value="up">Upcoming</option><option value="past">Past</option></select>
+      <div class="photos-layout">
+        <!-- Add / edit event -->
+        <form class="card upload-card" id="eventForm">
+          <div class="card-row">
+            <h3 id="eventFormTitle">Add an event</h3>
+            <button class="btn btn-ghost btn-sm" type="button" id="evCancel" hidden>Cancel</button>
           </div>
+          <input type="hidden" id="evId">
+          <label for="evTitle">Event name</label>
+          <input type="text" id="evTitle" maxlength="200" required placeholder="e.g. Old Is The New Vibe">
+          <label for="evStart">Date and start time</label>
+          <input type="datetime-local" id="evStart" required>
+          <label for="evVenue">Venue</label>
+          <input type="text" id="evVenue" maxlength="200" placeholder="e.g. Bakerloo Bar, Harare">
+          <label for="evTicket">Where to buy tickets <small>(optional)</small></label>
+          <input type="text" id="evTicket" inputmode="url" autocomplete="off" placeholder="Paste the ticket page here">
+          <p class="hint">Open your event on Megaticket (or any ticket site), copy the address from the top of your browser and paste it here. A "Get Tickets" button will appear on the event.</p>
+          <label for="evDesc">About the event <small>(optional)</small></label>
+          <textarea id="evDesc" maxlength="5000" rows="4" placeholder="Line-up, dress code, prices…"></textarea>
+          <label>Poster <small>(optional)</small></label>
+          <label class="drop drop-poster" for="evPoster">
+            <span class="poster-preview" id="posterPreview"></span>
+            <span class="poster-text">
+              <b id="evPosterName">Choose a poster</b>
+              <small id="evPosterHint">Shows on the event card and page</small>
+            </span>
+            <input type="file" id="evPoster" accept="image/*">
+          </label>
+          <button class="btn btn-dark btn-block" type="submit" id="evSubmit">Add event</button>
+          <div class="msg" id="evMsg" hidden></div>
+        </form>
+
+        <!-- All events -->
+        <div class="card">
+          <div class="card-row wrap">
+            <h3>All events</h3>
+            <div class="table-tools">
+              <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Search" id="eventSearch" aria-label="Search events"></label>
+              <div class="seg seg-sm" role="radiogroup" id="eventFilterSeg">
+                <button type="button" role="radio" aria-checked="true" data-val="">All</button>
+                <button type="button" role="radio" aria-checked="false" data-val="up">Upcoming</button>
+                <button type="button" role="radio" aria-checked="false" data-val="past">Past</button>
+              </div>
+            </div>
+          </div>
+          <div class="event-grid" id="eventGrid"></div>
         </div>
-        <div class="table-wrap"><table class="table" data-table="events"></table></div>
       </div>
     </section>
 
@@ -230,112 +265,96 @@
         <div class="page-head row">
           <div>
             <h1>Website details</h1>
-            <p class="muted">These appear on the home page and in the footer of every page.</p>
+            <p class="muted">The words, contact details and ticket cards people see on the website. Press Save when you're done.</p>
           </div>
           <button class="btn btn-dark" type="submit" id="settingsSubmit">Save changes</button>
         </div>
-        <div class="msg" id="settingsMsg" hidden style="margin-bottom:16px;"></div>
-        <div class="details-grid">
+        <div class="msg" id="settingsMsg" hidden style="margin:0 0 16px;"></div>
+
+        <div class="details-top">
           <div class="card">
-            <h3>Home page text</h3>
-            <label for="s_hero_text">Tagline <small>(under "Sound Redefined")</small></label>
+            <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><h3>Home page text</h3></div>
+            <label for="s_hero_text">Tagline <small>shown under "Sound Redefined"</small></label>
             <textarea id="s_hero_text" name="hero_text" maxlength="2000" rows="3"></textarea>
-            <label for="s_about_text">About us <small>("Make the night the experience")</small></label>
-            <textarea id="s_about_text" name="about_text" maxlength="2000" rows="5"></textarea>
+            <label for="s_about_text">About us <small>shown under "Make the night the experience"</small></label>
+            <textarea id="s_about_text" name="about_text" maxlength="2000" rows="6"></textarea>
           </div>
+
           <div class="card">
-            <h3>Contact</h3>
+            <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/></svg></span><h3>Contact</h3></div>
             <label for="s_contact_email">Email</label>
             <input type="email" id="s_contact_email" name="contact_email">
             <label for="s_phone">Phone</label>
             <input type="tel" id="s_phone" name="phone">
             <label for="s_address">Address</label>
-            <input type="text" id="s_address" name="address" maxlength="300">
+            <textarea id="s_address" name="address" maxlength="300" rows="3"></textarea>
           </div>
+
           <div class="card">
-            <h3>Social media <small class="muted">(leave blank to hide)</small></h3>
-            <label for="s_instagram_url">Instagram</label><input type="url" id="s_instagram_url" name="instagram_url" placeholder="https://">
-            <label for="s_facebook_url">Facebook</label><input type="url" id="s_facebook_url" name="facebook_url" placeholder="https://">
-            <label for="s_tiktok_url">TikTok</label><input type="url" id="s_tiktok_url" name="tiktok_url" placeholder="https://">
-            <label for="s_youtube_url">YouTube</label><input type="url" id="s_youtube_url" name="youtube_url" placeholder="https://">
+            <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><rect x="3" y="3" width="18" height="18" rx="5"/></svg></span><h3>Social media</h3></div>
+            <p class="hint">Paste the link to your page. Leave a box empty to hide that icon.</p>
+            <label for="s_instagram_url">Instagram</label><input type="text" inputmode="url" id="s_instagram_url" name="instagram_url" placeholder="e.g. instagram.com/rnbdancehalllovers">
+            <label for="s_facebook_url">Facebook</label><input type="text" inputmode="url" id="s_facebook_url" name="facebook_url" placeholder="e.g. facebook.com/yourpage">
+            <label for="s_tiktok_url">TikTok</label><input type="text" inputmode="url" id="s_tiktok_url" name="tiktok_url" placeholder="e.g. tiktok.com/@yourname">
+            <label for="s_youtube_url">YouTube</label><input type="text" inputmode="url" id="s_youtube_url" name="youtube_url" placeholder="e.g. youtube.com/@yourchannel">
           </div>
-          <div class="card span-2">
-            <h3>Tickets on sale <small class="muted">(cards on the home page and buttons in the footer)</small></h3>
-            <div class="ticket-edit">
-              <label class="ticket-thumb-pick" for="t1Image" title="Change thumbnail">
-                <span class="ticket-thumb-img" id="t1Preview" style="background-image:url('/img/p6.jpg')"></span>
-                <span class="ticket-thumb-btn" id="t1ImageBtn">Change thumbnail</span>
-                <input type="file" id="t1Image" accept="image/*" data-ticket-image="1">
-              </label>
-              <div class="ticket-fields">
-                <b class="ticket-label">Ticket card 1</b>
-                <div class="two">
-                  <div><label for="s_ticket1_title">Event name</label><input type="text" id="s_ticket1_title" name="ticket1_title" maxlength="120"></div>
-                  <div><label for="s_ticket1_subtitle">Location · platform</label><input type="text" id="s_ticket1_subtitle" name="ticket1_subtitle" maxlength="120" placeholder="e.g. Zimbabwe · Megaticket"></div>
-                  <div><label for="s_ticket1_label">Button text</label><input type="text" id="s_ticket1_label" name="ticket1_label" maxlength="60"></div>
-                  <div><label for="s_ticket1_url">Ticket link <small>(blank = hide card)</small></label><input type="url" id="s_ticket1_url" name="ticket1_url" placeholder="https://"></div>
-                </div>
-              </div>
-            </div>
-            <div class="ticket-edit">
-              <label class="ticket-thumb-pick" for="t2Image" title="Change thumbnail">
-                <span class="ticket-thumb-img" id="t2Preview" style="background-image:url('/img/p5.jpg')"></span>
-                <span class="ticket-thumb-btn" id="t2ImageBtn">Change thumbnail</span>
-                <input type="file" id="t2Image" accept="image/*" data-ticket-image="2">
-              </label>
-              <div class="ticket-fields">
-                <b class="ticket-label">Ticket card 2</b>
-                <div class="two">
-                  <div><label for="s_ticket2_title">Event name</label><input type="text" id="s_ticket2_title" name="ticket2_title" maxlength="120"></div>
-                  <div><label for="s_ticket2_subtitle">Location · platform</label><input type="text" id="s_ticket2_subtitle" name="ticket2_subtitle" maxlength="120" placeholder="e.g. South Africa · Sahwigate"></div>
-                  <div><label for="s_ticket2_label">Button text</label><input type="text" id="s_ticket2_label" name="ticket2_label" maxlength="60"></div>
-                  <div><label for="s_ticket2_url">Ticket link <small>(blank = hide card)</small></label><input type="url" id="s_ticket2_url" name="ticket2_url" placeholder="https://"></div>
-                </div>
-              </div>
-            </div>
-            <div class="msg" id="ticketMsg" hidden></div>
+        </div>
+
+        <div class="section-head-admin">
+          <div>
+            <h2>Tickets on sale</h2>
+            <p class="muted">These two cards appear on the home page under "Tickets on sale". Clicking one takes people to the ticket website.</p>
           </div>
+        </div>
+
+        <div class="ticket-cards-edit">
+          <div class="card ticket-card-edit">
+            <label class="ticket-thumb-pick" for="t1Image" title="Change photo">
+              <span class="ticket-thumb-img" id="t1Preview" style="background-image:url('/img/p6.jpg')"></span>
+              <span class="ticket-num">Card 1</span>
+              <span class="ticket-thumb-btn" id="t1ImageBtn">Change photo</span>
+              <input type="file" id="t1Image" accept="image/*" data-ticket-image="1">
+            </label>
+            <label for="s_ticket1_title">Event name</label>
+            <input type="text" id="s_ticket1_title" name="ticket1_title" maxlength="120">
+            <label for="s_ticket1_subtitle">Where</label>
+            <input type="text" id="s_ticket1_subtitle" name="ticket1_subtitle" maxlength="120" placeholder="e.g. Zimbabwe · Megaticket">
+            <label for="s_ticket1_label">Button text</label>
+            <input type="text" id="s_ticket1_label" name="ticket1_label" maxlength="60" placeholder="e.g. Get Tickets">
+            <label for="s_ticket1_url">Ticket website</label>
+            <input type="text" inputmode="url" id="s_ticket1_url" name="ticket1_url" placeholder="Paste the ticket page here">
+            <p class="hint">Leave this empty to hide card 1.</p>
+          </div>
+
+          <div class="card ticket-card-edit">
+            <label class="ticket-thumb-pick" for="t2Image" title="Change photo">
+              <span class="ticket-thumb-img" id="t2Preview" style="background-image:url('/img/p5.jpg')"></span>
+              <span class="ticket-num">Card 2</span>
+              <span class="ticket-thumb-btn" id="t2ImageBtn">Change photo</span>
+              <input type="file" id="t2Image" accept="image/*" data-ticket-image="2">
+            </label>
+            <label for="s_ticket2_title">Event name</label>
+            <input type="text" id="s_ticket2_title" name="ticket2_title" maxlength="120">
+            <label for="s_ticket2_subtitle">Where</label>
+            <input type="text" id="s_ticket2_subtitle" name="ticket2_subtitle" maxlength="120" placeholder="e.g. South Africa · Sahwigate">
+            <label for="s_ticket2_label">Button text</label>
+            <input type="text" id="s_ticket2_label" name="ticket2_label" maxlength="60" placeholder="e.g. Get Tickets">
+            <label for="s_ticket2_url">Ticket website</label>
+            <input type="text" inputmode="url" id="s_ticket2_url" name="ticket2_url" placeholder="Paste the ticket page here">
+            <p class="hint">Leave this empty to hide card 2.</p>
+          </div>
+        </div>
+        <div class="msg" id="ticketMsg" hidden></div>
+
+        <div class="save-bar">
+          <span class="muted">Changes go live as soon as you save.</span>
+          <button class="btn btn-dark" type="submit">Save changes</button>
         </div>
       </form>
     </section>
   </div>
 
-  <!-- ===== DRAWER: add / edit event ===== -->
   <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-  <aside class="drawer" id="eventDrawer" aria-hidden="true" aria-labelledby="eventFormTitle" role="dialog">
-    <div class="drawer-head">
-      <h2 id="eventFormTitle">Add event</h2>
-      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-    </div>
-    <form id="eventForm" class="drawer-body">
-      <input type="hidden" id="evId">
-      <label for="evTitle">Event name</label>
-      <input type="text" id="evTitle" maxlength="200" required placeholder="e.g. Old Is The New Vibe">
-      <div class="two">
-        <div><label for="evStart">Date &amp; start time <small>(ZW time)</small></label><input type="datetime-local" id="evStart" required></div>
-        <div><label for="evVenue">Venue</label><input type="text" id="evVenue" maxlength="200" placeholder="e.g. Bakerloo Bar, Harare"></div>
-      </div>
-      <label for="evTicket">Ticket link <small>(optional)</small></label>
-      <input type="url" id="evTicket" placeholder="https://">
-      <label for="evDesc">Description <small>(lineup, dress code, prices…)</small></label>
-      <textarea id="evDesc" maxlength="5000" rows="5"></textarea>
-      <label>Poster / cover photo <small id="evPosterHint">(optional)</small></label>
-      <label class="drop drop-poster" for="evPoster">
-        <span class="poster-preview" id="posterPreview"></span>
-        <span class="poster-text">
-          <b id="evPosterName">Choose a poster</b>
-          <small>Shows on the event card and page</small>
-        </span>
-        <input type="file" id="evPoster" accept="image/*">
-      </label>
-      <div class="msg" id="evMsg" hidden></div>
-      <div class="drawer-foot">
-        <button class="btn btn-light" type="button" data-close>Cancel</button>
-        <button class="btn btn-dark" type="submit" id="evSubmit">Save event</button>
-      </div>
-    </form>
-  </aside>
-
   <!-- ===== DRAWER: event photos ===== -->
   <aside class="drawer drawer-wide" id="photosDrawer" aria-hidden="true" aria-labelledby="eventPhotosTitle" role="dialog">
     <div class="drawer-head">

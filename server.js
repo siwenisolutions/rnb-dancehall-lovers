@@ -68,22 +68,24 @@ function cleanText(value, max, field) {
   if (value === undefined || value === null) return '';
   if (typeof value !== 'string') throw httpError(400, `${field} must be text.`);
   const v = value.trim();
-  if (v.length > max) throw httpError(400, `${field} is too long (max ${max} characters).`);
+  if (v.length > max) throw httpError(400, `${field} is too long. Please shorten it to ${max} letters or fewer.`);
   return v;
 }
 
+// Accepts links however people paste them ("megaticket.africa/...",
+// "www.instagram.com/...", or a full address) and stores a full web address.
 function cleanUrl(value, field) {
-  const v = cleanText(value, 1000, field);
+  let v = cleanText(value, 1000, field);
   if (!v) return '';
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = `https://${v.replace(/^\/+/, '')}`;
+  const bad = httpError(400, `${field}: that doesn't look like a website address. Open the page in your browser, copy the address from the top bar and paste it here.`);
   let u;
   try {
     u = new URL(v);
   } catch {
-    throw httpError(400, `${field} must be a full link starting with https://`);
+    throw bad;
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    throw httpError(400, `${field} must be a full link starting with https://`);
-  }
+  if ((u.protocol !== 'https:' && u.protocol !== 'http:') || !u.hostname.includes('.')) throw bad;
   return u.toString();
 }
 
@@ -308,14 +310,23 @@ admin.get('/stats', wrap(async (req, res) => {
   res.json({ ...s, db_bytes: Number(s.db_bytes), storage_limit_bytes: STORAGE_LIMIT_BYTES });
 }));
 
+// Names used in error messages, matching the labels in the admin panel.
+const SETTING_LABELS = {
+  hero_text: 'Home page tagline', about_text: 'About us', contact_email: 'Email', phone: 'Phone', address: 'Address',
+  instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', youtube_url: 'YouTube',
+  ticket1_title: 'Ticket card 1 event name', ticket1_subtitle: 'Ticket card 1 where', ticket1_label: 'Ticket card 1 button text', ticket1_url: 'Ticket card 1 ticket website',
+  ticket2_title: 'Ticket card 2 event name', ticket2_subtitle: 'Ticket card 2 where', ticket2_label: 'Ticket card 2 button text', ticket2_url: 'Ticket card 2 ticket website',
+};
+
 admin.put('/settings', wrap(async (req, res) => {
   const body = req.body || {};
   const updates = {};
   for (const key of EDITABLE_SETTINGS) {
     if (!(key in body)) continue;
-    if (key.endsWith('_url')) updates[key] = cleanUrl(body[key], key.replace(/_/g, ' '));
+    const label = SETTING_LABELS[key] || key;
+    if (key.endsWith('_url')) updates[key] = cleanUrl(body[key], label);
     else if (key === 'contact_email') updates[key] = cleanEmail(body[key]);
-    else updates[key] = cleanText(body[key], 2000, key.replace(/_/g, ' '));
+    else updates[key] = cleanText(body[key], 2000, label);
   }
   const client = await pool.connect();
   try {
@@ -344,7 +355,7 @@ function eventFromBody(body) {
     venue: cleanText(body.venue, 200, 'Venue'),
     startsAt: parseEventTime(body.starts_at),
     description: cleanText(body.description, 5000, 'Description'),
-    ticketUrl: cleanUrl(body.ticket_url, 'Ticket link'),
+    ticketUrl: cleanUrl(body.ticket_url, 'Where to buy tickets'),
   };
 }
 

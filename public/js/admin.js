@@ -176,8 +176,8 @@
       events = r[0].upcoming.map(function (e) { e.up = true; return e; }).concat(r[0].past);
       settings = r[2];
       renderOverview(r[1], r[3].photos);
-      renderTable('overview');
-      renderTable('events');
+      renderTable();
+      renderEventGrid();
       fillSettings();
     }).catch(function (err) { toast(err.message); });
   }
@@ -216,7 +216,7 @@
     $('sStorage').textContent = (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
     $('storageBar').style.width = Math.max(pct, 2) + '%';
     $('storageBar').style.background = pct > 85 ? 'var(--red)' : 'var(--purple)';
-    $('storageFoot').textContent = Math.round(pct) + '% of ' + Math.round(limitMb) + ' MB';
+    $('storageFoot').textContent = Math.round(pct) + '% of your free ' + Math.round(limitMb) + ' MB';
 
     renderChart();
 
@@ -267,59 +267,118 @@
     chart.appendChild(plot);
   }
 
-  // ---------- events table ----------
-  var tableState = { overview: { q: '', f: '' }, events: { q: '', f: '' } };
-  $$('[data-search]').forEach(function (input) {
-    input.addEventListener('input', function () { tableState[input.dataset.search].q = input.value.trim().toLowerCase(); renderTable(input.dataset.search); });
+  // ---------- shared event actions ----------
+  function eventMenu(ev) {
+    var trigger = el('button', { class: 'dots', type: 'button', 'aria-label': 'More options for ' + ev.title, 'aria-haspopup': 'true', 'aria-expanded': 'false', text: '•••' });
+    var menu = el('div', { class: 'menu', hidden: true }, [
+      el('button', { type: 'button', text: 'Edit event', onclick: function () { closeMenu(); openEventForm(ev); } }),
+      el('button', { type: 'button', text: 'Add or manage photos', onclick: function () { closeMenu(); openEventPhotos(ev); } }),
+      el('a', { href: '/events/' + ev.id, target: '_blank', rel: 'noopener', text: 'See it on the website' }),
+      el('button', { type: 'button', text: 'Delete event', style: 'color:var(--red)', onclick: function () { closeMenu(); deleteEvent(ev); } })
+    ]);
+    trigger.addEventListener('click', function () { toggleMenu(trigger, menu); });
+    return el('div', { class: 'row-menu' }, [trigger, menu]);
+  }
+
+  function emptyEvents(text, withButton) {
+    return el('div', { class: 'empty-block' }, [
+      el('span', { class: 'empty-ic' }, [svgIcon('M3 5h18v16H3zM16 3v4M8 3v4M3 10h18')]),
+      el('b', { text: text }),
+      withButton ? el('span', { class: 'muted', text: 'Add your next night so fans can find it on the website.' }) : null,
+      withButton ? el('button', { class: 'btn btn-dark', type: 'button', text: '+ Add your first event', onclick: function () { openEventForm(null); } }) : null
+    ]);
+  }
+
+  function svgIcon(d) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var s = document.createElementNS(ns, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    var p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', d);
+    s.appendChild(p);
+    return s;
+  }
+
+  function matches(e, q, f) {
+    if (f === 'up' && !e.up) return false;
+    if (f === 'past' && e.up) return false;
+    if (q && (e.title + ' ' + e.venue).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }
+
+  // ---------- overview table ----------
+  var overviewState = { q: '', f: '' };
+  $$('[data-search="overview"]').forEach(function (input) {
+    input.addEventListener('input', function () { overviewState.q = input.value.trim().toLowerCase(); renderTable(); });
   });
-  $$('[data-filter]').forEach(function (sel) {
-    sel.addEventListener('change', function () { tableState[sel.dataset.filter].f = sel.value; renderTable(sel.dataset.filter); });
+  $$('[data-filter="overview"]').forEach(function (sel) {
+    sel.addEventListener('change', function () { overviewState.f = sel.value; renderTable(); });
   });
 
-  function renderTable(key) {
-    var table = document.querySelector('[data-table="' + key + '"]');
-    var st = tableState[key];
-    var rows = events.filter(function (e) {
-      if (st.f === 'up' && !e.up) return false;
-      if (st.f === 'past' && e.up) return false;
-      if (st.q && (e.title + ' ' + e.venue).toLowerCase().indexOf(st.q) < 0) return false;
-      return true;
-    });
-    if (key === 'overview') rows = rows.slice(0, 6);
-
+  function renderTable() {
+    var table = document.querySelector('[data-table="overview"]');
+    var wrap = table.parentNode;
+    var rows = events.filter(function (e) { return matches(e, overviewState.q, overviewState.f); }).slice(0, 6);
+    var old = wrap.parentNode.querySelector('.empty-block');
+    if (old) old.remove();
     table.textContent = '';
+    if (!rows.length) {
+      wrap.hidden = true;
+      wrap.parentNode.appendChild(events.length ? emptyEvents('No events match your search.', false) : emptyEvents('No events yet', true));
+      return;
+    }
+    wrap.hidden = false;
     table.appendChild(el('thead', null, [el('tr', null, ['Event', 'Date', 'Venue', 'Photos', 'Status', ''].map(function (h) {
       return el('th', { text: h, scope: 'col' });
     }))]));
     var tbody = el('tbody');
-    if (!rows.length) {
-      tbody.appendChild(el('tr', null, [el('td', { colspan: '6', class: 'empty-row' }, [
-        events.length ? 'No events match.' : 'No events yet. ',
-        events.length ? null : el('button', { class: 'btn btn-dark btn-sm', type: 'button', text: '+ Add your first event', onclick: function () { openEventForm(null); } })
-      ])]));
-    }
     rows.forEach(function (ev) {
-      var trigger = el('button', { class: 'dots', type: 'button', 'aria-label': 'Actions for ' + ev.title, 'aria-haspopup': 'true', 'aria-expanded': 'false', text: '•••' });
-      var menu = el('div', { class: 'menu', hidden: true }, [
-        el('button', { type: 'button', text: 'Edit event', onclick: function () { closeMenu(); openEventForm(ev); } }),
-        el('button', { type: 'button', text: 'Manage photos', onclick: function () { closeMenu(); openEventPhotos(ev); } }),
-        el('a', { href: '/events/' + ev.id, target: '_blank', rel: 'noopener', text: 'View on website' }),
-        el('button', { type: 'button', text: 'Delete', style: 'color:var(--red)', onclick: function () { closeMenu(); deleteEvent(ev); } })
-      ]);
-      trigger.addEventListener('click', function () { toggleMenu(trigger, menu); });
       tbody.appendChild(el('tr', null, [
         el('td', null, [el('div', { class: 'ev-cell' }, [
           el('span', { class: 'ev-thumb', style: ev.cover_media_id ? "background-image:url('" + media(ev.cover_media_id, true) + "')" : '' }),
-          el('span', null, [el('b', { text: ev.title }), ev.ticket_url ? el('small', { text: 'Tickets linked' }) : el('small', { text: 'No ticket link' })])
+          el('span', null, [el('b', { text: ev.title }), el('small', { text: ev.ticket_url ? 'Tickets on sale' : 'No ticket page yet' })])
         ])]),
         el('td', null, [el('span', { text: fmtDate(ev.starts_at) }), el('br'), el('small', { class: 'muted', text: fmtTime(ev.starts_at) })]),
         el('td', { text: ev.venue || '—' }),
-        el('td', null, [el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: String(ev.photo_count), title: 'Manage photos', onclick: function () { openEventPhotos(ev); } })]),
+        el('td', null, [el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: String(ev.photo_count), title: 'Add or manage photos', onclick: function () { openEventPhotos(ev); } })]),
         el('td', null, [el('span', { class: 'status ' + (ev.up ? 'up' : 'past'), text: ev.up ? 'Upcoming' : 'Past' })]),
-        el('td', { style: 'text-align:right' }, [el('div', { class: 'row-menu' }, [trigger, menu])])
+        el('td', { style: 'text-align:right' }, [eventMenu(ev)])
       ]));
     });
     table.appendChild(tbody);
+  }
+
+  // ---------- events page: grid of event cards ----------
+  var eventsState = { q: '', f: '' };
+  $('eventSearch').addEventListener('input', function () { eventsState.q = this.value.trim().toLowerCase(); renderEventGrid(); });
+
+  function renderEventGrid() {
+    var grid = $('eventGrid');
+    grid.textContent = '';
+    var list = events.filter(function (e) { return matches(e, eventsState.q, eventsState.f); });
+    if (!list.length) {
+      grid.appendChild(events.length ? emptyEvents('No events match.', false) : emptyEvents('No events yet', true));
+      return;
+    }
+    list.forEach(function (ev) {
+      var editing = $('evId').value === String(ev.id);
+      grid.appendChild(el('article', { class: 'ev-card' + (editing ? ' editing' : '') }, [
+        el('div', { class: 'ev-poster', style: ev.cover_media_id ? "background-image:url('" + media(ev.cover_media_id, true) + "')" : '' }, [
+          el('span', { class: 'ev-date' }, [el('b', { text: parts(ev.starts_at).day }), el('small', { text: MONTHS[Number(parts(ev.starts_at).month) - 1] })]),
+          el('span', { class: 'ev-status ' + (ev.up ? 'up' : 'past'), text: ev.up ? 'Upcoming' : 'Past' }),
+          ev.cover_media_id ? null : el('span', { class: 'ev-noposter', text: ev.title })
+        ]),
+        el('div', { class: 'ev-body' }, [
+          el('div', { class: 'card-row' }, [el('b', { class: 'ev-title', text: ev.title }), eventMenu(ev)]),
+          el('small', { class: 'muted', text: fmtLong(ev.starts_at) }),
+          ev.venue ? el('small', { class: 'muted', text: ev.venue }) : null,
+          el('div', { class: 'ev-actions' }, [
+            el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Edit', onclick: function () { openEventForm(ev); } }),
+            el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Photos (' + ev.photo_count + ')', onclick: function () { openEventPhotos(ev); } })
+          ])
+        ])
+      ]));
+    });
   }
 
   function deleteEvent(ev) {
@@ -327,11 +386,12 @@
     call('DELETE', '/api/admin/events/' + ev.id).then(function () {
       toast('Event deleted');
       if (currentEvent && currentEvent.id === ev.id) closeDrawers();
+      if ($('evId').value === String(ev.id)) resetEventForm();
       loadAll();
     }).catch(function (err) { alert(err.message); });
   }
 
-  // ---------- drawers ----------
+  // ---------- drawer (event photos) ----------
   var lastFocus = null;
   function openDrawer(id) {
     closeMenu();
@@ -352,31 +412,51 @@
   $('drawerBackdrop').addEventListener('click', closeDrawers);
   $$('[data-close]').forEach(function (b) { b.addEventListener('click', closeDrawers); });
 
-  // ---------- add / edit event ----------
-  function openEventForm(ev) {
+  // ---------- add / edit event (left-hand form on the Events page) ----------
+  function resetEventForm() {
     $('eventForm').reset();
     $('evMsg').hidden = true;
-    $('evId').value = ev ? ev.id : '';
-    $('eventFormTitle').textContent = ev ? 'Edit event' : 'Add event';
-    $('evSubmit').textContent = ev ? 'Save changes' : 'Add event';
-    $('evTitle').value = ev ? ev.title : '';
-    $('evStart').value = ev ? toLocalInput(ev.starts_at) : '';
-    $('evVenue').value = ev ? ev.venue : '';
-    $('evTicket').value = ev ? ev.ticket_url : '';
-    $('evDesc').value = ev ? ev.description : '';
-    $('evPosterName').textContent = ev && ev.cover_media_id ? 'Replace poster' : 'Choose a poster';
-    $('evPosterHint').textContent = ev && ev.cover_media_id ? '(current poster shown)' : '(optional)';
-    $('posterPreview').style.backgroundImage = ev && ev.cover_media_id ? "url('" + media(ev.cover_media_id, true) + "')" : '';
-    openDrawer('eventDrawer');
-    setTimeout(function () { $('evTitle').focus(); }, 260);
+    $('evId').value = '';
+    $('eventFormTitle').textContent = 'Add an event';
+    $('evSubmit').textContent = 'Add event';
+    $('evCancel').hidden = true;
+    $('evPosterName').textContent = 'Choose a poster';
+    $('evPosterHint').textContent = 'Shows on the event card and page';
+    $('posterPreview').style.backgroundImage = '';
+    renderEventGrid();
+  }
+  $('evCancel').addEventListener('click', resetEventForm);
+
+  function openEventForm(ev) {
+    goTo('events');
+    resetEventForm();
+    if (ev) {
+      $('evId').value = ev.id;
+      $('eventFormTitle').textContent = 'Edit event';
+      $('evSubmit').textContent = 'Save changes';
+      $('evCancel').hidden = false;
+      $('evTitle').value = ev.title;
+      $('evStart').value = toLocalInput(ev.starts_at);
+      $('evVenue').value = ev.venue;
+      $('evTicket').value = ev.ticket_url;
+      $('evDesc').value = ev.description;
+      if (ev.cover_media_id) {
+        $('evPosterName').textContent = 'Change poster';
+        $('evPosterHint').textContent = 'This is the current poster';
+        $('posterPreview').style.backgroundImage = "url('" + media(ev.cover_media_id, true) + "')";
+      }
+      renderEventGrid();
+    }
+    $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(function () { $('evTitle').focus({ preventScroll: true }); }, 300);
   }
 
   $('evPoster').addEventListener('change', function () {
     var f = this.files[0];
     if (!f) return;
     $('evPosterName').textContent = f.name;
-    var url = URL.createObjectURL(f);
-    $('posterPreview').style.backgroundImage = "url('" + url + "')";
+    $('evPosterHint').textContent = 'New poster, saved when you press the button below';
+    $('posterPreview').style.backgroundImage = "url('" + URL.createObjectURL(f) + "')";
   });
 
   $('eventForm').addEventListener('submit', function (e) {
@@ -402,7 +482,7 @@
       return call('POST', '/api/admin/photos', fd);
     }).then(function () {
       busy(btn, false);
-      closeDrawers();
+      resetEventForm();
       toast(id ? 'Event updated' : 'Event added. It is live on the website.');
       return loadAll();
     }).catch(function (err) {
@@ -521,6 +601,7 @@
   var photoCount = 0;
   segment('photoCatSeg', function (v) { $('photoCat').value = v; });
   segment('photoFilterSeg', function (v) { photoFilter = v; loadPhotos(true); });
+  segment('eventFilterSeg', function (v) { eventsState.f = v; renderEventGrid(); });
 
   function loadPhotos(reset) {
     var grid = $('photoGrid');
@@ -580,9 +661,9 @@
       call('POST', '/api/admin/ticket-image/' + n, fd).then(function (r) {
         settings['ticket' + n + '_image'] = String(r.id);
         $('t' + n + 'Preview').style.backgroundImage = "url('" + media(r.id, true) + "')";
-        toast('Ticket card ' + n + ' thumbnail updated');
+        toast('Card ' + n + ' photo updated');
       }).catch(function (err) { say($('ticketMsg'), err.message, false); })
-        .then(function () { btn.textContent = 'Change thumbnail'; input.value = ''; });
+        .then(function () { btn.textContent = 'Change photo'; input.value = ''; });
     });
   });
   settingsForm.addEventListener('submit', function (e) {
