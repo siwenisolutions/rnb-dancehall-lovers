@@ -11,7 +11,7 @@ if (!connectionString) {
 
 const pool = new Pool({
   connectionString,
-  ssl: /sslmode=require|neon\.tech/.test(connectionString) ? { rejectUnauthorized: false } : false,
+  ssl: /sslmode=require|neon\.tech/.test(connectionString) ? true : false,
   max: 5,
 });
 
