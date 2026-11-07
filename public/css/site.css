@@ -526,3 +526,9 @@ body.subpage .burger span{background:#3a3733;}
   .lb-prev,.lb-next{top:auto; bottom:18px; transform:none;}
 }
 section[id]{scroll-margin-top:90px;}
+.mail-opts{display:flex; gap:6px; flex-wrap:wrap; margin:-2px 0 12px;}
+.footer-col .mail-opt{
+  display:inline-block; margin:0; padding:5px 10px; border-radius:999px; font:700 12px 'Archivo',sans-serif;
+  background:var(--cream); color:#1a1a1a; border:1px solid var(--line); cursor:pointer;
+}
+.footer-col .mail-opt:hover{background:#fff;}

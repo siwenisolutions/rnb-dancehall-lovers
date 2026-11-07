@@ -119,7 +119,23 @@
 
     var tel = s.phone ? '+263' + s.phone.replace(/\D/g, '').replace(/^(263|0)/, '') : '';
     var contact = [el('h4', { text: 'Contact' })];
-    if (s.contact_email) contact.push(el('a', { href: 'mailto:' + s.contact_email, text: s.contact_email, style: 'word-break:break-all;' }));
+    if (s.contact_email) {
+      // mailto: only works when the device has an email app set up, so also
+      // offer Gmail in the browser and a copy button.
+      var email = s.contact_email;
+      var copyBtn = el('button', { type: 'button', class: 'mail-opt', text: 'Copy' });
+      copyBtn.addEventListener('click', function () {
+        var done = function () { copyBtn.textContent = 'Copied!'; setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000); };
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(email).then(done, function () { window.prompt('Copy this email address:', email); });
+        else window.prompt('Copy this email address:', email);
+      });
+      contact.push(el('a', { href: 'mailto:' + email, text: email, style: 'word-break:break-all;' }));
+      contact.push(el('div', { class: 'mail-opts' }, [
+        el('a', { class: 'mail-opt', href: 'mailto:' + email, text: 'Email app' }),
+        el('a', { class: 'mail-opt', href: 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(email), target: '_blank', rel: 'noopener', text: 'Gmail' }),
+        copyBtn
+      ]));
+    }
     if (s.phone) contact.push(el('a', { href: 'tel:' + tel, text: s.phone }));
     var buttons = [];
     if (safeLink(s.instagram_url)) {

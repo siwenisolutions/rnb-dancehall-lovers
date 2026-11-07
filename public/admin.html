@@ -49,6 +49,8 @@
   .login{max-width:400px;margin:10vh auto;padding:0 16px;}
   .login .card{padding:30px;}
   .login .display{font-size:34px;margin:14px 0 4px;}
+  .login-head{text-align:center;margin-bottom:6px;}
+  .login-head img{margin:0 auto;}
   .ev-list{display:flex;flex-direction:column;gap:10px;}
   .ev{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;}
   .ev .thumb{width:64px;height:80px;border-radius:8px;background:#ddd center/cover;flex:0 0 auto;}
@@ -82,9 +84,11 @@
 <!-- LOGIN -->
 <div class="login" id="loginView" hidden>
   <div class="card">
-    <img src="/img/logo.png" alt="" width="70">
-    <div class="display">Website admin</div>
-    <p class="hint" style="color:var(--muted)">Log in to update events, photos and contact details.</p>
+    <div class="login-head">
+      <img src="/img/logo.png" alt="RNB Dancehall Lovers" width="110">
+      <div class="display">Website admin</div>
+      <p class="hint" style="color:var(--muted)">Log in to update events, photos and contact details.</p>
+    </div>
     <form id="loginForm">
       <label for="password">Password</label>
       <input type="password" id="password" autocomplete="current-password" required>
