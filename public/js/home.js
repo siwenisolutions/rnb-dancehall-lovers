@@ -2,7 +2,50 @@
   'use strict';
   var R = window.RNB, el = R.el;
   var upcomingList = document.getElementById('upcomingList');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // ---------- slideshows ----------
+  // Puts up to 5 photos inside a box and fades between them. If a video is
+  // given (header only), it plays muted on a loop instead.
+  function slideshow(box, items, opts) {
+    opts = opts || {};
+    if (!box || !items || !items.length) return;
+    var old = box.querySelector(':scope > .slides');
+    if (old) old.remove();
+    var wrap = el('div', { class: 'slides', 'aria-hidden': 'true' });
+    var video = opts.video && items.filter(function (i) { return /^video\//.test(i.mime || ''); })[0];
+    if (video) {
+      var v = el('video', { class: 'slide on', src: R.mediaUrl(video.id), autoplay: true, loop: true, playsinline: true, preload: 'auto' });
+      v.muted = true;
+      wrap.appendChild(v);
+      box.insertBefore(wrap, box.firstChild);
+      box.classList.add('has-slides');
+      var p = v.play();
+      if (p && p.catch) p.catch(function () { /* autoplay blocked: first frame still shows */ });
+      return;
+    }
+    var photos = items.filter(function (i) { return !/^video\//.test(i.mime || ''); }).slice(0, 5);
+    if (!photos.length) return;
+    var slides = photos.map(function (ph, i) {
+      return el('div', { class: 'slide' + (i === 0 ? ' on' : ''), style: "background-image:url('" + R.mediaUrl(ph.id, opts.thumb) + "')" });
+    });
+    slides.forEach(function (s) { wrap.appendChild(s); });
+    box.insertBefore(wrap, box.firstChild);
+    box.classList.add('has-slides');
+    if (slides.length < 2 || reduceMotion) return;
+    var i = 0;
+    var period = 4500 + Math.random() * 2500;
+    setTimeout(function () {
+      setInterval(function () {
+        if (document.hidden) return;
+        slides[i].classList.remove('on');
+        i = (i + 1) % slides.length;
+        slides[i].classList.add('on');
+      }, period);
+    }, Math.random() * 2000);
+  }
+
+  // ---------- sections ----------
   function renderUpcoming(events, settings) {
     upcomingList.textContent = '';
     if (!events.length) {
@@ -18,15 +61,17 @@
     events.forEach(function (ev) { upcomingList.appendChild(R.eventCard(ev)); });
   }
 
-  function renderExperience(photos) {
-    if (!photos.length) return; // keep the built-in photos
-    var row = document.getElementById('expRow');
-    row.textContent = '';
-    photos.forEach(function (p) {
-      row.appendChild(el('a', { class: 'exp-card', href: '/gallery?category=experience' }, [
-        el('div', { class: 'photo ph media', style: "background-image:url('" + R.mediaUrl(p.id, true) + "')", role: 'img', 'aria-label': p.caption || 'Experience photo' }),
-        p.caption ? el('span', { class: 'cap', text: p.caption }) : null
-      ]));
+  function renderExperience(slots, s) {
+    var cards = document.querySelectorAll('#expRow .exp-card');
+    ['exp1', 'exp2', 'exp3'].forEach(function (key, i) {
+      var card = cards[i];
+      if (!card) return;
+      var cap = card.querySelector('.cap');
+      if (cap && s[key + '_label'] !== undefined) {
+        cap.textContent = s[key + '_label'];
+        cap.hidden = !s[key + '_label'];
+      }
+      slideshow(card.querySelector('.photo'), slots[key], { thumb: true });
     });
   }
 
@@ -35,27 +80,28 @@
     var grid = document.getElementById('recentGrid');
     grid.textContent = '';
     events.forEach(function (ev) {
-      var style = ev.cover_media_id ? "background-image:url('" + R.mediaUrl(ev.cover_media_id, true) + "')" : 'background:linear-gradient(135deg,#5b266c,#c11fd6)';
-      grid.appendChild(el('a', { class: 'case-card ph media', href: '/events/' + ev.id, style: style }, [
+      var card = el('a', { class: 'case-card ph media', href: '/events/' + ev.id, style: 'background:linear-gradient(135deg,#5b266c,#c11fd6)' }, [
         el('div', { class: 'meta' }, [ev.title, el('small', { text: R.fmtDay(ev.starts_at) + ' ' + R.fmtMonth(ev.starts_at) + (ev.venue ? ' · ' + ev.venue : '') })])
-      ]));
+      ]);
+      grid.appendChild(card);
+      var ids = (ev.photo_ids && ev.photo_ids.length) ? ev.photo_ids : (ev.cover_media_id ? [ev.cover_media_id] : []);
+      slideshow(card, ids.map(function (id) { return { id: id, mime: 'image/webp' }; }), { thumb: true });
     });
   }
 
-  // Ticket cards: one per ticket link set in the admin panel. Falls back to
-  // the site's own photos when no thumbnail has been uploaded.
-  function renderTickets(s) {
+  // Ticket cards: one per ticket link set in the admin panel, each with its own slideshow.
+  function renderTickets(s, slots) {
     var grid = document.getElementById('ticketGrid');
-    var fallback = { 1: '/img/p6.jpg', 2: '/img/p5.jpg' };
     var cards = [1, 2].map(function (n) {
       var url = R.safeLink(s['ticket' + n + '_url']);
       if (!url) return null;
-      var img = s['ticket' + n + '_image'] ? R.mediaUrl(s['ticket' + n + '_image'], true) : fallback[n];
       var title = s['ticket' + n + '_title'] || 'RNB Dancehall Lovers';
       var host = '';
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
+      var thumb = el('div', { class: 'ticket-thumb ticket-thumb-' + n }, [el('span', { class: 'ticket-chip', text: 'Tickets on sale' })]);
+      slideshow(thumb, slots['ticket' + n]);
       return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
-        el('div', { class: 'ticket-thumb', style: "background-image:url('" + img + "')" }, [el('span', { class: 'ticket-chip', text: 'Tickets on sale' })]),
+        thumb,
         el('div', { class: 'ticket-body' }, [
           el('div', { class: 'ticket-sub', text: s['ticket' + n + '_subtitle'] || host }),
           el('h3', { text: title }),
@@ -73,12 +119,18 @@
 
   R.api('/api/home').then(function (data) {
     var s = data.settings || {};
+    var slots = data.slots || {};
     if (s.hero_text) document.getElementById('heroText').textContent = s.hero_text;
     if (s.about_text) document.getElementById('aboutText').textContent = s.about_text;
     R.renderFooter(s);
-    renderTickets(s);
+    slideshow(document.querySelector('.hero'), slots.hero, { video: true });
+    renderTickets(s, slots);
     renderUpcoming(data.upcoming || [], s);
-    renderExperience(data.experience || []);
+    renderExperience(slots, s);
+    slideshow(document.querySelector('.promo-photo'), slots.promo);
+    var joins = document.querySelectorAll('.join .join-panel');
+    slideshow(joins[0], slots.join1, { thumb: true });
+    slideshow(joins[1], slots.join2, { thumb: true });
     renderRecent(data.past || []);
   }).catch(function () {
     upcomingList.appendChild(el('div', { class: 'empty-state', style: 'grid-column:1/-1; margin-top:0;' }, [

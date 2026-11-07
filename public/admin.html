@@ -97,7 +97,7 @@
           <div class="sub-card">
             <div class="sub-head"><b>Photos</b><span class="muted">|</span><span class="muted" id="photoTotal">0 total</span></div>
             <div class="mini-stats">
-              <div><span class="dot dot-purple"></span><small>Experience</small><b id="mExperience">0</b></div>
+              <div><span class="dot dot-purple"></span><small>Website photos</small><b id="mExperience">0</b></div>
               <div><span class="dot dot-pink"></span><small>Event photos</small><b id="mEvent">0</b></div>
               <div><span class="dot dot-green"></span><small>Last 30 days</small><b id="m30">0</b></div>
             </div>
@@ -179,6 +179,15 @@
             <button class="btn btn-ghost btn-sm" type="button" id="evCancel" hidden>Cancel</button>
           </div>
           <input type="hidden" id="evId">
+          <div class="quick-add" id="quickAdd">
+            <div class="qa-head">
+              <span class="qa-ic"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></span>
+              <div><b>Quick add from your social media post</b><small>Copy the caption of your Instagram or Facebook promo and paste it here. We'll fill in the form for you.</small></div>
+            </div>
+            <textarea id="qaText" rows="4" placeholder="Paste your post here…"></textarea>
+            <button class="btn btn-green btn-block" type="button" id="qaFill">Fill in the form for me</button>
+            <div class="msg" id="qaMsg" hidden></div>
+          </div>
           <label for="evTitle">Event name</label>
           <input type="text" id="evTitle" maxlength="200" required placeholder="e.g. Old Is The New Vibe">
           <label for="evStart">Date and start time</label>
@@ -225,41 +234,40 @@
     <section data-panel="photos" hidden>
       <div class="page-head">
         <h1>Photos</h1>
-        <p class="muted">Experience photos: the newest 3 show on the home page. Highlights: gallery only. Event photos are added from each event.</p>
+        <p class="muted">Every picture spot on your website holds up to 5 photos, which play as a slideshow. Add photos to a spot, or replace the ones that are there.</p>
       </div>
       <div class="photos-layout">
-        <form class="card upload-card" id="photoForm">
-          <h3>Upload photos</h3>
-          <label for="photoCat">Where should they go?</label>
-          <div class="seg" role="radiogroup" id="photoCatSeg">
-            <button type="button" role="radio" aria-checked="true" data-val="experience">The Experience</button>
-            <button type="button" role="radio" aria-checked="false" data-val="gallery">Highlights</button>
-          </div>
-          <input type="hidden" id="photoCat" value="experience">
-          <label for="photoCaption">Caption <small>(optional)</small></label>
-          <input type="text" id="photoCaption" maxlength="200" placeholder="e.g. Personal">
-          <label class="drop" for="photoFiles">
-            <svg viewBox="0 0 24 24"><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3M12 4v12M7 9l5-5 5 5"/></svg>
-            <b>Choose photos</b>
-            <small id="photoFilesName">Up to 20 at a time · phone photos are fine</small>
-            <input type="file" id="photoFiles" accept="image/*" multiple>
-          </label>
-          <button class="btn btn-dark btn-block" type="submit" id="photoSubmit">Upload photos</button>
-          <div class="msg" id="photoMsg" hidden></div>
-        </form>
+        <div class="col-left">
+          <form class="card upload-card" id="photoForm">
+            <h3>Add photos</h3>
+            <label for="upTarget">Where should they go?</label>
+            <select id="upTarget"></select>
+            <p class="hint" id="upTargetHint"></p>
+            <label class="drop" for="photoFiles">
+              <svg viewBox="0 0 24 24"><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3M12 4v12M7 9l5-5 5 5"/></svg>
+              <b>Choose photos</b>
+              <small id="photoFilesName">Phone photos are fine, they're shrunk automatically</small>
+              <input type="file" id="photoFiles" accept="image/*" multiple>
+            </label>
+            <button class="btn btn-dark btn-block" type="submit" id="photoSubmit">Add photos</button>
+            <div class="msg" id="photoMsg" hidden></div>
+          </form>
+          <div class="card storage-card" data-storage></div>
+        </div>
 
         <div class="card">
           <div class="card-row wrap">
-            <h3>All photos</h3>
-            <div class="seg seg-sm" role="radiogroup" id="photoFilterSeg">
-              <button type="button" role="radio" aria-checked="true" data-val="">All</button>
-              <button type="button" role="radio" aria-checked="false" data-val="experience">Experience</button>
-              <button type="button" role="radio" aria-checked="false" data-val="gallery">Highlights</button>
-              <button type="button" role="radio" aria-checked="false" data-val="event">Events</button>
+            <div>
+              <h3>All photos</h3>
+              <p class="hint" style="margin-top:4px;">Edit or replace any photo: tap <b>Replace</b> to swap it for a new one, or <b>Delete</b> to remove it.</p>
             </div>
           </div>
-          <div class="photo-grid" id="photoGrid"></div>
-          <div class="center"><button class="btn btn-light" id="photoMore" type="button" hidden>Load more</button></div>
+          <div class="slot-list" data-slots="all"></div>
+          <div class="slot-card">
+            <div class="slot-head"><div><b>Event photos</b><small>Photos from your events. Manage them per event on the Events page too.</small></div></div>
+            <div class="photo-grid" id="photoGrid"></div>
+            <div class="center"><button class="btn btn-light" id="photoMore" type="button" hidden>Load more</button></div>
+          </div>
         </div>
       </div>
     </section>
@@ -270,7 +278,7 @@
         <div class="page-head row">
           <div>
             <h1>Website details</h1>
-            <p class="muted">The words, contact details and ticket cards people see on the website. Press Save when you're done.</p>
+            <p class="muted">The words, pictures, contact details and ticket cards people see on your website. Pictures save as soon as you add them; for words, press Save changes.</p>
           </div>
           <button class="btn btn-dark" type="submit" id="settingsSubmit">Save changes</button>
         </div>
@@ -307,6 +315,14 @@
 
         <div class="section-head-admin">
           <div>
+            <h2>Website pictures</h2>
+            <p class="muted">Each spot holds up to 5 photos that change on their own as a slideshow. The header can also play a short video.</p>
+          </div>
+        </div>
+        <div class="slot-list slot-list-grid" data-slots="hero,exp1,exp2,exp3,promo,join1,join2"></div>
+
+        <div class="section-head-admin">
+          <div>
             <h2>Tickets on sale</h2>
             <p class="muted">These two cards appear on the home page under "Tickets on sale". Clicking one takes people to the ticket website.</p>
           </div>
@@ -314,12 +330,7 @@
 
         <div class="ticket-cards-edit">
           <div class="card ticket-card-edit">
-            <label class="ticket-thumb-pick" for="t1Image" title="Change photo">
-              <span class="ticket-thumb-img" id="t1Preview" style="background-image:url('/img/p6.jpg')"></span>
-              <span class="ticket-num">Card 1</span>
-              <span class="ticket-thumb-btn" id="t1ImageBtn">Change photo</span>
-              <input type="file" id="t1Image" accept="image/*" data-ticket-image="1">
-            </label>
+            <div class="slot-list slot-list-compact" data-slots="ticket1"></div>
             <label for="s_ticket1_title">Event name</label>
             <input type="text" id="s_ticket1_title" name="ticket1_title" maxlength="120">
             <label for="s_ticket1_subtitle">Where</label>
@@ -332,12 +343,7 @@
           </div>
 
           <div class="card ticket-card-edit">
-            <label class="ticket-thumb-pick" for="t2Image" title="Change photo">
-              <span class="ticket-thumb-img" id="t2Preview" style="background-image:url('/img/p5.jpg')"></span>
-              <span class="ticket-num">Card 2</span>
-              <span class="ticket-thumb-btn" id="t2ImageBtn">Change photo</span>
-              <input type="file" id="t2Image" accept="image/*" data-ticket-image="2">
-            </label>
+            <div class="slot-list slot-list-compact" data-slots="ticket2"></div>
             <label for="s_ticket2_title">Event name</label>
             <input type="text" id="s_ticket2_title" name="ticket2_title" maxlength="120">
             <label for="s_ticket2_subtitle">Where</label>
@@ -348,12 +354,6 @@
             <input type="text" inputmode="url" id="s_ticket2_url" name="ticket2_url" placeholder="Paste the ticket page here">
             <p class="hint">Leave this empty to hide card 2.</p>
           </div>
-        </div>
-        <div class="msg" id="ticketMsg" hidden></div>
-
-        <div class="save-bar">
-          <span class="muted">Changes go live as soon as you save.</span>
-          <button class="btn btn-dark" type="submit">Save changes</button>
         </div>
       </form>
     </section>

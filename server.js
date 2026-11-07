@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const { pool, migrate, insertMedia, SETTING_DEFAULTS } = require('./db');
-const { processImage } = require('./images');
+const { pool, migrate, insertMedia, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
+const { processImage, detectVideo } = require('./images');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -15,7 +15,8 @@ const SESSION_HOURS = 12;
 const COOKIE = 'rnb_admin';
 // *_image settings are media ids, changed only through the thumbnail upload endpoint.
 const EDITABLE_SETTINGS = Object.keys(SETTING_DEFAULTS).filter((k) => !k.endsWith('_image'));
-const CATEGORIES = ['experience', 'gallery', 'event'];
+// Uploads through /photos are event photos; website sections use /slots.
+const CATEGORIES = ['event'];
 // Event times are entered and shown in Zimbabwe time (CAT, UTC+2, no DST).
 const ZW_OFFSET = '+02:00';
 // Neon free plan storage, shown as a usage bar in the admin overview.
@@ -186,8 +187,11 @@ function requireAdmin(req, res, next) {
 
 // ---------- public API ----------
 
+// photo_ids: up to 5 of the event's photos (cover first) for its slideshow card.
 const eventColumns = `e.id, e.title, e.venue, e.starts_at, e.description, e.ticket_url, e.cover_media_id,
-  (SELECT count(*)::int FROM media m WHERE m.event_id = e.id) AS photo_count`;
+  (SELECT count(*)::int FROM media m WHERE m.event_id = e.id) AS photo_count,
+  ARRAY(SELECT m.id FROM media m WHERE m.event_id = e.id
+        ORDER BY (m.id = e.cover_media_id) DESC, m.created_at, m.id LIMIT ${SLOT_MAX}) AS photo_ids`;
 // An event counts as "upcoming" until 12 hours after it starts.
 const UPCOMING = "e.starts_at >= now() - interval '12 hours'";
 
@@ -204,14 +208,29 @@ app.use('/api', (req, res, next) => {
 });
 
 app.get('/api/home', wrap(async (req, res) => {
-  const [settings, upcoming, past, experience] = await Promise.all([
+  const [settings, upcoming, past, slots] = await Promise.all([
     getSettings(),
     pool.query(`SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} ORDER BY e.starts_at ASC LIMIT 3`),
     pool.query(`SELECT ${eventColumns} FROM events e WHERE NOT (${UPCOMING}) ORDER BY e.starts_at DESC LIMIT 8`),
-    pool.query("SELECT id, caption FROM media WHERE category = 'experience' ORDER BY created_at DESC, id DESC LIMIT 3"),
+    getSlots(),
   ]);
-  res.json({ settings, upcoming: upcoming.rows, past: past.rows, experience: experience.rows });
+  res.json({ settings, upcoming: upcoming.rows, past: past.rows, slots });
 }));
+
+// Photos (or a header video) for each picture spot on the website, in slideshow order.
+async function getSlots(withDetails = false) {
+  const { rows } = await pool.query(
+    `SELECT id, slot, mime, caption, width, height FROM media
+      WHERE category = 'site' AND slot IS NOT NULL ORDER BY created_at, id`
+  );
+  const out = {};
+  for (const key of Object.keys(SLOTS)) out[key] = [];
+  for (const r of rows) {
+    if (!out[r.slot]) continue;
+    out[r.slot].push(withDetails ? r : { id: r.id, mime: r.mime });
+  }
+  return out;
+}
 
 app.get('/api/settings', wrap(async (req, res) => {
   res.json(await getSettings());
@@ -241,14 +260,17 @@ app.get('/api/photos', wrap(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 60, 1), 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   const params = [limit + 1, offset];
-  let where = "WHERE m.category <> 'site'";
-  if (category) {
-    if (!CATEGORIES.includes(category)) throw httpError(400, 'Unknown category.');
-    params.push(category);
-    where = 'WHERE m.category = $3';
-  }
+  // Gallery: every photo on the site (videos are not shown in the gallery).
+  const filters = {
+    '': "m.mime LIKE 'image/%'",
+    event: "m.category = 'event'",
+    experience: "m.slot IN ('exp1', 'exp2', 'exp3')",
+    gallery: "m.mime LIKE 'image/%' AND m.category <> 'event' AND (m.slot IS NULL OR m.slot NOT IN ('exp1', 'exp2', 'exp3'))",
+  };
+  if (!(category in filters)) throw httpError(400, 'Unknown category.');
+  const where = `WHERE ${filters[category]}`;
   const { rows } = await pool.query(
-    `SELECT m.id, m.category, m.caption, m.width, m.height, m.event_id, e.title AS event_title
+    `SELECT m.id, m.category, m.slot, m.caption, m.width, m.height, m.event_id, e.title AS event_title
        FROM media m LEFT JOIN events e ON e.id = m.event_id
        ${where}
        ORDER BY m.created_at DESC, m.id DESC
@@ -261,11 +283,33 @@ app.get('/api/photos', wrap(async (req, res) => {
 // Photos are immutable once uploaded (edits create new ids), so cache hard.
 app.get('/media/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
+  const head = await pool.query('SELECT mime, octet_length(data) AS size FROM media WHERE id = $1', [id]);
+  if (head.rowCount === 0) throw httpError(404, 'Photo not found.');
+  const { mime } = head.rows[0];
+  const size = Number(head.rows[0].size);
+  res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes' });
+
+  if (mime.startsWith('video/')) {
+    // Videos are sent in pieces so they start playing quickly and can be skipped through.
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.get('Range') || '');
+    let start = 0;
+    let end = Math.min(size - 1, 2 * 1024 * 1024 - 1);
+    if (m) {
+      if (m[1] === '' && m[2] !== '') { start = Math.max(0, size - Number(m[2])); end = size - 1; }
+      else { start = Number(m[1]); end = m[2] ? Math.min(Number(m[2]), size - 1) : Math.min(size - 1, start + 2 * 1024 * 1024 - 1); }
+      if (start >= size || start > end) return res.status(416).set('Content-Range', `bytes */${size}`).end();
+    } else {
+      end = size - 1;
+    }
+    const { rows } = await pool.query('SELECT substring(data FROM $2 FOR $3) AS chunk FROM media WHERE id = $1', [id, start + 1, end - start + 1]);
+    res.status(m ? 206 : 200).set({ 'Content-Type': mime, 'Content-Length': String(end - start + 1) });
+    if (m) res.set('Content-Range', `bytes ${start}-${end}/${size}`);
+    return res.send(rows[0].chunk);
+  }
+
   const col = req.query.size === 'thumb' ? 'thumb' : 'data';
-  const { rows } = await pool.query(`SELECT mime, ${col} AS bytes FROM media WHERE id = $1`, [id]);
-  if (rows.length === 0) throw httpError(404, 'Photo not found.');
-  res.set({ 'Content-Type': rows[0].mime, 'Cache-Control': 'public, max-age=31536000, immutable' });
-  res.send(rows[0].bytes);
+  const { rows } = await pool.query(`SELECT ${col} AS bytes FROM media WHERE id = $1`, [id]);
+  res.set('Content-Type', mime).send(rows[0].bytes);
 }));
 
 // ---------- admin API ----------
@@ -301,13 +345,22 @@ admin.get('/stats', wrap(async (req, res) => {
     SELECT
       (SELECT count(*)::int FROM events e WHERE ${UPCOMING}) AS upcoming,
       (SELECT count(*)::int FROM events e WHERE NOT (${UPCOMING})) AS past,
-      (SELECT count(*)::int FROM media WHERE category <> 'site') AS photos,
-      (SELECT count(*)::int FROM media WHERE category = 'experience') AS experience,
+      (SELECT count(*)::int FROM media WHERE mime LIKE 'image/%') AS photos,
+      (SELECT count(*)::int FROM media WHERE mime LIKE 'video/%') AS videos,
+      (SELECT count(*)::int FROM media WHERE category = 'site' AND mime LIKE 'image/%') AS site_photos,
       (SELECT count(*)::int FROM media WHERE category = 'event') AS event_photos,
-      (SELECT count(*)::int FROM media WHERE category <> 'site' AND created_at > now() - interval '30 days') AS photos_30d,
+      (SELECT count(*)::int FROM media WHERE mime LIKE 'image/%' AND created_at > now() - interval '30 days') AS photos_30d,
+      (SELECT COALESCE(avg(octet_length(data) + octet_length(thumb)), 400000)::bigint FROM media WHERE mime LIKE 'image/%') AS avg_photo_bytes,
       pg_database_size(current_database())::bigint AS db_bytes`);
   const s = rows[0];
-  res.json({ ...s, db_bytes: Number(s.db_bytes), storage_limit_bytes: STORAGE_LIMIT_BYTES });
+  const used = Number(s.db_bytes);
+  res.json({
+    ...s,
+    db_bytes: used,
+    avg_photo_bytes: Number(s.avg_photo_bytes),
+    storage_limit_bytes: STORAGE_LIMIT_BYTES,
+    photos_left: Math.max(0, Math.floor((STORAGE_LIMIT_BYTES - used) / Number(s.avg_photo_bytes))),
+  });
 }));
 
 // Names used in error messages, matching the labels in the admin panel.
@@ -315,6 +368,7 @@ const SETTING_LABELS = {
   hero_text: 'Home page tagline', about_text: 'About us', contact_email: 'Email', phone: 'Phone', address: 'Address',
   instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', youtube_url: 'YouTube',
   ticket1_title: 'Ticket card 1 event name', ticket1_subtitle: 'Ticket card 1 where', ticket1_label: 'Ticket card 1 button text', ticket1_url: 'Ticket card 1 ticket website',
+  exp1_label: 'Experience card 1 word', exp2_label: 'Experience card 2 word', exp3_label: 'Experience card 3 word',
   ticket2_title: 'Ticket card 2 event name', ticket2_subtitle: 'Ticket card 2 where', ticket2_label: 'Ticket card 2 button text', ticket2_url: 'Ticket card 2 ticket website',
 };
 
@@ -408,6 +462,7 @@ admin.post('/photos', upload.array('photos', 20), wrap(async (req, res) => {
     if (ev.rowCount === 0) throw httpError(400, 'That event no longer exists.');
   }
   const caption = cleanText(req.body.caption, 200, 'Caption');
+  await assertRoomFor(files.reduce((n, f) => n + f.size, 0));
   const ids = [];
   for (const file of files) {
     const img = await processImage(file.buffer);
@@ -422,32 +477,84 @@ admin.post('/photos', upload.array('photos', 20), wrap(async (req, res) => {
   res.status(201).json({ ids });
 }));
 
-// Thumbnail for ticket card 1 or 2. Replaces (and deletes) the previous one.
-admin.post('/ticket-image/:n', upload.single('photo'), wrap(async (req, res) => {
-  const n = req.params.n;
-  if (n !== '1' && n !== '2') throw httpError(404, 'Not found.');
+// ---------- picture sections (slots) ----------
+
+// Videos for the header can be bigger than photos.
+const VIDEO_MAX_MB = Number(process.env.VIDEO_MAX_MB || 60);
+const uploadMedia = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: VIDEO_MAX_MB * 1024 * 1024, files: SLOT_MAX },
+});
+
+async function storageUsed() {
+  const { rows } = await pool.query('SELECT pg_database_size(current_database())::bigint AS b');
+  return Number(rows[0].b);
+}
+async function assertRoomFor(bytes) {
+  if ((await storageUsed()) + bytes > STORAGE_LIMIT_BYTES * 0.98) {
+    throw httpError(400, 'Your storage is full. Delete some old photos or videos first, or ask Siweni to upgrade your storage.');
+  }
+}
+
+// Turns an uploaded file into something we can store: a resized photo, or a
+// header video exactly as uploaded.
+async function prepareUpload(file, allowVideo) {
+  const video = detectVideo(file.buffer);
+  if (video) {
+    if (!allowVideo) throw httpError(400, 'Videos can only be used for the header background. Please choose a photo here.');
+    return { mime: video, width: 0, height: 0, data: file.buffer, thumb: Buffer.alloc(0) };
+  }
+  if (file.size > 15 * 1024 * 1024) throw httpError(400, 'Each photo must be under 15 MB.');
+  return processImage(file.buffer);
+}
+
+admin.get('/slots', wrap(async (req, res) => {
+  const slots = await getSlots(true);
+  res.json({
+    max: SLOT_MAX,
+    slots: Object.entries(SLOTS).map(([key, def]) => ({
+      key, label: def.label, where: def.where, video: !!def.video, items: slots[key],
+    })),
+  });
+}));
+
+// Add photos (or one header video) to a picture section. Max 5 per section.
+admin.post('/slots/:slot', uploadMedia.array('files', SLOT_MAX), wrap(async (req, res) => {
+  const slot = req.params.slot;
+  const def = SLOTS[slot];
+  if (!def) throw httpError(404, 'Not found.');
+  const files = req.files || [];
+  if (files.length === 0) throw httpError(400, 'Choose at least one photo.');
+  const { rows } = await pool.query('SELECT count(*)::int AS n FROM media WHERE slot = $1', [slot]);
+  const room = SLOT_MAX - rows[0].n;
+  if (room <= 0) throw httpError(400, `${def.label} already has ${SLOT_MAX} photos. Replace or delete one first.`);
+  if (files.length > room) throw httpError(400, `${def.label} only has room for ${room} more photo${room === 1 ? '' : 's'} (${SLOT_MAX} at most).`);
+  await assertRoomFor(files.reduce((n, f) => n + f.size, 0));
+  const prepared = [];
+  for (const file of files) prepared.push(await prepareUpload(file, def.video));
+  const ids = [];
+  for (const img of prepared) ids.push(await insertMedia({ category: 'site', caption: '', eventId: null, img, slot }));
+  res.status(201).json({ ids });
+}));
+
+// Replace a photo with a new one, keeping its place (section, event, order, cover).
+admin.post('/photos/:id/replace', uploadMedia.single('file'), wrap(async (req, res) => {
+  const id = parseId(req.params.id);
   if (!req.file) throw httpError(400, 'Choose a photo.');
-  const img = await processImage(req.file.buffer);
-  const key = `ticket${n}_image`;
+  const old = await pool.query('SELECT category, slot, event_id, caption, created_at FROM media WHERE id = $1', [id]);
+  if (old.rowCount === 0) throw httpError(404, 'Photo not found.');
+  const o = old.rows[0];
+  const allowVideo = !!(o.slot && SLOTS[o.slot] && SLOTS[o.slot].video);
+  await assertRoomFor(req.file.size);
+  const img = await prepareUpload(req.file, allowVideo);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(
-      `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb)
-       VALUES ('site', NULL, $1, $2, $3, $4, $5, $6) RETURNING id`,
-      [`Ticket card ${n}`, img.mime, img.width, img.height, img.data, img.thumb]
-    );
-    const old = await client.query('SELECT value FROM settings WHERE key = $1', [key]);
-    await client.query(
-      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
-      [key, String(rows[0].id)]
-    );
-    const oldId = Number(old.rows[0] && old.rows[0].value);
-    if (Number.isInteger(oldId) && oldId > 0) {
-      await client.query("DELETE FROM media WHERE id = $1 AND category = 'site'", [oldId]);
-    }
+    const newId = await insertMedia({ category: o.category, caption: o.caption, eventId: o.event_id, img, slot: o.slot, createdAt: o.created_at }, client);
+    await client.query('UPDATE events SET cover_media_id = $1 WHERE cover_media_id = $2', [newId, id]);
+    await client.query('DELETE FROM media WHERE id = $1', [id]);
     await client.query('COMMIT');
-    res.status(201).json({ id: rows[0].id });
+    res.status(201).json({ id: newId });
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -477,7 +584,7 @@ admin.post('/events/:id/cover', wrap(async (req, res) => {
 
 admin.delete('/photos/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
-  const r = await pool.query("DELETE FROM media WHERE id = $1 AND category <> 'site'", [id]);
+  const r = await pool.query('DELETE FROM media WHERE id = $1', [id]);
   if (r.rowCount === 0) throw httpError(404, 'Photo not found.');
   res.json({ ok: true });
 }));

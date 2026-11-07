@@ -190,7 +190,7 @@
   $$('[data-goto]').forEach(function (b) { b.addEventListener('click', function () { goTo(b.dataset.goto); }); });
   $$('[data-action="new-event"]').forEach(function (b) { b.addEventListener('click', function () { openEventForm(null); }); });
   $$('[data-action="upload-photos"]').forEach(function (b) {
-    b.addEventListener('click', function () { goTo('photos'); setTimeout(function () { $('photoCaption').focus(); }, 100); });
+    b.addEventListener('click', function () { goTo('photos'); setTimeout(function () { $('upTarget').focus(); }, 100); });
   });
   $('refreshBtn').addEventListener('click', function () { loadAll().then(function () { toast('Up to date'); }); });
 
@@ -203,14 +203,19 @@
       get('/api/events'),
       get('/api/admin/stats'),
       get('/api/settings'),
-      get('/api/photos?limit=6')
+      get('/api/photos?limit=6'),
+      get('/api/admin/slots')
     ]).then(function (r) {
       events = r[0].upcoming.map(function (e) { e.up = true; return e; }).concat(r[0].past);
       settings = r[2];
+      slotData = r[4];
       renderOverview(r[1], r[3].photos);
+      renderStorage(r[1]);
       renderTable();
       renderEventGrid();
       fillSettings();
+      renderSlots();
+      fillTargets();
     }).catch(function (err) { toast(err.message); });
   }
 
@@ -234,7 +239,7 @@
     }
 
     $('photoTotal').textContent = plural(stats.photos, 'photo');
-    $('mExperience').textContent = stats.experience;
+    $('mExperience').textContent = stats.site_photos;
     $('mEvent').textContent = stats.event_photos;
     $('m30').textContent = stats.photos_30d;
 
@@ -248,7 +253,7 @@
     $('sStorage').textContent = (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
     $('storageBar').style.width = Math.max(pct, 2) + '%';
     $('storageBar').style.background = pct > 85 ? 'var(--red)' : 'var(--purple)';
-    $('storageFoot').textContent = Math.round(pct) + '% of your free ' + Math.round(limitMb) + ' MB';
+    $('storageFoot').textContent = Math.round(pct) + '% of ' + Math.round(limitMb) + ' MB · room for ~' + stats.photos_left.toLocaleString() + ' photos';
 
     renderChart();
 
@@ -257,7 +262,7 @@
     if (!latest.length) box.appendChild(el('p', { class: 'empty', text: 'No photos yet.' }));
     latest.forEach(function (p) {
       box.appendChild(el('a', { href: media(p.id), target: '_blank', rel: 'noopener', style: "background-image:url('" + media(p.id, true) + "')", 'aria-label': 'Open photo' }, [
-        el('span', { text: catLabel(p.category) })
+        el('span', { text: p.slot ? slotLabel(p.slot) : catLabel(p.category) })
       ]));
     });
 
@@ -592,6 +597,29 @@
     return next().then(function (n) { busy(btn, false); return n; }, function (err) { busy(btn, false); throw err; });
   }
 
+  // Asks the person to pick one file, then calls done(file).
+  function pickFile(accept, done) {
+    var input = el('input', { type: 'file', accept: accept, style: 'display:none' });
+    input.addEventListener('change', function () { if (input.files[0]) done(input.files[0]); input.remove(); });
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  function replacePhoto(id, accept, btn, after) {
+    pickFile(accept, function (file) {
+      var fd = new FormData();
+      fd.append('file', file);
+      if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+      call('POST', '/api/admin/photos/' + id + '/replace', fd).then(function () {
+        toast('Photo replaced');
+        after();
+      }).catch(function (err) {
+        alert(err.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Replace'; }
+      });
+    });
+  }
+
   function photoTile(p, opts) {
     opts = opts || {};
     var caption = el('input', { type: 'text', value: p.caption || '', maxlength: '200', placeholder: 'Add a caption', 'aria-label': 'Caption' });
@@ -601,15 +629,18 @@
     } });
     caption.addEventListener('input', function () { save.hidden = caption.value === (p.caption || ''); });
     caption.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (!save.hidden) save.click(); } });
+    var replaceBtn = el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Replace' });
+    replaceBtn.addEventListener('click', function () { replacePhoto(p.id, 'image/*', replaceBtn, opts.onChange); });
     return el('div', { class: 'ph' }, [
       el('a', { class: 'ph-img', href: media(p.id), target: '_blank', rel: 'noopener', style: "background-image:url('" + media(p.id, true) + "')", 'aria-label': 'Open full size photo' }, [
-        opts.badge || (opts.showCat ? el('span', { class: 'badge cat', text: catLabel(p.category) }) : null)
+        opts.badge || null
       ]),
       el('div', { class: 'ph-body' }, [
         p.event_title ? el('small', { text: p.event_title }) : null,
         caption,
         el('div', { class: 'ph-btns' }, (opts.extra || []).concat([
           save,
+          replaceBtn,
           el('button', { class: 'btn btn-danger btn-sm', type: 'button', text: 'Delete', onclick: function () {
             if (!confirm('Delete this photo from the website?')) return;
             call('DELETE', '/api/admin/photos/' + p.id).then(function () { toast('Photo deleted'); opts.onChange(); }).catch(function (err) { alert(err.message); });
@@ -619,7 +650,6 @@
     ]);
   }
 
-  // ---------- photos page ----------
   function segment(id, onChange) {
     var seg = $(id);
     seg.querySelectorAll('button').forEach(function (b) {
@@ -629,19 +659,143 @@
       });
     });
   }
-  var photoFilter = '';
-  var photoCount = 0;
-  segment('photoCatSeg', function (v) { $('photoCat').value = v; });
-  segment('photoFilterSeg', function (v) { photoFilter = v; loadPhotos(true); });
   segment('eventFilterSeg', function (v) { eventsState.f = v; renderEventGrid(); });
 
+  // ---------- website picture spots (up to 5 photos each) ----------
+  var slotData = { max: 5, slots: [] };
+  var VIDEO_TYPES = 'image/*,video/mp4,video/webm,video/quicktime';
+
+  function loadSlots() {
+    return get('/api/admin/slots').then(function (d) {
+      slotData = d;
+      renderSlots();
+      fillTargets();
+    }).catch(function (err) { toast(err.message); });
+  }
+  function slotByKey(key) { return slotData.slots.filter(function (s) { return s.key === key; })[0]; }
+  function slotLabel(key) { var s = slotByKey(key); return s ? s.label : 'Website'; }
+
+  function afterSlotChange() { loadSlots(); refreshStats(); }
+
+  function slotCard(slot, opts) {
+    opts = opts || {};
+    var max = slotData.max;
+    var n = slot.items.length;
+    var tiles = slot.items.map(function (item, i) {
+      var isVideo = /^video\//.test(item.mime);
+      var preview = isVideo
+        ? el('video', { class: 'slot-media', src: media(item.id), muted: true, playsinline: true, preload: 'metadata' })
+        : el('span', { class: 'slot-media', style: "background-image:url('" + media(item.id, true) + "')" });
+      if (isVideo) preview.muted = true;
+      var replaceBtn = el('button', { type: 'button', class: 'slot-btn', text: 'Replace' });
+      replaceBtn.addEventListener('click', function () { replacePhoto(item.id, slot.video ? VIDEO_TYPES : 'image/*', replaceBtn, afterSlotChange); });
+      return el('div', { class: 'slot-tile' }, [
+        preview,
+        el('span', { class: 'slot-n', text: isVideo ? 'Video' : String(i + 1) }),
+        el('div', { class: 'slot-actions' }, [
+          replaceBtn,
+          el('button', { type: 'button', class: 'slot-btn danger', text: 'Delete', onclick: function () {
+            if (!confirm('Remove this ' + (isVideo ? 'video' : 'photo') + ' from "' + slot.label + '"?')) return;
+            call('DELETE', '/api/admin/photos/' + item.id).then(function () { toast('Removed'); afterSlotChange(); }).catch(function (err) { alert(err.message); });
+          } })
+        ])
+      ]);
+    });
+    if (n < max) {
+      var input = el('input', { type: 'file', accept: slot.video ? VIDEO_TYPES : 'image/*', multiple: true });
+      var addLabel = el('b', { text: '+ Add photo' + (slot.video ? ' or video' : '') });
+      var addTile = el('label', { class: 'slot-tile slot-add' }, [addLabel, el('small', { text: (max - n) + ' of ' + max + ' spaces left' }), input]);
+      input.addEventListener('change', function () {
+        var files = Array.prototype.slice.call(input.files, 0, max - n);
+        if (!files.length) return;
+        var fd = new FormData();
+        files.forEach(function (f) { fd.append('files', f); });
+        addLabel.textContent = 'Uploading…';
+        call('POST', '/api/admin/slots/' + slot.key, fd).then(function (r) {
+          toast(plural(r.ids.length, 'photo') + ' added to ' + slot.label);
+          afterSlotChange();
+        }).catch(function (err) { alert(err.message); addLabel.textContent = '+ Add photo'; input.value = ''; });
+      });
+      tiles.push(addTile);
+    }
+    var extra = null;
+    if (opts.withWords && /^exp[123]$/.test(slot.key)) {
+      var name = slot.key + '_label';
+      var word = el('input', { type: 'text', name: name, maxlength: '30', value: settings[name] || '', 'aria-label': 'Word on this card' });
+      extra = el('div', { class: 'slot-word' }, [el('label', { text: 'Word on the card' }), word]);
+    }
+    return el('div', { class: 'slot-card' + (slot.key === 'hero' ? ' slot-wide' : ''), 'data-slot': slot.key }, [
+      el('div', { class: 'slot-head' }, [
+        el('div', null, [el('b', { text: slot.label }), el('small', { text: slot.where + (slot.video ? '. Photos, or one short video.' : '') })]),
+        el('span', { class: 'slot-count' + (n >= max ? ' full' : ''), text: n + ' of ' + max })
+      ]),
+      extra,
+      el('div', { class: 'slot-tiles' }, tiles)
+    ]);
+  }
+
+  function renderSlots() {
+    $$('[data-slots]').forEach(function (box) {
+      var want = box.dataset.slots === 'all' ? slotData.slots.map(function (s) { return s.key; }) : box.dataset.slots.split(',');
+      var inDetails = !!box.closest('#settingsForm');
+      // Keep any word the person is typing on the Experience cards.
+      var typed = {};
+      box.querySelectorAll('input[name]').forEach(function (i) { typed[i.name] = i.value; });
+      box.textContent = '';
+      want.forEach(function (key) {
+        var s = slotByKey(key);
+        if (!s) return;
+        var card = slotCard(s, { withWords: inDetails });
+        var w = card.querySelector('input[name]');
+        if (w && typed[w.name] !== undefined) w.value = typed[w.name];
+        box.appendChild(card);
+      });
+    });
+  }
+
+  // ---------- photos page: upload to a spot or an event ----------
+  function fillTargets() {
+    var sel = $('upTarget');
+    var current = sel.value;
+    sel.textContent = '';
+    var g1 = el('optgroup', { label: 'Website pictures' });
+    slotData.slots.forEach(function (s) {
+      var left = slotData.max - s.items.length;
+      g1.appendChild(el('option', { value: 'slot:' + s.key, text: s.label + (left <= 0 ? ' (full)' : ' (' + left + ' left)') }));
+    });
+    sel.appendChild(g1);
+    if (events.length) {
+      var g2 = el('optgroup', { label: 'An event' });
+      events.forEach(function (ev) { g2.appendChild(el('option', { value: 'event:' + ev.id, text: ev.title + ' (' + fmtDate(ev.starts_at) + ')' })); });
+      sel.appendChild(g2);
+    }
+    if (current && sel.querySelector('option[value="' + current + '"]')) sel.value = current;
+    updateTargetHint();
+  }
+  function updateTargetHint() {
+    var v = $('upTarget').value || '';
+    var hint = $('upTargetHint');
+    var input = $('photoFiles');
+    if (v.indexOf('slot:') === 0) {
+      var s = slotByKey(v.slice(5));
+      var left = slotData.max - s.items.length;
+      hint.textContent = s.where + '. ' + (left <= 0 ? 'This spot is full: replace or delete a photo below first.' : 'Room for ' + plural(left, 'more photo') + '.') + (s.video ? ' You can also add one short video (MP4).' : '');
+      input.accept = s.video ? VIDEO_TYPES : 'image/*';
+    } else if (v.indexOf('event:') === 0) {
+      hint.textContent = 'Photos show on the event page and in the gallery. The first 5 also play on its card under Recent events.';
+      input.accept = 'image/*';
+    }
+  }
+  $('upTarget').addEventListener('change', updateTargetHint);
+
+  var photoCount = 0;
   function loadPhotos(reset) {
     var grid = $('photoGrid');
     if (reset) { grid.textContent = ''; photoCount = 0; }
-    get('/api/photos?limit=48&offset=' + photoCount + (photoFilter ? '&category=' + photoFilter : '')).then(function (data) {
-      if (reset && !data.photos.length) grid.appendChild(el('p', { class: 'empty', text: 'No photos here yet.' }));
+    get('/api/photos?limit=24&category=event&offset=' + photoCount).then(function (data) {
+      if (reset && !data.photos.length) grid.appendChild(el('p', { class: 'empty', text: 'No event photos yet.' }));
       data.photos.forEach(function (p) {
-        grid.appendChild(photoTile(p, { showCat: true, onChange: function () { loadPhotos(true); loadAll(); } }));
+        grid.appendChild(photoTile(p, { onChange: function () { loadPhotos(true); loadAll(); } }));
       });
       photoCount += data.photos.length;
       $('photoMore').hidden = !data.more;
@@ -650,54 +804,162 @@
   $('photoMore').addEventListener('click', function () { loadPhotos(false); });
 
   $('photoFiles').addEventListener('change', function () {
-    $('photoFilesName').textContent = this.files.length ? plural(this.files.length, 'photo') + ' selected' : 'Up to 20 at a time · phone photos are fine';
+    $('photoFilesName').textContent = this.files.length ? plural(this.files.length, 'file') + ' selected' : "Phone photos are fine, they're shrunk automatically";
   });
 
   $('photoForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var files = $('photoFiles').files;
+    var target = $('upTarget').value || '';
+    var btn = $('photoSubmit');
     if (!files.length) { say($('photoMsg'), 'Choose photos first.', false); return; }
-    uploadInBatches(files, { category: $('photoCat').value, caption: $('photoCaption').value }, $('photoSubmit')).then(function (n) {
-      say($('photoMsg'), plural(n, 'photo') + ' uploaded.', true);
+    var done = function (n) {
+      say($('photoMsg'), plural(n, 'photo') + ' added.', true);
       $('photoFiles').value = '';
-      $('photoCaption').value = '';
-      $('photoFilesName').textContent = 'Up to 20 at a time · phone photos are fine';
-      loadPhotos(true);
+      $('photoFilesName').textContent = "Phone photos are fine, they're shrunk automatically";
       loadAll();
-    }).catch(function (err) { say($('photoMsg'), err.message, false); loadPhotos(true); });
+      loadPhotos(true);
+    };
+    if (target.indexOf('event:') === 0) {
+      uploadInBatches(files, { category: 'event', event_id: target.slice(6) }, btn).then(done)
+        .catch(function (err) { say($('photoMsg'), err.message, false); });
+      return;
+    }
+    var fd = new FormData();
+    Array.prototype.forEach.call(files, function (f) { fd.append('files', f); });
+    busy(btn, true, 'Uploading…');
+    call('POST', '/api/admin/slots/' + target.slice(5), fd).then(function (r) { busy(btn, false); done(r.ids.length); })
+      .catch(function (err) { busy(btn, false); say($('photoMsg'), err.message, false); });
+  });
+
+  // ---------- storage gauge ----------
+  function fmtMb(bytes) { var mb = bytes / 1048576; return (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB'; }
+  function renderStorage(stats) {
+    var pct = Math.min(100, (stats.db_bytes / stats.storage_limit_bytes) * 100);
+    var color = pct > 90 ? 'var(--red)' : pct > 75 ? '#e08a00' : 'var(--purple)';
+    $$('[data-storage]').forEach(function (box) {
+      box.textContent = '';
+      box.appendChild(el('div', { class: 'card-head' }, [
+        el('span', { class: 'card-ic' }, [svgIcon('M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3')]),
+        el('h3', { text: 'Storage' })
+      ]));
+      box.appendChild(el('div', { class: 'gauge', style: '--pct:' + pct.toFixed(1) + ';--col:' + color }, [
+        el('div', { class: 'gauge-in' }, [el('b', { text: Math.round(pct) + '%' }), el('small', { text: 'used' })])
+      ]));
+      box.appendChild(el('p', { class: 'storage-line' }, [el('b', { text: fmtMb(stats.db_bytes) }), ' of ' + fmtMb(stats.storage_limit_bytes) + ' used']));
+      box.appendChild(el('p', { class: 'hint', style: 'text-align:center' }, [
+        'Room for about ' + stats.photos_left.toLocaleString() + ' more photos. ' +
+        plural(stats.photos, 'photo') + (stats.videos ? ' and ' + plural(stats.videos, 'video') : '') + ' on your site.' +
+        (pct > 90 ? ' Almost full: delete old photos or ask Siweni to add more space.' : '')
+      ]));
+    });
+  }
+  function refreshStats() { get('/api/admin/stats').then(function (st) { renderStorage(st); }).catch(function () {}); }
+
+  // ---------- quick add from a social media post ----------
+  var MONTHS_IDX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11 };
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  function parsePost(raw) {
+    var text = String(raw || '').replace(/\r/g, '');
+    var noEmoji = function (s) { return s.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, ' ').replace(/[ \t]+/g, ' ').trim(); };
+    var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var out = {};
+
+    // Ticket link: prefer one that looks like a ticketing site.
+    var urls = (text.match(/\b(?:https?:\/\/|www\.)[^\s]+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:africa|com|co\.zw|co\.za|net|org|events|tickets|io|me|zw|za)\/[^\s]*/gi) || [])
+      .map(function (u) { return u.replace(/[)\].,!?]+$/, ''); });
+    out.ticket = urls.filter(function (u) { return /ticket|megaticket|sahwigate|quicket|computicket|webtickets|tixafrica|eventbrite|howler/i.test(u); })[0] ||
+      urls.filter(function (u) { return !/instagram|facebook|tiktok|wa\.me|whatsapp|linktr|youtube|twitter|x\.com/i.test(u); })[0] || '';
+
+    // Time: "8pm", "8:30 PM", "20:00", "20h00".
+    var t = text.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*(am|pm)\b/i);
+    if (t) {
+      var h = Number(t[1]) % 12 + (/pm/i.test(t[3]) ? 12 : 0);
+      out.time = pad(h) + ':' + (t[2] || '00');
+    } else if ((t = text.match(/\b([01]?\d|2[0-3])[:h]([0-5]\d)\b/))) {
+      out.time = pad(Number(t[1])) + ':' + t[2];
+    }
+
+    // Date: "13 Dec", "13th of December 2026", "Dec 13", "13/12", "13.12.26".
+    var now = parts();
+    var today = new Date(Number(now.year), Number(now.month) - 1, Number(now.day));
+    var day, mon, yr, m;
+    if ((m = text.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?,?\s*(\d{4})?/i))) {
+      day = Number(m[1]); mon = MONTHS_IDX[m[2].toLowerCase()]; yr = m[3] && Number(m[3]);
+    } else if ((m = text.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})?/i))) {
+      mon = MONTHS_IDX[m[1].toLowerCase()]; day = Number(m[2]); yr = m[3] && Number(m[3]);
+    } else {
+      var re = /\b(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?\b/g;
+      while ((m = re.exec(text))) {
+        var d = Number(m[1]), mo = Number(m[2]);
+        if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12) {
+          day = d; mon = mo - 1; yr = m[3] ? Number(m[3].length === 2 ? '20' + m[3] : m[3]) : null;
+          break;
+        }
+      }
+    }
+    if (day && mon !== undefined) {
+      var y = yr || today.getFullYear();
+      if (!yr && new Date(y, mon, day) < new Date(today.getTime() - 86400000)) y += 1; // next one coming up
+      out.date = y + '-' + pad(mon + 1) + '-' + pad(day);
+    }
+
+    // Venue: a 📍 line, or "Venue:/Location:/Where:", or "@ Some Place".
+    var venueLine = lines.filter(function (l) { return /📍|^\s*(venue|location|where|address)\b/i.test(l); })[0];
+    if (venueLine) {
+      out.venue = noEmoji(venueLine.replace(/📍/g, '')).replace(/^(venue|location|where|address)\s*[:\-–]?\s*/i, '');
+    } else if ((m = text.match(/(?:^|\s)@\s+([^\n#@]{3,60})/))) {
+      out.venue = noEmoji(m[1]);
+    } else if ((m = text.match(/\bat\s+((?:[A-Z][\w'&.-]*\s?){1,6})/))) {
+      // "...on Dec 27 at Palm Tree Terrace from 7pm": a run of Capitalised Words after "at".
+      out.venue = m[1].trim().replace(/\s+(From|On|Till|Until)$/, '');
+    }
+    if (out.venue) out.venue = out.venue.replace(/\s*[|·•]\s*$/, '').slice(0, 120);
+
+    // Name: the first proper line that isn't a date, time, venue, link or hashtags.
+    var titleLine = lines.map(noEmoji).filter(function (l) {
+      if (l.length < 3 || /^#/.test(l) || /https?:|www\./i.test(l)) return false;
+      if (venueLine && noEmoji(venueLine).indexOf(l) >= 0) return false;
+      if (/^(date|time|venue|location|where|tickets?|entry|dress ?code)\b/i.test(l)) return false;
+      return /[a-z]/i.test(l);
+    })[0] || '';
+    titleLine = titleLine.replace(/^(rnb|r&b|r ?n ?b)\s*dancehall\s*lovers\s*(presents?|brings you)\s*[:\-–]?\s*/i, '').replace(/[!.:]+$/, '').trim();
+    if (titleLine && titleLine === titleLine.toUpperCase()) {
+      titleLine = titleLine.toLowerCase().replace(/\b([a-z])/g, function (c) { return c.toUpperCase(); }).replace(/\bR&b\b/g, 'R&B').replace(/\bRnb\b/g, 'RnB');
+    }
+    out.title = titleLine.slice(0, 120);
+
+    // Description: the post without hashtag-only lines.
+    out.description = lines.filter(function (l) { return !/^(#\S+\s*)+$/.test(l); }).join('\n').slice(0, 1500);
+    return out;
+  }
+
+  $('qaFill').addEventListener('click', function () {
+    var text = $('qaText').value.trim();
+    if (!text) { say($('qaMsg'), 'Paste your post into the box first.', false); return; }
+    var r = parsePost(text);
+    var found = [], missing = [];
+    if (r.title) { $('evTitle').value = r.title; found.push('name'); } else missing.push('event name');
+    if (r.date) { $('evStart').value = r.date + 'T' + (r.time || '20:00'); found.push('date'); if (!r.time) missing.push('start time (we put 8pm)'); else found.push('time'); }
+    else missing.push('date');
+    if (r.venue) { $('evVenue').value = r.venue; found.push('venue'); } else missing.push('venue');
+    if (r.ticket) { $('evTicket').value = r.ticket; found.push('ticket link'); }
+    if (r.description) $('evDesc').value = r.description;
+    var msg = found.length ? 'Done! We filled in the ' + found.join(', ') + '. ' : "We couldn't find the details in that post. ";
+    if (missing.length) msg += 'Please check or add: ' + missing.join(', ') + '. ';
+    msg += 'Add the flyer as the poster, then press Add event.';
+    say($('qaMsg'), msg, found.length > 0);
+    $('qaMsg').className = 'msg ' + (missing.length ? 'warn' : 'ok');
   });
 
   // ---------- website details ----------
   var settingsForm = $('settingsForm');
-  var TICKET_FALLBACK = { 1: '/img/p6.jpg', 2: '/img/p5.jpg' };
   function fillSettings() {
     Array.prototype.forEach.call(settingsForm.elements, function (input) {
       if (input.name && input.name in settings && document.activeElement !== input) input.value = settings[input.name];
     });
-    [1, 2].forEach(function (n) {
-      var id = settings['ticket' + n + '_image'];
-      $('t' + n + 'Preview').style.backgroundImage = "url('" + (id ? media(id, true) : TICKET_FALLBACK[n]) + "')";
-    });
   }
-
-  // Ticket card thumbnails upload straight away (no need to press Save).
-  $$('[data-ticket-image]').forEach(function (input) {
-    input.addEventListener('change', function () {
-      var n = input.dataset.ticketImage;
-      var file = input.files[0];
-      if (!file) return;
-      var btn = $('t' + n + 'ImageBtn');
-      btn.textContent = 'Uploading…';
-      var fd = new FormData();
-      fd.append('photo', file);
-      call('POST', '/api/admin/ticket-image/' + n, fd).then(function (r) {
-        settings['ticket' + n + '_image'] = String(r.id);
-        $('t' + n + 'Preview').style.backgroundImage = "url('" + media(r.id, true) + "')";
-        toast('Card ' + n + ' photo updated');
-      }).catch(function (err) { say($('ticketMsg'), err.message, false); })
-        .then(function () { btn.textContent = 'Change photo'; input.value = ''; });
-    });
-  });
   settingsForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var body = {};

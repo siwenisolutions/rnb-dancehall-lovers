@@ -28,4 +28,15 @@ async function processImage(buffer) {
   return { mime: 'image/webp', width: info.width, height: info.height, data, thumb };
 }
 
-module.exports = { processImage };
+// Returns the video type if the file really is an MP4/MOV or WebM video, else null.
+// Videos are stored as uploaded (the server has no video converter).
+function detectVideo(buffer) {
+  if (buffer.length > 12 && buffer.toString('ascii', 4, 8) === 'ftyp') {
+    const brand = buffer.toString('ascii', 8, 12);
+    return brand === 'qt  ' ? 'video/quicktime' : 'video/mp4';
+  }
+  if (buffer.length > 4 && buffer.readUInt32BE(0) === 0x1a45dfa3) return 'video/webm';
+  return null;
+}
+
+module.exports = { processImage, detectVideo };
