@@ -444,3 +444,23 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .storage-free{font-size:13px; color:var(--muted); text-align:center; margin-top:2px;}
 .storage-live{display:flex; align-items:center; justify-content:center; gap:6px; font-size:11.5px; color:var(--muted); font-weight:600; margin-top:8px;}
 .live-dot{width:7px; height:7px; border-radius:50%; background:#3d9a00; box-shadow:0 0 0 3px rgba(61,154,0,.15);}
+
+/* ---------- no scroll bars anywhere (scrolling still works) ---------- */
+*{scrollbar-width:none; -ms-overflow-style:none;}
+*::-webkit-scrollbar{display:none; width:0; height:0;}
+
+/* ---------- photo tile buttons: inset from the edges, evenly spaced ---------- */
+.slot-tile{container-type:inline-size;}
+.slot-actions{left:0; right:0; bottom:0; padding:8px; gap:6px; justify-content:space-evenly;}
+.slot-btn{display:inline-flex; align-items:center; justify-content:center; gap:5px; flex:1 1 0; min-width:0; padding:7px 6px; border-radius:9px; box-shadow:0 1px 3px rgba(0,0,0,.18);}
+.slot-btn svg{width:14px; height:14px; flex:0 0 auto;}
+.slot-btn span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+@container (max-width: 150px){
+  .slot-btn span{display:none;}
+  .slot-actions{gap:8px; padding:8px 10px;}
+}
+.slot-n{top:8px; left:8px;}
+/* event photo buttons */
+.ph-btns{gap:8px; justify-content:space-between;}
+.ph-btns .btn{flex:1 1 auto;}
+.ph-body{padding:12px;}

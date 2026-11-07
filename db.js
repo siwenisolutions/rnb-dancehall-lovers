@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-const { processImage } = require('./images');
+const { processImage, recompress } = require('./images');
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -208,4 +208,30 @@ async function insertMedia({ category, caption, eventId, img, slot = null, creat
   return rows[0].id;
 }
 
-module.exports = { pool, migrate, insertMedia, SETTING_DEFAULTS, SLOTS, SLOT_MAX };
+// One-time pass that shrinks photos stored before the current compression
+// settings. Runs in the background after start-up, one photo at a time.
+async function compressStoredPhotos() {
+  const done = await pool.query("SELECT 1 FROM settings WHERE key = '_media_compressed_v2'");
+  if (done.rowCount) return;
+  const { rows } = await pool.query("SELECT id FROM media WHERE mime LIKE 'image/%' ORDER BY id");
+  let saved = 0, changed = 0;
+  for (const { id } of rows) {
+    try {
+      const r = await pool.query('SELECT data, thumb FROM media WHERE id = $1', [id]);
+      if (!r.rowCount) continue;
+      const { data, thumb } = r.rows[0];
+      const out = await recompress(data, thumb);
+      if (!out) continue;
+      await pool.query('UPDATE media SET data = $1, thumb = $2, width = $3, height = $4 WHERE id = $5',
+        [out.data, out.thumb, out.width, out.height, id]);
+      saved += data.length + thumb.length - out.data.length - out.thumb.length;
+      changed += 1;
+    } catch (err) {
+      console.error(`[compress] photo ${id} skipped:`, err.message);
+    }
+  }
+  await pool.query("INSERT INTO settings (key, value) VALUES ('_media_compressed_v2', 'yes') ON CONFLICT (key) DO NOTHING");
+  console.log(`[compress] ${changed} of ${rows.length} photos smaller, saved ${(saved / 1048576).toFixed(1)} MB`);
+}
+
+module.exports = { pool, migrate, insertMedia, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX };

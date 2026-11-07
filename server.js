@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const { pool, migrate, insertMedia, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
+const { pool, migrate, insertMedia, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
 const { processImage, detectVideo } = require('./images');
 const { importPost } = require('./social');
 
@@ -668,7 +668,10 @@ app.use((err, req, res, next) => {
 
 if (require.main === module) {
   migrate()
-    .then(() => app.listen(PORT, () => console.log(`RNB Dancehall Lovers running on port ${PORT}`)))
+    .then(() => app.listen(PORT, () => {
+      console.log(`RNB Dancehall Lovers running on port ${PORT}`);
+      compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message));
+    }))
     .catch((err) => {
       console.error('Startup failed:', err);
       process.exit(1);

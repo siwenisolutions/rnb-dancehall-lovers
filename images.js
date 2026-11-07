@@ -1,6 +1,9 @@
 'use strict';
 const sharp = require('sharp');
 
+// Compression for stored photos: large copy and thumbnail.
+const FULL_PX = 1600, FULL_Q = 74, THUMB_PX = 640, THUMB_Q = 66;
+
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif', 'avif', 'tiff']);
 
 // Normalises an uploaded photo: checks it really is an image, fixes phone
@@ -18,12 +21,12 @@ async function processImage(buffer) {
   }
   const { data, info } = await sharp(buffer)
     .rotate()
-    .resize({ width: 1800, height: 1800, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 80 })
+    .resize({ width: FULL_PX, height: FULL_PX, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: FULL_Q, effort: 5 })
     .toBuffer({ resolveWithObject: true });
   const thumb = await sharp(data)
-    .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 72 })
+    .resize({ width: THUMB_PX, height: THUMB_PX, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: THUMB_Q, effort: 5 })
     .toBuffer();
   return { mime: 'image/webp', width: info.width, height: info.height, data, thumb };
 }
@@ -39,4 +42,26 @@ function detectVideo(buffer) {
   return null;
 }
 
-module.exports = { processImage, detectVideo };
+// Re-compresses a stored photo with the current settings. Returns null when
+// the result would not be smaller (nothing to gain).
+async function recompress(data, thumb) {
+  const meta = await sharp(data).metadata();
+  const full = await sharp(data)
+    .resize({ width: FULL_PX, height: FULL_PX, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: FULL_Q, effort: 5 })
+    .toBuffer({ resolveWithObject: true });
+  const small = await sharp(full.data)
+    .resize({ width: THUMB_PX, height: THUMB_PX, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: THUMB_Q, effort: 5 })
+    .toBuffer();
+  const newData = full.data.length < data.length ? full.data : data;
+  const newThumb = small.length < thumb.length ? small : thumb;
+  if (newData === data && newThumb === thumb) return null;
+  return {
+    data: newData, thumb: newThumb,
+    width: newData === data ? meta.width : full.info.width,
+    height: newData === data ? meta.height : full.info.height,
+  };
+}
+
+module.exports = { processImage, detectVideo, recompress };

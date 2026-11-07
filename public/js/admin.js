@@ -687,18 +687,20 @@
         ? el('video', { class: 'slot-media', src: media(item.id), muted: true, playsinline: true, preload: 'metadata' })
         : el('span', { class: 'slot-media', style: "background-image:url('" + media(item.id, true) + "')" });
       if (isVideo) preview.muted = true;
-      var replaceBtn = el('button', { type: 'button', class: 'slot-btn', text: 'Replace' });
+      // Icon + word; on small tiles only the icon shows (the word stays as its label).
+      var replaceBtn = el('button', { type: 'button', class: 'slot-btn', title: 'Replace', 'aria-label': 'Replace this ' + (isVideo ? 'video' : 'photo') },
+        [svgIcon('M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'), el('span', { text: 'Replace' })]);
       replaceBtn.addEventListener('click', function () { replacePhoto(item.id, slot.video ? VIDEO_TYPES : 'image/*', replaceBtn, afterSlotChange); });
+      var deleteBtn = el('button', { type: 'button', class: 'slot-btn danger', title: 'Delete', 'aria-label': 'Delete this ' + (isVideo ? 'video' : 'photo') },
+        [svgIcon('M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13'), el('span', { text: 'Delete' })]);
+      deleteBtn.addEventListener('click', function () {
+        if (!confirm('Remove this ' + (isVideo ? 'video' : 'photo') + ' from "' + slot.label + '"?')) return;
+        call('DELETE', '/api/admin/photos/' + item.id).then(function () { toast('Removed'); afterSlotChange(); }).catch(function (err) { alert(err.message); });
+      });
       return el('div', { class: 'slot-tile' }, [
         preview,
         el('span', { class: 'slot-n', text: isVideo ? 'Video' : String(i + 1) }),
-        el('div', { class: 'slot-actions' }, [
-          replaceBtn,
-          el('button', { type: 'button', class: 'slot-btn danger', text: 'Delete', onclick: function () {
-            if (!confirm('Remove this ' + (isVideo ? 'video' : 'photo') + ' from "' + slot.label + '"?')) return;
-            call('DELETE', '/api/admin/photos/' + item.id).then(function () { toast('Removed'); afterSlotChange(); }).catch(function (err) { alert(err.message); });
-          } })
-        ])
+        el('div', { class: 'slot-actions' }, [replaceBtn, deleteBtn])
       ]);
     });
     if (n < max) {
@@ -716,7 +718,7 @@
           afterSlotChange();
         }).catch(function (err) { alert(err.message); addLabel.textContent = '+ Add photo'; input.value = ''; });
       });
-      tiles.push(addTile);
+      tiles.unshift(addTile); // the Add tile comes first; photos follow on its right
     }
     var extra = null;
     if (opts.withWords && /^exp[123]$/.test(slot.key)) {
