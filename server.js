@@ -16,6 +16,8 @@ const EDITABLE_SETTINGS = Object.keys(SETTING_DEFAULTS);
 const CATEGORIES = ['experience', 'gallery', 'event'];
 // Event times are entered and shown in Zimbabwe time (CAT, UTC+2, no DST).
 const ZW_OFFSET = '+02:00';
+// Neon free plan storage, shown as a usage bar in the admin overview.
+const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_MB || 500) * 1024 * 1024;
 
 if (ADMIN_PASSWORD.length < 10 || SESSION_SECRET.length < 32) {
   throw new Error('ADMIN_PASSWORD (10+ chars) and SESSION_SECRET (32+ chars) must be set');
@@ -288,6 +290,21 @@ app.get('/api/admin/session', (req, res) => {
 const admin = express.Router();
 admin.use(requireAdmin);
 admin.use(express.json({ limit: '100kb' }));
+
+// Numbers for the admin overview page.
+admin.get('/stats', wrap(async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT
+      (SELECT count(*)::int FROM events e WHERE ${UPCOMING}) AS upcoming,
+      (SELECT count(*)::int FROM events e WHERE NOT (${UPCOMING})) AS past,
+      (SELECT count(*)::int FROM media) AS photos,
+      (SELECT count(*)::int FROM media WHERE category = 'experience') AS experience,
+      (SELECT count(*)::int FROM media WHERE category = 'event') AS event_photos,
+      (SELECT count(*)::int FROM media WHERE created_at > now() - interval '30 days') AS photos_30d,
+      pg_database_size(current_database())::bigint AS db_bytes`);
+  const s = rows[0];
+  res.json({ ...s, db_bytes: Number(s.db_bytes), storage_limit_bytes: STORAGE_LIMIT_BYTES });
+}));
 
 admin.put('/settings', wrap(async (req, res) => {
   const body = req.body || {};
