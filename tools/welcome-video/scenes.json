@@ -1,34 +1,82 @@
 [
-  {"id": "01-welcome", "say": "Welcome to R and B Dancehall Lovers! This is your brand new website. Thank you for trusting Siweni Solutions to build it for you. In the next few minutes, we'll walk you through your website, what it can do, and how to update it yourself, no technical skills needed.",
-   "caption": "Welcome to RNB Dancehall Lovers! Thank you for trusting Siweni Solutions to build your website."},
-  {"id": "02-home", "say": "This is your home page. Visitors are greeted by your tagline and two big buttons: Get Tickets, and Upcoming Events.",
-   "caption": "Your home page: tagline, Get Tickets and Upcoming Events buttons."},
-  {"id": "03-tickets", "say": "The Tickets on Sale section shows your ticket cards. When a fan taps one, they go straight to Megaticket or Sahwigate to pay safely and securely.",
-   "caption": "Tickets on sale: fans tap a card to buy on Megaticket or Sahwigate."},
-  {"id": "04-upcoming", "say": "Upcoming Events lists your next nights, with the date, the venue, and a Get Tickets button. A new event shows up here the moment you add it.",
-   "caption": "Upcoming events appear here as soon as you add them."},
-  {"id": "05-vibe", "say": "As people scroll, your photos, the experience section and the floating tags bring the energy of your nights to life.",
-   "caption": "Your photos and the experience section bring the vibe to life."},
-  {"id": "06-gallery", "say": "Recent Events shows your past nights. Visitors can view every event, or open the gallery to browse all your photos, full screen.",
-   "caption": "Recent events and the photo gallery."},
-  {"id": "07-event", "say": "Every event has its own page, with the poster, the details, a ticket button, and photos from the night.",
-   "caption": "Each event has its own page with poster, details and photos."},
-  {"id": "08-contact", "say": "At the bottom of every page, people can find your email, phone number, address and Instagram.",
-   "caption": "Your contact details are at the bottom of every page."},
-  {"id": "09-capabilities", "say": "Here's what your website can do. It works beautifully on phones, tablets and computers. It comfortably handles around a hundred people browsing at the same moment, which is thousands of visitors a day, and Siweni can upgrade it in minutes for bigger crowds. Tickets are sold through your ticketing partners, so payments are handled safely by them. You can store thousands of photos, which are shrunk automatically. And every change you make goes live instantly.",
-   "caption": "What your website can do."},
-  {"id": "10-login", "say": "To update your website, go to r n b dancehall lovers dot co dot z w, slash admin, and type in your password.",
-   "caption": "Go to rnbdancehalllovers.co.zw/admin and enter your password."},
-  {"id": "11-overview", "say": "The Overview page shows your next event, how many events and photos you have, and a chart of your events through the year.",
-   "caption": "Overview: your next event, numbers at a glance and a yearly chart."},
-  {"id": "12-add-event", "say": "To add an event, open Events. Type the event name, pick the date and time, and add the venue. Then open your event on Megaticket, copy the address from the top of your browser, and paste it into Where to buy tickets. Add a short description and your poster, then press Add event. That's it, it's live on your website straight away.",
-   "caption": "Adding an event: name, date, venue, ticket page, poster, then Add event."},
-  {"id": "13-event-photos", "say": "After the night, press Photos on the event to upload your pictures. You can add up to twenty at a time, straight from your phone, and pick one to be the cover.",
-   "caption": "Press Photos on an event to upload pictures from the night."},
-  {"id": "14-photos", "say": "The Photos page is for your experience photos and highlights. The newest three experience photos appear on your home page. You can add captions, or delete any photo.",
-   "caption": "Photos: experience photos and highlights for your gallery."},
-  {"id": "15-details", "say": "Website Details is where you change your home page text, contact details, social media links, and your two ticket cards. Just press Save changes when you're done.",
-   "caption": "Website details: text, contact, social media and ticket cards."},
-  {"id": "16-goodbye", "say": "You can watch this video again any time, from the Help button at the top of your admin panel. If you ever need a hand, the Siweni team is always here to help. Enjoy your new website, and here's to many more unforgettable nights!",
-   "caption": "Watch again any time from the Help button. Enjoy your new website!"}
+ {
+  "id": "01-welcome",
+  "say": "Welcome to R and B Dancehall Lovers! This is your brand new website. Thank you for trusting Siweni Solutions to build it for you. In the next few minutes, we'll walk you through your website, what it can do, and how to update it yourself, no technical skills needed.",
+  "caption": "Welcome to RNB Dancehall Lovers! Thank you for trusting Siweni Solutions to build your website."
+ },
+ {
+  "id": "02-home",
+  "say": "This is your home page. Visitors are greeted by your tagline and two big buttons: Get Tickets, and Upcoming Events.",
+  "caption": "Your home page: tagline, Get Tickets and Upcoming Events buttons."
+ },
+ {
+  "id": "03-tickets",
+  "say": "The Tickets on Sale section shows your ticket cards. When a fan taps one, they go straight to Megaticket or Sahwigate to pay safely and securely.",
+  "caption": "Tickets on sale: fans tap a card to buy on Megaticket or Sahwigate."
+ },
+ {
+  "id": "04-upcoming",
+  "say": "Upcoming Events lists your next nights, with the date, the venue, and a Get Tickets button. A new event shows up here the moment you add it.",
+  "caption": "Upcoming events appear here as soon as you add them."
+ },
+ {
+  "id": "05-vibe",
+  "say": "As people scroll, your photos play as slideshows across the site, and the experience section and floating tags bring the energy of your nights to life.",
+  "caption": "Your photos play as slideshows that bring the vibe to life."
+ },
+ {
+  "id": "06-gallery",
+  "say": "Recent Events shows your past nights. Visitors can view every event, or open the gallery to browse all your photos, full screen.",
+  "caption": "Recent events and the photo gallery."
+ },
+ {
+  "id": "07-event",
+  "say": "Every event has its own page, with the poster, the details, a ticket button, and photos from the night.",
+  "caption": "Each event has its own page with poster, details and photos."
+ },
+ {
+  "id": "08-contact",
+  "say": "At the bottom of every page, people can find your email, phone number, address and Instagram.",
+  "caption": "Your contact details are at the bottom of every page."
+ },
+ {
+  "id": "09-capabilities",
+  "say": "Here's what your website can do. It works beautifully on phones, tablets and computers. It comfortably handles around a hundred people browsing at the same moment, which is thousands of visitors a day, and Siweni can upgrade it in minutes for bigger crowds. Tickets are sold through your ticketing partners, so payments are handled safely by them. Every picture spot plays a slideshow of up to five photos, and the header can even play a video. And every change you make goes live instantly.",
+  "caption": "What your website can do."
+ },
+ {
+  "id": "10-login",
+  "say": "To update your website, go to r n b dancehall lovers dot co dot z w, slash admin, and type in your password.",
+  "caption": "Go to rnbdancehalllovers.co.zw/admin and enter your password."
+ },
+ {
+  "id": "11-overview",
+  "say": "The Overview page shows your next event, how many events and photos you have, how much storage you've used, and a chart of your events through the year.",
+  "caption": "Overview: your next event, numbers at a glance, storage and a yearly chart."
+ },
+ {
+  "id": "12-add-event",
+  "say": "To add an event, open Events. The quickest way is to copy the caption from your Instagram or Facebook promo, paste it into Quick add, and press Fill in the form for me. The name, date, time, venue and ticket link are filled in for you. Check the details, add your flyer as the poster, then press Add event. That's it, it's live on your website straight away.",
+  "caption": "Quick add: paste your social media post and the event form fills itself in."
+ },
+ {
+  "id": "13-event-photos",
+  "say": "After the night, press Photos on the event to upload your pictures. You can add up to twenty at a time, straight from your phone, and pick one to be the cover.",
+  "caption": "Press Photos on an event to upload pictures from the night."
+ },
+ {
+  "id": "14-photos",
+  "say": "The Photos page shows every picture spot on your website. Each spot holds up to five photos, which play as a slideshow. Choose where your photos should go and add them, or tap Replace on any photo to swap it for a new one. The storage gauge shows how much space you have left.",
+  "caption": "Photos: up to 5 per spot, add, replace or delete, and keep an eye on storage."
+ },
+ {
+  "id": "15-details",
+  "say": "Website Details is where you change your home page text, contact details and social media, the pictures across your site, including the header, which can play a short video, and your two ticket cards. Press Save changes at the top when you're done.",
+  "caption": "Website details: text, contact, social media, pictures and ticket cards."
+ },
+ {
+  "id": "16-goodbye",
+  "say": "You can watch this video again any time, from the Help button at the top of your admin panel. If you ever need a hand, the Siweni team is always here to help. Enjoy your new website, and here's to many more unforgettable nights!",
+  "caption": "Watch again any time from the Help button. Enjoy your new website!"
+ }
 ]

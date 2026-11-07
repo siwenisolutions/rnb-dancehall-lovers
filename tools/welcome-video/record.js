@@ -10,6 +10,13 @@ const scenes = JSON.parse(fs.readFileSync(path.join(HERE, 'scenes.json')));
 const durations = JSON.parse(fs.readFileSync(path.join(HERE, 'durations.json')));
 const only = process.argv[2] ? process.argv[2].split(',') : null;
 const W = 1280, H = 720;
+const POST = `🔥 SUMMER VIBES 🔥
+📅 Saturday 19th December
+⏰ 9PM till late
+📍 Bakerloo Bar, Harare
+🎟️ Tickets: megaticket.africa/events/summer-vibes
+Live DJs, R&B and dancehall all night!
+#rnb #dancehall #harare`;
 
 // Pointer + caption overlay, injected into every page.
 const OVERLAY = `
@@ -186,12 +193,12 @@ const SCENES = {
     html: card(`<div class="wrap" style="max-width:1160px">
       <h1 style="font-size:58px">What your website <span>can do</span></h1>
       <div class="grid">
-        <div class="t" style="animation-delay:2.4s"><b>📱</b><span>Works on phones, tablets &amp; computers</span></div>
+        <div class="t" style="animation-delay:2.3s"><b>📱</b><span>Works on phones, tablets &amp; computers</span></div>
         <div class="t" style="animation-delay:5.6s"><b>👥</b><span>~100 people at the same moment<small>thousands of visitors a day</small></span></div>
-        <div class="t" style="animation-delay:10.2s"><b>🚀</b><span>Upgradable in minutes<small>for bigger crowds</small></span></div>
-        <div class="t" style="animation-delay:13.4s"><b>🎟️</b><span>Tickets via your partners<small>payments handled securely by them</small></span></div>
-        <div class="t" style="animation-delay:18.6s"><b>📸</b><span>Thousands of photos<small>shrunk automatically</small></span></div>
-        <div class="t" style="animation-delay:22.4s"><b>⚡</b><span>Changes go live instantly</span></div>
+        <div class="t" style="animation-delay:11.6s"><b>🚀</b><span>Upgradable in minutes<small>for bigger crowds</small></span></div>
+        <div class="t" style="animation-delay:15.9s"><b>🎟️</b><span>Tickets via your partners<small>payments handled securely by them</small></span></div>
+        <div class="t" style="animation-delay:21.3s"><b>📸</b><span>Slideshows everywhere<small>up to 5 photos per spot, or a header video</small></span></div>
+        <div class="t" style="animation-delay:27.1s"><b>⚡</b><span>Changes go live instantly</span></div>
       </div></div>`,
       `.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px;text-align:left}
        .t{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:22px;padding:22px;display:flex;gap:14px;align-items:flex-start;opacity:0;animation:up .7s both}
@@ -218,6 +225,8 @@ const SCENES = {
       await wait(p, 1200);
       await point(p, '.tile-hot');
       await wait(p, 900);
+      await point(p, '#sStorage');
+      await wait(p, 900);
       await point(p, '.chart-card', { dy: 0.6 });
       await wait(p, 900);
       await point(p, '#helpBtn');
@@ -227,22 +236,30 @@ const SCENES = {
     url: '/admin#events',
     run: async p => {
       await wait(p, 500);
-      await type(p, '#evTitle', 'Summer Vibes', 60);
-      await point(p, '#evStart', { click: false });
-      await p.locator('#evStart').fill('2026-12-19T21:00');
-      await wait(p, 400);
-      await type(p, '#evVenue', 'Bakerloo Bar, Harare', 40);
-      await type(p, '#evTicket', 'megaticket.africa/events/summer-vibes', 18);
-      await wait(p, 300);
-      await type(p, '#evDesc', 'Live DJs, R&B and dancehall all night.', 25);
+      await point(p, '#qaText', { click: true });
+      await p.locator('#qaText').fill(POST);
+      await wait(p, 900);
+      await point(p, '#qaFill', { click: true });
+      await wait(p, 1600);
+      await point(p, '#qaMsg');
+      await wait(p, 900);
+      await point(p, '#evTitle');
+      await wait(p, 500);
+      await point(p, '#evStart');
+      await wait(p, 500);
+      await point(p, '#evVenue');
+      await wait(p, 500);
+      await point(p, '#evTicket');
+      await wait(p, 600);
       await point(p, '.drop-poster');
       await p.setInputFiles('#evPoster', path.join(IMG, 'p8.jpg'));
-      await wait(p, 600);
+      await wait(p, 900);
       await point(p, '#evSubmit', { click: true });
       await wait(p, 2200);
       await point(p, '.ev-card >> nth=1', { dy: 0.4 });
     }
   },
+
   '13-event-photos': {
     url: '/admin#events',
     run: async p => {
@@ -261,18 +278,21 @@ const SCENES = {
   '14-photos': {
     url: '/admin#photos',
     run: async p => {
-      await wait(p, 700);
-      await point(p, '#photoCatSeg button >> nth=0');
       await wait(p, 900);
+      await point(p, '.slot-card[data-slot="hero"] .slot-tile >> nth=0', { dy: 0.4 });
+      await wait(p, 1200);
+      await point(p, '#upTarget', { click: false });
+      await p.selectOption('#upTarget', 'slot:promo');
+      await wait(p, 1200);
       await point(p, '#photoForm .drop');
+      await wait(p, 1200);
+      await point(p, '.slot-card[data-slot="exp1"] .slot-btn >> nth=0');
+      await wait(p, 1400);
+      await point(p, '.storage-card .gauge');
       await wait(p, 900);
-      await point(p, '#photoFilterSeg button >> nth=1', { click: true });
-      await wait(p, 900);
-      await point(p, '#photoGrid .ph >> nth=0 >> input');
-      await wait(p, 900);
-      await point(p, '#photoGrid .ph >> nth=0 >> .btn-danger');
     }
   },
+
   '15-details': {
     url: '/admin#details',
     run: async p => {
@@ -282,12 +302,20 @@ const SCENES = {
       await point(p, '#s_phone');
       await wait(p, 700);
       await point(p, '#s_instagram_url');
-      await scrollTo(p, '.ticket-cards-edit', 2000, 120);
-      await point(p, '.ticket-card-edit >> nth=0 >> .ticket-thumb-btn');
-      await wait(p, 700);
-      await point(p, '.save-bar .btn');
+      await wait(p, 600);
+      await scrollTo(p, '.slot-list-grid', 1800, 160);
+      await point(p, '.slot-list-grid .slot-card[data-slot="hero"] .slot-add');
+      await wait(p, 900);
+      await point(p, '.slot-list-grid .slot-word input >> nth=0');
+      await wait(p, 600);
+      await scrollTo(p, '.ticket-cards-edit', 1800, 120);
+      await point(p, '.ticket-card-edit >> nth=0 >> .slot-tile >> nth=0');
+      await wait(p, 900);
+      await scrollTo(p, 0, 1600);
+      await point(p, '#settingsSubmit');
     }
   },
+
   '16-goodbye': {
     html: card(`<div class="wrap"><img class="logo" src="${BASE}/img/logo.png">
       <h1>Here's to many more <span>unforgettable nights</span></h1>
