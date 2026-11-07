@@ -96,7 +96,39 @@
     $('loginView').hidden = true;
     $('appView').hidden = false;
     loadAll();
+    if (!welcomeHidden()) openWelcome();
   }
+
+  // ---------- welcome video ----------
+  // Opens every time the admin panel is opened, until someone ticks
+  // "Don't show this automatically" on that device. A new person on another
+  // device still sees it. Always available from the Help button.
+  var WELCOME_KEY = 'rnbWelcomeHidden';
+  function welcomeHidden() {
+    try { return localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) { return false; }
+  }
+  function openWelcome() {
+    closeMenu();
+    $('welcomeHide').checked = welcomeHidden();
+    $('welcomeModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { $('welcomeDone').focus(); }, 50);
+  }
+  function closeWelcome() {
+    try {
+      if ($('welcomeHide').checked) localStorage.setItem(WELCOME_KEY, '1');
+      else localStorage.removeItem(WELCOME_KEY);
+    } catch (e) { /* private mode: just close */ }
+    $('welcomeVideo').pause();
+    $('welcomeModal').hidden = true;
+    document.body.style.overflow = '';
+  }
+  $('helpBtn').addEventListener('click', openWelcome);
+  $$('[data-action="welcome-video"]').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); openWelcome(); }); });
+  $('welcomeClose').addEventListener('click', closeWelcome);
+  $('welcomeDone').addEventListener('click', closeWelcome);
+  $('welcomeModal').addEventListener('click', function (e) { if (e.target === $('welcomeModal')) closeWelcome(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('welcomeModal').hidden) closeWelcome(); });
 
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();

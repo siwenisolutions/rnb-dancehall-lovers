@@ -346,3 +346,24 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 }
 @media (max-width:420px){ .event-grid{grid-template-columns:1fr;} }
 .ticket-card-edit .ticket-thumb-pick{aspect-ratio:21/9;}
+
+/* ---------- Help button & welcome video ---------- */
+.help-pill{display:flex; align-items:center; gap:8px; border:none; cursor:pointer; background:linear-gradient(135deg,var(--purple),var(--pink)); color:#fff; padding:13px 18px; border-radius:999px; font-weight:700; font-size:14px;}
+.help-pill:hover{filter:brightness(1.06);}
+.video-modal{position:fixed; inset:0; z-index:80; background:rgba(20,18,16,.6); display:flex; align-items:center; justify-content:center; padding:20px;}
+.video-box{width:min(980px,100%); max-height:100%; overflow:auto; background:var(--shell); border-radius:26px; padding:22px; box-shadow:0 30px 80px rgba(0,0,0,.35);}
+.video-head{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:14px;}
+.video-head h2{font-family:'Anton',sans-serif; font-weight:400; text-transform:uppercase; font-size:32px; line-height:1;}
+.video-head p{margin-top:6px; font-size:14px;}
+.video-head .icon-btn{background:#fff; flex:0 0 auto;}
+.video-box video{display:block; width:100%; aspect-ratio:16/9; border-radius:16px; background:#000;}
+.video-foot{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:14px;}
+.check{display:flex; align-items:center; gap:8px; margin:0; font-weight:600; font-size:14px; cursor:pointer;}
+.check input{width:18px; height:18px; accent-color:var(--purple);}
+@media (max-width:720px){
+  .help-pill span{display:none;}
+  .help-pill{padding:12px;}
+  .video-box{padding:14px; border-radius:18px;}
+  .video-head h2{font-size:24px;}
+  .video-foot .btn{width:100%;}
+}

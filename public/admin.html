@@ -45,6 +45,10 @@
       </nav>
 
       <div class="top-actions">
+        <button class="help-pill" type="button" id="helpBtn" title="Watch the welcome video">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/></svg>
+          <span>Help</span>
+        </button>
         <div class="icon-pill">
           <a class="icon-btn" href="/" target="_blank" rel="noopener" title="View website" aria-label="View website">
             <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
@@ -59,6 +63,7 @@
           <svg viewBox="0 0 24 24" class="chev"><path d="m6 9 6 6 6-6"/></svg>
           <div class="menu" id="profileMenu" hidden>
             <a href="/" target="_blank" rel="noopener">View website</a>
+            <button type="button" data-action="welcome-video">Watch the welcome video</button>
             <button type="button" id="logoutBtn">Log out</button>
           </div>
         </div>
@@ -376,6 +381,26 @@
       <div class="photo-grid" id="eventPhotoGrid"></div>
     </div>
   </aside>
+
+  <!-- ===== WELCOME VIDEO ===== -->
+  <div class="video-modal" id="welcomeModal" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle" hidden>
+    <div class="video-box">
+      <div class="video-head">
+        <div>
+          <h2 id="welcomeTitle">Welcome to your website</h2>
+          <p class="muted">A quick tour of your website and how to update it. You can watch it again any time from the Help button.</p>
+        </div>
+        <button class="icon-btn" type="button" id="welcomeClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <video id="welcomeVideo" controls playsinline preload="metadata" poster="/video/welcome-poster.jpg?v=1">
+        <source src="/video/welcome.mp4?v=1" type="video/mp4">
+      </video>
+      <div class="video-foot">
+        <label class="check"><input type="checkbox" id="welcomeHide"> Don't show this automatically on this device</label>
+        <button class="btn btn-dark" type="button" id="welcomeDone">Got it, take me to my dashboard</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </div>
