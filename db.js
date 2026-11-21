@@ -39,6 +39,10 @@ const SETTING_DEFAULTS = {
   ticket2_subtitle: 'South Africa · Sahwigate',
   ticket2_label: 'Get Tickets (South Africa)',
   ticket2_url: 'https://sahwigate.com/event/rb-dancehall-lovers-old-is-the-new-vibe',
+  // Date of the event each ticket card sells (YYYY-MM-DD). A card shows until
+  // the end of that day; a card with no date isn't shown.
+  ticket1_date: '',
+  ticket2_date: '',
   // Words on the three Experience cards.
   exp1_label: 'Personal',
   exp2_label: 'Captivating',

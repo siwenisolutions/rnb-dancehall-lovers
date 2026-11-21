@@ -47,7 +47,7 @@ svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; s
 .btn[disabled]{opacity:.55; cursor:wait; transform:none;}
 label{display:block; font-weight:700; font-size:13px; margin:16px 0 7px;}
 label small{font-weight:500; color:var(--muted);}
-input[type=text],input[type=url],input[type=email],input[type=tel],input[type=password],input[type=search],input[type=datetime-local],textarea,select{
+input[type=text],input[type=url],input[type=email],input[type=tel],input[type=password],input[type=search],input[type=datetime-local],input[type=date],textarea,select{
   width:100%; padding:12px 16px; border:1px solid var(--line); border-radius:14px; background:#fff;
   font:500 16px 'Archivo',sans-serif; color:var(--text);
 }

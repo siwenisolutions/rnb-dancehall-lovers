@@ -89,23 +89,34 @@
     });
   }
 
-  // Ticket cards: one per ticket link set in the admin panel, each with its own slideshow.
-  function renderTickets(s, slots) {
+  // Ticket cards: only tickets that are still on sale (the server leaves out
+  // events that have happened), soonest first, each with its own slideshow.
+  function renderTickets(tickets, slots) {
     var grid = document.getElementById('ticketGrid');
-    var cards = [1, 2].map(function (n) {
-      var url = R.safeLink(s['ticket' + n + '_url']);
+    var cards = (tickets || []).map(function (tk) {
+      var url = R.safeLink(tk.url);
       if (!url) return null;
-      var title = s['ticket' + n + '_title'] || R.t('site_name');
+      var title = tk.title || R.t('site_name');
       var host = '';
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
-      var thumb = el('div', { class: 'ticket-thumb ticket-thumb-' + n }, [el('span', { class: 'ticket-chip', text: R.t('ticket_chip') })]);
-      slideshow(thumb, slots['ticket' + n]);
+      var thumb = el('div', { class: 'ticket-thumb' + (tk.card ? ' ticket-thumb-' + tk.card : '') }, [el('span', { class: 'ticket-chip', text: R.t('ticket_chip') })]);
+      var sub, label;
+      if (tk.kind === 'event') {
+        sub = R.fmtDay(tk.starts_at) + ' ' + R.fmtMonth(tk.starts_at) + (tk.venue ? ' · ' + tk.venue : '');
+        label = R.t('ticket_btn') || 'Get Tickets';
+        slideshow(thumb, (tk.photo_ids || []).map(function (id) { return { id: id, mime: 'image/webp' }; }));
+        if (!(tk.photo_ids || []).length) thumb.style.background = 'linear-gradient(135deg,#5b266c,#c11fd6)';
+      } else {
+        sub = tk.subtitle || host;
+        label = tk.label || R.t('ticket_btn') || 'Get Tickets';
+        slideshow(thumb, slots['ticket' + tk.card]);
+      }
       return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
         thumb,
         el('div', { class: 'ticket-body' }, [
-          el('div', { class: 'ticket-sub', text: s['ticket' + n + '_subtitle'] || host }),
+          el('div', { class: 'ticket-sub', text: sub }),
           el('h3', { text: title }),
-          el('span', { class: 'btn btn-primary', text: (s['ticket' + n + '_label'] || 'Get Tickets') + ' →' })
+          el('span', { class: 'btn btn-primary', text: label + ' →' })
         ])
       ]);
     }).filter(Boolean);
@@ -121,9 +132,12 @@
     var s = data.settings || {};
     var slots = data.slots || {};
     if (s.hero_text) document.getElementById('heroText').textContent = s.hero_text;
+    s.ticket_links = (data.tickets || []).slice(0, 2).map(function (tk) {
+      return { url: tk.url, label: (tk.kind === 'card' && tk.label) || R.t('ticket_btn') || 'Get Tickets' };
+    });
     R.renderFooter(s);
     slideshow(document.querySelector('.hero'), slots.hero, { video: true });
-    renderTickets(s, slots);
+    renderTickets(data.tickets, slots);
     renderUpcoming(data.upcoming || [], s);
     renderExperience(slots, s);
     slideshow(document.querySelector('.promo-photo'), slots.promo);

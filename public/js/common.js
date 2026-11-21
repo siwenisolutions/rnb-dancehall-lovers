@@ -147,9 +147,10 @@
     if (safeLink(s.instagram_url)) {
       buttons.push(el('a', { class: 'btn btn-cta', href: safeLink(s.instagram_url), target: '_blank', rel: 'noopener', text: '@rnbdancehalllovers →' }));
     }
-    [['ticket1_label', 'ticket1_url'], ['ticket2_label', 'ticket2_url']].forEach(function (t) {
-      var url = safeLink(s[t[1]]);
-      if (url) buttons.push(el('a', { class: 'btn btn-outline', href: url, target: '_blank', rel: 'noopener', text: (s[t[0]] || 'Get Tickets') + ' →' }));
+    // Only tickets still on sale (the home page passes them in).
+    (s.ticket_links || []).forEach(function (tk) {
+      var url = safeLink(tk.url);
+      if (url) buttons.push(el('a', { class: 'btn btn-outline', href: url, target: '_blank', rel: 'noopener', text: tk.label + ' →' }));
     });
     contact.push(el('div', { class: 'footer-buttons', style: 'margin-top:14px;' }, buttons));
 

@@ -58,6 +58,7 @@ const FIELDS = [
   { key: 'tickets_title1', page: 'Home page', section: 'Tickets on sale', label: 'Title, first line (outlined)', type: 'line', def: 'TICKETS' },
   { key: 'tickets_title2', page: 'Home page', section: 'Tickets on sale', label: 'Title, second line', type: 'line', def: 'ON SALE' },
   { key: 'tickets_note', page: 'Home page', section: 'Tickets on sale', label: 'Note next to the title', type: 'text', def: "Secure your spot. You'll be taken to the official ticketing site to pay." },
+  { key: 'ticket_btn', page: 'Home page', section: 'Tickets on sale', label: 'Button on tickets for your events', type: 'line', def: 'Get Tickets', client: true, hint: 'Events with a ticket link (Events page) show here by themselves until the event has happened.' },
   { key: 'ticket_chip', page: 'Home page', section: 'Tickets on sale', label: 'Label on the ticket pictures', type: 'line', def: 'Tickets on sale', client: true, hint: 'The ticket cards themselves (name, link, button) are under Website details.' },
 
   { key: 'exp_title1', page: 'Home page', section: 'The Experience', label: 'Title, first line (outlined)', type: 'line', def: 'THE' },

@@ -246,6 +246,31 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// "Tickets on sale": every upcoming event with a ticket link (from the Events
+// page), plus the two ticket cards from Website details while their event
+// date hasn't passed. Soonest first; at most 4. Past tickets never show.
+const TICKETS_MAX = 4;
+async function ticketsOnSale(settings) {
+  const { rows } = await pool.query(
+    `SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} AND e.ticket_url <> '' ORDER BY e.starts_at ASC LIMIT ${TICKETS_MAX}`);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Harare' }).format(new Date()); // YYYY-MM-DD
+  const out = rows.map((e) => ({
+    kind: 'event', event_id: e.id, title: e.title, venue: e.venue, starts_at: e.starts_at, url: e.ticket_url,
+    photo_ids: e.photo_ids, sort: new Date(e.starts_at).getTime(),
+  }));
+  const eventUrls = new Set(out.map((t) => t.url));
+  for (const n of [1, 2]) {
+    const url = settings[`ticket${n}_url`];
+    const date = settings[`ticket${n}_date`];
+    if (!url || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || eventUrls.has(url)) continue;
+    out.push({
+      kind: 'card', card: n, title: settings[`ticket${n}_title`], subtitle: settings[`ticket${n}_subtitle`],
+      label: settings[`ticket${n}_label`], date, url, sort: new Date(`${date}T23:59:00+02:00`).getTime(),
+    });
+  }
+  return out.sort((a, b) => a.sort - b.sort).slice(0, TICKETS_MAX).map(({ sort, ...t }) => t);
+}
+
 app.get('/api/home', wrap(async (req, res) => {
   const [settings, upcoming, past, slots] = await Promise.all([
     getSettings(),
@@ -255,7 +280,8 @@ app.get('/api/home', wrap(async (req, res) => {
     pool.query(`SELECT ${eventColumns} FROM events e WHERE NOT (${UPCOMING}) AND e.starts_at >= now() - interval '${RECENT_DAYS} days' ORDER BY e.starts_at DESC LIMIT 8`),
     getSlots(),
   ]);
-  res.json({ settings, upcoming: upcoming.rows, past: past.rows, slots });
+  const tickets = await ticketsOnSale(settings);
+  res.json({ settings, upcoming: upcoming.rows, past: past.rows, slots, tickets });
 }));
 
 // Photos (or a header video) for each picture spot on the website, in slideshow order.
@@ -565,6 +591,7 @@ const SETTING_LABELS = {
   instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', youtube_url: 'YouTube',
   ticket1_title: 'Ticket card 1 event name', ticket1_subtitle: 'Ticket card 1 where', ticket1_label: 'Ticket card 1 button text', ticket1_url: 'Ticket card 1 ticket website',
   exp1_label: 'Experience card 1 word', exp2_label: 'Experience card 2 word', exp3_label: 'Experience card 3 word',
+  ticket1_date: 'Ticket card 1 event date', ticket2_date: 'Ticket card 2 event date',
   ticket2_title: 'Ticket card 2 event name', ticket2_subtitle: 'Ticket card 2 where', ticket2_label: 'Ticket card 2 button text', ticket2_url: 'Ticket card 2 ticket website',
 };
 
@@ -575,6 +602,11 @@ admin.put('/settings', wrap(async (req, res) => {
     if (!(key in body)) continue;
     const label = SETTING_LABELS[key] || key;
     if (key.endsWith('_url')) updates[key] = cleanUrl(body[key], label);
+    else if (key.endsWith('_date')) {
+      const v = String(body[key] || '').trim();
+      if (v && !(/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)))) throw httpError(400, `${label}: please pick a date.`);
+      updates[key] = v;
+    }
     else if (key === 'contact_email') updates[key] = cleanEmail(body[key]);
     else updates[key] = cleanText(body[key], 2000, label);
   }

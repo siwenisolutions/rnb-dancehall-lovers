@@ -371,7 +371,7 @@
         <div class="section-head-admin">
           <div>
             <h2>Tickets on sale</h2>
-            <p class="muted">These two cards appear on the home page under "Tickets on sale". Clicking one takes people to the ticket website.</p>
+            <p class="muted">Only tickets for events that haven't happened yet are shown, soonest first. Events you add on the Events page with a ticket link appear there by themselves and disappear after the event. Use these two cards for tickets that aren't an event on your Events page.</p>
           </div>
         </div>
 
@@ -386,7 +386,9 @@
             <input type="text" id="s_ticket1_label" name="ticket1_label" maxlength="60" placeholder="e.g. Get Tickets">
             <label for="s_ticket1_url">Ticket website</label>
             <input type="text" inputmode="url" id="s_ticket1_url" name="ticket1_url" placeholder="Paste the ticket page here">
-            <p class="hint">Leave this empty to hide card 1.</p>
+            <label for="s_ticket1_date">Event date</label>
+            <input type="date" id="s_ticket1_date" name="ticket1_date">
+            <p class="hint">The card shows until the end of this day, then hides by itself. With no date or no link, card 1 is hidden.</p>
           </div>
 
           <div class="card ticket-card-edit">
@@ -399,7 +401,9 @@
             <input type="text" id="s_ticket2_label" name="ticket2_label" maxlength="60" placeholder="e.g. Get Tickets">
             <label for="s_ticket2_url">Ticket website</label>
             <input type="text" inputmode="url" id="s_ticket2_url" name="ticket2_url" placeholder="Paste the ticket page here">
-            <p class="hint">Leave this empty to hide card 2.</p>
+            <label for="s_ticket2_date">Event date</label>
+            <input type="date" id="s_ticket2_date" name="ticket2_date">
+            <p class="hint">The card shows until the end of this day, then hides by itself. With no date or no link, card 2 is hidden.</p>
           </div>
         </div>
       </form>
