@@ -28,7 +28,7 @@
     </div>
   </section>
 
-  <div class="gallery-grid" id="grid" aria-live="polite"></div>
+  <div class="gallery-days" id="grid" aria-live="polite"></div>
   <p class="status-msg" id="status">Loading photos…</p>
   <div class="load-more"><button class="btn btn-outline" id="more" hidden>Load more photos</button></div>
 </main>
@@ -44,18 +44,61 @@
   var status = document.getElementById('status');
   var more = document.getElementById('more');
   var buttons = document.querySelectorAll('[data-cat]');
-  var PAGE = 40, items = [], category = '', request = 0;
+  var PAGE = 60, items = [], category = '', request = 0;
+  var el = R.el, TZ = 'Africa/Harare';
+  var lastMonth = '', days = {};
+
+  // Photos are grouped like a phone's gallery: a heading per month, then
+  // one block per day (the event's date), newest first.
+  function zw(iso, opts) { return new Intl.DateTimeFormat('en-GB', Object.assign({ timeZone: TZ }, opts)).format(new Date(iso)); }
+  function dayKey(iso) { return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(iso)); }
+  function monthLabel(key) {
+    var now = dayKey(new Date().toISOString()).slice(0, 7);
+    var d = new Date(now + '-15T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() - 1);
+    var prev = d.toISOString().slice(0, 7);
+    if (key === now) return R.t('gallery_this_month') || 'This month';
+    if (key === prev) return R.t('gallery_last_month') || 'Last month';
+    return zw(key + '-15T12:00:00Z', { month: 'long', year: 'numeric' });
+  }
+  function dayLabel(iso) {
+    var sameYear = dayKey(iso).slice(0, 4) === dayKey(new Date().toISOString()).slice(0, 4);
+    return zw(iso, sameYear ? { weekday: 'long', day: 'numeric', month: 'long' } : { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  function addPhoto(i) {
+    var p = items[i];
+    var key = dayKey(p.taken_at);
+    var month = key.slice(0, 7);
+    if (month !== lastMonth) {
+      grid.appendChild(el('h2', { class: 'gallery-month', text: monthLabel(month) }));
+      lastMonth = month;
+    }
+    var day = days[key];
+    if (!day) {
+      day = days[key] = { count: 0, titles: [], title: el('span', { class: 'day-events' }), num: el('span', { class: 'day-count' }), grid: el('div', { class: 'gallery-grid' }) };
+      grid.appendChild(el('section', { class: 'gallery-day' }, [
+        el('div', { class: 'gallery-day-head' }, [el('h3', null, [el('span', { text: dayLabel(p.taken_at) }), day.title]), day.num]),
+        day.grid
+      ]));
+    }
+    if (p.event_title && day.titles.indexOf(p.event_title) < 0) {
+      day.titles.push(p.event_title);
+      day.title.textContent = day.titles.join(' · ');
+    }
+    day.count += 1;
+    day.num.textContent = day.count + (day.count === 1 ? ' photo' : ' photos');
+    day.grid.appendChild(R.galleryItem(items, i));
+  }
 
   function load(reset) {
     var mine = ++request;
-    if (reset) { items = []; grid.textContent = ''; status.hidden = false; status.textContent = 'Loading photos…'; }
+    if (reset) { items = []; grid.textContent = ''; lastMonth = ''; days = {}; status.hidden = false; status.textContent = 'Loading photos…'; }
     more.hidden = true;
     var url = '/api/photos?limit=' + PAGE + '&offset=' + items.length + (category ? '&category=' + category : '');
     R.api(url).then(function (data) {
       if (mine !== request) return; // a newer filter was picked meanwhile
       var start = items.length;
       items = items.concat(data.photos);
-      for (var i = start; i < items.length; i++) grid.appendChild(R.galleryItem(items, i));
+      for (var i = start; i < items.length; i++) addPhoto(i);
       status.hidden = items.length > 0;
       status.textContent = R.t('gallery_empty');
       more.hidden = !data.more;

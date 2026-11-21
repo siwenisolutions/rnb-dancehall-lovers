@@ -339,10 +339,13 @@ app.get('/api/photos', wrap(async (req, res) => {
   if (!(category in filters)) throw httpError(400, 'Unknown category.');
   const where = `WHERE ${filters[category]}`;
   const { rows } = await pool.query(
-    `SELECT m.id, m.category, m.slot, m.caption, m.width, m.height, m.event_id, e.title AS event_title
+    // taken_at: the event's date for event photos, otherwise when it was added.
+    // The gallery groups photos by that day, newest first, like a phone.
+    `SELECT m.id, m.category, m.slot, m.caption, m.width, m.height, m.event_id, e.title AS event_title,
+            COALESCE(e.starts_at, m.created_at) AS taken_at
        FROM media m LEFT JOIN events e ON e.id = m.event_id
        ${where}
-       ORDER BY m.created_at DESC, m.id DESC
+       ORDER BY COALESCE(e.starts_at, m.created_at) DESC, m.event_id NULLS LAST, m.created_at, m.id
        LIMIT $1 OFFSET $2`,
     params
   );
