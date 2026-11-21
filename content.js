@@ -113,6 +113,8 @@ const FIELDS = [
   { key: 'gallery_tab_highlights', page: 'Gallery page', section: 'Gallery page', label: 'Tab: highlights', type: 'line', def: 'Highlights' },
   { key: 'gallery_this_month', page: 'Gallery page', section: 'Gallery page', label: 'Heading for this month', type: 'line', def: 'This month', client: true },
   { key: 'gallery_last_month', page: 'Gallery page', section: 'Gallery page', label: 'Heading for last month', type: 'line', def: 'Last month', client: true },
+  { key: 'photo_download', page: 'Gallery page', section: 'Gallery page', label: 'Photo viewer: download button', type: 'line', def: 'Download', client: true },
+  { key: 'photo_share', page: 'Gallery page', section: 'Gallery page', label: 'Photo viewer: share button', type: 'line', def: 'Share', client: true },
   { key: 'gallery_empty', page: 'Gallery page', section: 'Gallery page', label: 'When a tab has no photos', type: 'line', def: 'No photos here yet.', client: true },
 
   // ---------- 404 ----------

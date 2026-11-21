@@ -370,6 +370,7 @@ const AUTO_SLOTS = {
   exp1: 'portrait', exp2: 'portrait', exp3: 'portrait',
   join1: 'portrait', join2: 'portrait', promo: 'landscape',
   ticket1: 'landscape', ticket2: 'landscape',
+  intro1: 'landscape', intro2: 'landscape',
 };
 const AUTO_PER_SLOT = 3;
 async function fillFromLatestEvent(out) {
@@ -404,7 +405,7 @@ async function fillFromLatestEvent(out) {
   };
   const next = { portrait: 0, landscape: 0 };
   for (const [slot, shape] of entries) {
-    if (slot.startsWith('ticket') && out[slot].length) continue;
+    if ((slot.startsWith('ticket') || slot.startsWith('intro')) && out[slot].length) continue;
     const list = chosen[shape];
     const picks = [];
     while (picks.length < AUTO_PER_SLOT && next[shape] < list.length) {
@@ -420,6 +421,8 @@ async function fillFromLatestEvent(out) {
       used.add(r.id);
       picks.push({ id: r.id, mime: r.mime });
     }
+    // Few photos at the latest event: the intro cards may repeat one rather than stay empty.
+    if (!picks.length && slot.startsWith('intro')) picks.push({ id: rows[slot === 'intro1' ? 0 : rows.length - 1].id, mime: 'image/webp' });
     if (picks.length) out[slot] = picks;
   }
 }
@@ -489,6 +492,7 @@ app.get(/^\/media\/(\d+)(?:\.(?:webp|jpg|png|mp4|webm))?$/, wrap(async (req, res
   }
   const { mime, inBucket, size } = meta;
   res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes' });
+  if (req.path.endsWith('.jpg') && mime.startsWith('image/')) return sendJpeg(req, res, id, inBucket);
 
   if (inBucket) return sendFromBucket(req, res, id, mime, size);
 
@@ -544,6 +548,30 @@ function cachedFile(id, thumb) {
   })();
   fetching.set(file, p);
   return p;
+}
+
+// A photo as a JPEG, for visitors who download or share it (every phone and
+// app opens JPEG). Made once from the stored copy, then kept on disk.
+// ?dl=1 makes the browser save it as a file.
+async function sendJpeg(req, res, id, inBucket) {
+  const file = path.join(DISK_CACHE, `${id}-jpg`);
+  if (!fs.existsSync(file)) {
+    let src;
+    if (inBucket) {
+      const local = await cachedFile(id, false).catch(() => null);
+      src = local ? await fs.promises.readFile(local) : await storage.getMediaBuffer(id);
+    } else {
+      const r = await pool.query('SELECT data FROM media WHERE id = $1', [id]);
+      if (!r.rowCount) throw httpError(404, 'Photo not found.');
+      src = r.rows[0].data;
+    }
+    const out = await require('sharp')(src).rotate().jpeg({ quality: 88, mozjpeg: true }).toBuffer();
+    await fs.promises.writeFile(`${file}.part`, out);
+    await fs.promises.rename(`${file}.part`, file);
+  }
+  res.set('Content-Type', 'image/jpeg');
+  if (req.query.dl) res.attachment(`RnB-Dancehall-Lovers-${id}.jpg`);
+  return res.sendFile(file, { cacheControl: false, lastModified: false });
 }
 
 // Sends a photo or video (or the requested piece of a video) from object storage.

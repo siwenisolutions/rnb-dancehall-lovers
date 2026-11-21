@@ -62,6 +62,8 @@ const SLOTS = {
   promo: { label: 'Any vibe, any night', where: 'Next to the pink "Any vibe, any night" banner', seed: 'p3.jpg' },
   join1: { label: 'Join us · Book your night', where: 'Bottom of the home page, left panel', seed: 'p1.jpg' },
   join2: { label: 'Our events · See the photos', where: 'Bottom of the home page, right panel', seed: 'p13.jpg' },
+  intro1: { label: 'Old is the new vibe card', where: 'First card under the header, behind "Old is the new vibe"' },
+  intro2: { label: 'More than music card', where: 'Second card under the header, behind "More than music"' },
 };
 
 const SCHEMA = `
@@ -291,7 +293,7 @@ async function migrate() {
   for (const [slot, def] of Object.entries(SLOTS)) {
     const has = await pool.query('SELECT 1 FROM media WHERE slot = $1 LIMIT 1', [slot]);
     const done = await pool.query('SELECT 1 FROM settings WHERE key = $1', [`_slot_seed_${slot}`]);
-    if (has.rowCount === 0 && done.rowCount === 0) {
+    if (has.rowCount === 0 && done.rowCount === 0 && def.seed) {
       const img = await processImage(fs.readFileSync(path.join(dir, def.seed)));
       await insertMedia({ category: 'site', caption: '', eventId: null, img, slot });
     }

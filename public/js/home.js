@@ -149,6 +149,11 @@
     renderUpcoming(data.upcoming || [], s);
     renderExperience(slots, s);
     slideshow(document.querySelector('.promo-photo'), slots.promo);
+    // Photo backgrounds behind the two intro cards.
+    ['intro1', 'intro2'].forEach(function (k) {
+      var card = document.querySelector('[data-spot="' + k + '"]');
+      if (card && slots[k] && slots[k].length) { card.classList.add('has-photo'); slideshow(card, slots[k], { thumb: true }); }
+    });
     var joins = document.querySelectorAll('.join .join-panel');
     slideshow(joins[0], slots.join1, { thumb: true });
     slideshow(joins[1], slots.join2, { thumb: true });

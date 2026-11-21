@@ -208,13 +208,44 @@
   }
 
   // ---------- lightbox ----------
-  var lb, lbImg, lbCap, lbItems = [], lbIndex = 0;
+  var lb, lbImg, lbCap, lbDl, lbShare, lbNote, lbItems = [], lbIndex = 0;
+  var IC_DL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+  var IC_SHARE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8 15.8 6.2M8.2 13.2l7.6 4.6"/></svg>';
+  function jpgUrl(id, download) { return '/media/' + encodeURIComponent(id) + '.jpg' + (download ? '?dl=1' : ''); }
+  function photoPage(p) { return location.origin + (p.event_id ? '/events/' + p.event_id : '/gallery'); }
+  // Share: the photo itself where the phone allows it (WhatsApp, Instagram,
+  // etc.), otherwise a link to the event's page, otherwise copy the link.
+  function sharePhoto() {
+    var p = lbItems[lbIndex];
+    if (!p) return;
+    var title = p.event_title || t('site_name');
+    var link = photoPage(p);
+    function note(text) { lbNote.textContent = text; lbNote.hidden = false; setTimeout(function () { lbNote.hidden = true; }, 2500); }
+    function shareLink() {
+      if (navigator.share) return navigator.share({ title: title, text: title, url: link });
+      if (navigator.clipboard) return navigator.clipboard.writeText(link).then(function () { note('Link copied'); });
+      note(link);
+      return Promise.resolve();
+    }
+    var go = (window.File && navigator.canShare)
+      ? fetch(jpgUrl(p.id)).then(function (r) { return r.blob(); }).then(function (blob) {
+        var file = new File([blob], 'RnB-Dancehall-Lovers-' + p.id + '.jpg', { type: 'image/jpeg' });
+        if (navigator.canShare({ files: [file] })) return navigator.share({ files: [file], title: title, text: title + ' · ' + link });
+        return shareLink();
+      })
+      : shareLink();
+    go.catch(function (err) { if (!err || err.name !== 'AbortError') shareLink().catch(function () {}); });
+  }
   function ensureLightbox() {
     if (lb) return;
     lbImg = el('img', { alt: '' });
     lbCap = el('figcaption');
     lb = el('div', { class: 'lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Photo viewer' }, [
-      el('figure', null, [lbImg, lbCap]),
+      el('figure', null, [lbImg, lbCap, el('div', { class: 'lb-actions' }, [
+        lbDl = el('a', { class: 'lb-act', href: '#', download: '' }),
+        lbShare = el('button', { class: 'lb-act', type: 'button', onclick: sharePhoto }),
+        lbNote = el('span', { class: 'lb-note', hidden: true, 'aria-live': 'polite' })
+      ])]),
       el('button', { class: 'lb-close', 'aria-label': 'Close', text: '×', onclick: closeLightbox }),
       el('button', { class: 'lb-prev', 'aria-label': 'Previous photo', text: '‹', onclick: function () { showLightbox(lbIndex - 1); } }),
       el('button', { class: 'lb-next', 'aria-label': 'Next photo', text: '›', onclick: function () { showLightbox(lbIndex + 1); } })
@@ -235,6 +266,10 @@
       if (e.key === 'ArrowLeft') showLightbox(lbIndex - 1);
       if (e.key === 'ArrowRight') showLightbox(lbIndex + 1);
     });
+    lbDl.innerHTML = IC_DL + '<span></span>';
+    lbDl.querySelector('span').textContent = t('photo_download') || 'Download';
+    lbShare.innerHTML = IC_SHARE + '<span></span>';
+    lbShare.querySelector('span').textContent = t('photo_share') || 'Share';
     document.body.appendChild(lb);
   }
   function showLightbox(i) {
@@ -242,6 +277,8 @@
     lbIndex = (i + lbItems.length) % lbItems.length;
     var p = lbItems[lbIndex];
     lbImg.src = mediaUrl(p.id);
+    lbDl.href = jpgUrl(p.id, true);
+    lbDl.setAttribute('download', 'RnB-Dancehall-Lovers-' + p.id + '.jpg');
     lbImg.alt = p.caption || t('site_name') + ' photo';
     lbCap.textContent = [p.caption, p.event_title, (lbIndex + 1) + ' / ' + lbItems.length].filter(Boolean).join(' · ');
     // Load the next photo early so swiping feels instant.
