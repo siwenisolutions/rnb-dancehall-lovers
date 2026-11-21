@@ -32,6 +32,7 @@ Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:i
 | `SESSION_SECRET` | Random string, 32+ characters, used to sign login cookies |
 | `CANONICAL_HOST` | Set to `rnbdancehalllovers.co.zw` once the domain works: every other address (www, onrender.com) redirects there |
 | `NODE_ENV` | `production` on Render (makes cookies HTTPS-only) |
+| `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render never puts it to sleep. Set to `off` after moving to a paid plan |
 
 ## Run locally
 

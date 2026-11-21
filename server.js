@@ -46,11 +46,15 @@ app.use((req, res, next) => {
 // Old onrender.com address and www. both forward to the main domain once it is set.
 const CANONICAL_HOST = process.env.CANONICAL_HOST || '';
 app.use((req, res, next) => {
-  if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz') {
+  if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz' && req.path !== '/ping') {
     return res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
   }
   next();
 });
+
+// Keep-awake target: answers without touching the database, so the
+// pings below don't keep waking the Postgres server too.
+app.get('/ping', (req, res) => res.type('text').send('ok'));
 
 app.get('/healthz', async (req, res) => {
   try {
@@ -670,11 +674,31 @@ app.use((err, req, res, next) => {
   sendPage(res, '404.html', status);
 });
 
+// Render's free plan puts the site to sleep after 15 minutes without visitors,
+// and the next visitor waits about a minute on a loading screen. Calling our
+// own public address every 10 minutes counts as a visitor, so it never sleeps.
+// Render sets RENDER_EXTERNAL_URL itself; set KEEP_AWAKE=off to turn this off
+// (for example after moving to a paid plan, which never sleeps).
+function keepAwake() {
+  const base = process.env.RENDER_EXTERNAL_URL;
+  if (!base || process.env.KEEP_AWAKE === 'off') return;
+  const url = `${base.replace(/\/$/, '')}/ping`;
+  const minutes = Math.max(1, Number(process.env.KEEP_AWAKE_MINUTES) || 10);
+  const timer = setInterval(() => {
+    fetch(url, { signal: AbortSignal.timeout(30000) })
+      .then((r) => { if (!r.ok) console.warn(`[keep-awake] ${url} answered ${r.status}`); })
+      .catch((err) => console.warn('[keep-awake] ping failed:', err.message));
+  }, minutes * 60 * 1000);
+  timer.unref();
+  console.log(`[keep-awake] pinging ${url} every ${minutes} min`);
+}
+
 if (require.main === module) {
   migrate()
     .then(() => app.listen(PORT, () => {
       console.log(`RNB Dancehall Lovers running on port ${PORT}`);
       compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message));
+      keepAwake();
     }))
     .catch((err) => {
       console.error('Startup failed:', err);
