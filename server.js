@@ -1352,6 +1352,10 @@ function sendPage(res, file, status = 200) {
       }
       if (head.image) extra += `\n<meta property="og:image" content="${e(head.image)}">\n<meta name="twitter:card" content="summary_large_image">`;
       out = out.replace('</head>', `${extra}\n</head>`);
+      // Event lists and event details as plain HTML (scripts redraw them).
+      for (const [id, html] of Object.entries(head.lists || {})) {
+        if (html) out = out.replace(new RegExp(`(<div[^>]*id="${id}"[^>]*>)[\\s\\S]*?(</div>)`), `$1${html}$2`);
+      }
     }
     if (edit) {
       out = out.replace('</body>', `<script src="/js/edit-mode.js?v=${assetVersion('/js/edit-mode.js')}"></script>\n</body>`)

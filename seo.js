@@ -68,9 +68,18 @@ module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMI
     if (file === 'index.html') {
       graph.push({ '@type': 'WebSite', '@id': abs('/#website'), name: siteName, alternateName: NAMES.filter((n) => n !== siteName), url: abs('/'), publisher: { '@id': abs('/#organization') } });
     }
+    const fmt = (d) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Harare', weekday: 'short', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(d));
+    // Plain HTML versions of the event lists, in the page itself, so search
+    // engines see them without running the page's scripts (which replace them).
+    const card = (e) => `<article class="event-card"><a href="/events/${e.id}">${e.cover_media_id ? `<img src="/media/${e.cover_media_id}.webp?size=thumb" alt="${esc(e.title)}" loading="lazy" style="width:100%;aspect-ratio:4/5;object-fit:cover;display:block">` : ''}</a><div class="body"><h3><a href="/events/${e.id}">${esc(e.title)}</a></h3><div class="when">${esc(fmt(e.starts_at))}</div>${e.venue ? `<div class="when">${esc(e.venue)}</div>` : ''}</div></article>`;
     if (file === 'index.html' || file === 'events.html') {
       const { rows } = await pool.query(`SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} ORDER BY e.starts_at LIMIT 10`);
       rows.forEach((e) => graph.push(eventLd(e, siteName)));
+      out.lists = { upcomingList: rows.map(card).join('') };
+      if (file === 'events.html') {
+        const past = await pool.query(`SELECT ${eventColumns} FROM events e WHERE NOT (${UPCOMING}) ORDER BY e.starts_at DESC LIMIT 30`);
+        out.lists.pastList = past.rows.map(card).join('');
+      }
     }
     if (file === 'event.html') {
       const id = parseInt((/^\/events\/(\d+)/.exec(req.path) || [])[1], 10);
@@ -83,6 +92,7 @@ module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMI
           out.title = `${e.title} — ${siteName}`;
           out.description = `${when}${e.venue ? ` · ${e.venue}` : ''}. ${e.description || `${siteName}: R&B and dancehall, old school classics.`}`.slice(0, 300);
           out.image = e.cover_media_id ? media(e.cover_media_id) : null;
+          out.lists = { detail: `<div class="event-detail">${e.cover_media_id ? `<img src="/media/${e.cover_media_id}.webp" alt="${esc(e.title)} flyer" style="width:100%;border-radius:18px">` : ''}<div><h1 class="display">${esc(e.title)}</h1><div class="when">${esc(fmt(e.starts_at))}</div>${e.venue ? `<div class="venue">${esc(e.venue)}</div>` : ''}${e.description ? `<div class="desc">${esc(e.description)}</div>` : ''}${e.ticket_url ? `<a class="btn btn-primary" href="${esc(e.ticket_url)}" rel="noopener">Get Tickets →</a>` : ''}</div></div>` };
         }
       }
     }
@@ -103,7 +113,9 @@ module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMI
   }
 
   function robots() {
-    return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${abs('/sitemap.xml')}\n`;
+    // The pages load their events and photos from /api/, so Google must be
+    // able to read it (only the admin side is off limits).
+    return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\n\nSitemap: ${abs('/sitemap.xml')}\n`;
   }
 
   async function sitemap() {
