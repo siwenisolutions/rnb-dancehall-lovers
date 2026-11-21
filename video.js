@@ -44,4 +44,32 @@ function compressVideo(input, output) {
   });
 }
 
-module.exports = { compressVideo, compressArgs };
+// Rewrites a video without re-encoding (same picture, same size) so its index
+// sits at the start of the file: the browser can then start playing after the
+// first piece arrives instead of fetching the end of the file first.
+function fastStart(input, output) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', input,
+      '-map', '0', '-c', 'copy', '-movflags', '+faststart', '-f', 'mp4', output], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    p.stderr.on('data', (d) => { if (err.length < 2000) err += d; });
+    p.on('error', reject);
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`remux failed: ${err.trim().slice(-200)}`))));
+  });
+}
+
+// True when an MP4/MOV already has its index ('moov') before the picture data ('mdat').
+function isFastStart(buf) {
+  let i = 0;
+  while (i + 8 <= buf.length) {
+    const size = buf.readUInt32BE(i);
+    const type = buf.toString('latin1', i + 4, i + 8);
+    if (type === 'moov') return true;
+    if (type === 'mdat') return false;
+    if (size < 8) return false;
+    i += size;
+  }
+  return false;
+}
+
+module.exports = { compressVideo, compressArgs, fastStart, isFastStart };

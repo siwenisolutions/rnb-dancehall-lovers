@@ -9,7 +9,7 @@ const path = require('path');
 const { pipeline } = require('stream/promises');
 const { pool, insertMedia, forgetMediaFiles } = require('./db');
 const storage = require('./storage');
-const { compressVideo } = require('./video');
+const { compressVideo, fastStart, isFastStart } = require('./video');
 const drive = require('./drive');
 const { processImage } = require('./images');
 
@@ -65,12 +65,22 @@ async function compressOne(m) {
     }
     const before = (await fs.promises.stat(inPath)).size;
     await compressVideo(inPath, outPath);
-    const out = await fs.promises.readFile(outPath);
+    let out = await fs.promises.readFile(outPath);
     const secs = Math.round((Date.now() - t0) / 1000);
     if (out.length > before * (1 - MIN_SAVING)) {
-      await pool.query("UPDATE media SET video_state = 'done' WHERE id = $1", [m.id]);
-      console.log(`[video] ${m.id}: already small (${mb(before)} → ${mb(out.length)}), kept the original (${secs}s)`);
-      return;
+      // Not worth shrinking. Still make sure it can start playing straight away.
+      const head = Buffer.alloc(64 * 1024);
+      const fh = await fs.promises.open(inPath, 'r');
+      await fh.read(head, 0, head.length, 0);
+      await fh.close();
+      if (m.mime === 'video/webm' || isFastStart(head)) {
+        await pool.query("UPDATE media SET video_state = 'done' WHERE id = $1", [m.id]);
+        console.log(`[video] ${m.id}: already small (${mb(before)} → ${mb(out.length)}), kept the original (${secs}s)`);
+        return;
+      }
+      await fastStart(inPath, outPath);
+      out = await fs.promises.readFile(outPath);
+      console.log(`[video] ${m.id}: kept its quality, moved its index to the front so it starts at once`);
     }
     const client = await pool.connect();
     let newId = null;

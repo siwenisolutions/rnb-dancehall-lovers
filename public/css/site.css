@@ -127,7 +127,8 @@ header.is-scrolled .burger span{background:#3a3733;}
 /* HERO */
 .hero{
   position:relative; width:100%;
-  background:url('/img/p6.jpg') center 30%/cover;
+  /* No picture behind the header: the video (or photos) appear straight away on a dark background. */
+  background:#0d0b0a;
 }
 .hero-inner{padding:110px 32px 120px; position:relative; z-index:2;}
 .hero-grid{display:flex; flex-direction:column; align-items:center; text-align:center; max-width:640px; margin:0 auto;}

@@ -10,6 +10,14 @@
   function slideshow(box, items, opts) {
     opts = opts || {};
     if (!box || !items || !items.length) return;
+    // The server already put the header video in the page so it starts at once:
+    // keep it playing rather than starting it again.
+    var ssr = box.querySelector(':scope > .slides[data-ssr-video]');
+    if (ssr && opts.video && items.some(function (i) { return String(i.id) === ssr.getAttribute('data-ssr-video'); })) {
+      var sv = ssr.querySelector('video');
+      if (sv && sv.paused) { sv.muted = true; var pp = sv.play(); if (pp && pp.catch) pp.catch(function () {}); }
+      return;
+    }
     var old = box.querySelector(':scope > .slides');
     if (old) old.remove();
     var wrap = el('div', { class: 'slides', 'aria-hidden': 'true' });

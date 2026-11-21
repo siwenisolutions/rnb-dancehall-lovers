@@ -984,9 +984,22 @@ function sendPage(res, file, status = 200) {
   }
   if (file === 'admin.html') return res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
   // Public pages: fill in the website text and hand the scripts their words.
-  savedContent().catch(() => ({})).then((saved) => {
+  // The home page also gets its header video (or first photo) in the HTML,
+  // so it starts loading at once instead of after the page's scripts run.
+  const heroMedia = file === 'index.html'
+    ? pool.query("SELECT id, mime FROM media WHERE category = 'site' AND slot = 'hero' ORDER BY created_at, id")
+      .then(({ rows }) => {
+        const video = rows.find((r) => r.mime.startsWith('video/'));
+        if (video) {
+          return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="/media/${video.id}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
+        }
+        return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}')"></div></div>` : '';
+      }).catch(() => '')
+    : Promise.resolve('');
+  Promise.all([savedContent().catch(() => ({})), heroMedia]).then(([saved, hero]) => {
     const json = JSON.stringify(content.clientText(saved)).replace(/</g, '\\u003c');
     const out = content.fillPage(html, saved)
+      .replace('<section class="hero"><!--HERO_MEDIA-->', hero ? `<section class="hero has-slides">${hero}` : '<section class="hero">')
       .replace('<script src="/js/common.js', `<script id="rnb-text" type="application/json">${json}</script>\n<script src="/js/common.js`);
     res.status(status).set('Cache-Control', 'no-cache').type('html').send(out);
   });
