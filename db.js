@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS admins (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
+-- Temporary logins stop working at expires_at unless the person has chosen
+-- their own email and password by then (that clears it).
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS expires_at timestamptz;
+
 CREATE TABLE IF NOT EXISTS events (
   id          serial PRIMARY KEY,
   title       text NOT NULL CHECK (length(title) BETWEEN 1 AND 200),

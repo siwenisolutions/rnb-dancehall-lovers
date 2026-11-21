@@ -123,12 +123,19 @@
     $('appView').hidden = true;
     $('loginView').hidden = true;
     $('setPwView').hidden = false;
-    $('setPwEmail').value = me.email;
+    // Temporary logins also set their own email and name here.
+    $('setPwOwnBox').hidden = !me.temporary;
+    $('setPwEmail').required = !!me.temporary;
+    $('setPwEmail').value = me.temporary ? '' : me.email;
+    $('setPwName').value = me.name && !/^Temporary login/i.test(me.name) ? me.name : '';
+    $('setPwIntro').textContent = me.temporary
+      ? 'This is a temporary login and stops working 24 hours after it was made. Add your own email and choose your own password to keep using the admin panel.'
+      : 'You logged in with a temporary password. Choose your own now. Only you will know it.';
     $('setPwCurrentBox').hidden = !!(knowCurrent && lastPassword);
     setTimeout(function () { ($('setPwCurrentBox').hidden ? $('setPwNew') : $('setPwCurrent')).focus(); }, 50);
   }
   function setMe(s) {
-    me = { email: s.email || '', name: s.name || '' };
+    me = { email: s.email || '', name: s.name || '', temporary: !!s.temporary };
     $('profileEmail').textContent = me.email || 'Admin';
   }
   function showApp() {
@@ -1344,8 +1351,12 @@
     if ($('setPwNew').value !== $('setPwConfirm').value) return say($('setPwMsg'), 'The two new passwords are not the same.', false);
     busy(btn, true);
     var current = $('setPwCurrentBox').hidden ? lastPassword : $('setPwCurrent').value;
-    call('POST', '/api/admin/account/password', { current_password: current, new_password: $('setPwNew').value, remember: $('loginRemember').checked })
-      .then(function () {
+    var body = { current_password: current, new_password: $('setPwNew').value, remember: $('loginRemember').checked };
+    if (me.temporary) { body.email = $('setPwEmail').value; body.name = $('setPwName').value; }
+    call('POST', '/api/admin/account/password', body)
+      .then(function (r) {
+        setMe({ email: r.email, name: r.name });
+        try { localStorage.setItem('rnbLoginEmail', r.email); } catch (e2) { /* ignore */ }
         lastPassword = '';
         ['setPwCurrent', 'setPwNew', 'setPwConfirm'].forEach(function (id) { $(id).value = ''; });
         $('setPwMsg').hidden = true;

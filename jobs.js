@@ -103,6 +103,7 @@ async function compressOne(m) {
       client.release();
     }
     forgetMediaFiles(m.id);
+    hooks.changed();
     console.log(`[video] ${m.id} → ${newId}: ${mb(before)} → ${mb(out.length)} (${Math.round((1 - out.length / before) * 100)}% smaller, ${secs}s)`);
   } catch (err) {
     console.error(`[video] ${m.id}: could not compress, keeping the original:`, err.message);
@@ -119,7 +120,7 @@ function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
 // levels deep) into the event, one photo at a time. Photos already copied, or
 // deleted by the admin, are skipped, so running it again only adds new ones.
 
-let hooks = { assertRoom: async () => {} };
+let hooks = { assertRoom: async () => {}, changed: () => {} };
 function configure(h) { hooks = { ...hooks, ...h }; }
 
 let driveRunning = false;
@@ -197,8 +198,10 @@ async function runImport(job) {
         console.warn(`[drive] ${file.name || file.id}: ${err.message}`);
       }
       await set({ added, failed });
+      if (added && added % 10 === 0) hooks.changed(); // new photos show within a few minutes
     }
     await set({ status: 'done', finished_at: new Date() });
+    hooks.changed();
     await pool.query('UPDATE events SET drive_synced_at = now() WHERE id = $1', [job.event_id]);
     if (added || failed) console.log(`[drive] event ${job.event_id}: ${added} photos added, ${failed} could not be copied, ${skipped} already there`);
   } catch (err) {

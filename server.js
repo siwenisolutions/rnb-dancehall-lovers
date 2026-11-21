@@ -161,8 +161,9 @@ async function currentAdmin(req) {
   const sess = readSession(readCookie(req, COOKIE));
   if (!sess) return null;
   const { rows } = await pool.query(
-    'SELECT id, email, name, must_change, session_version, password_changed_at, last_login_at FROM admins WHERE id = $1', [sess.id]);
+    'SELECT id, email, name, must_change, session_version, password_changed_at, last_login_at, expires_at FROM admins WHERE id = $1', [sess.id]);
   const a = rows[0];
+  if (a && a.expires_at && new Date(a.expires_at) < new Date()) return null;
   return a && a.session_version === sess.version ? a : null;
 }
 
@@ -217,6 +218,7 @@ function requireAdmin(req, res, next) {
   currentAdmin(req).then((a) => {
     if (!a) return next(httpError(401, 'Please log in again.'));
     req.admin = a;
+    if (req.method !== 'GET') res.on('finish', clearPublicCache);
     if (a.must_change && !BEFORE_PASSWORD_CHANGE.has(req.path)) {
       return next(Object.assign(httpError(403, 'Please choose your own password first.'), { code: 'must_change' }));
     }
@@ -272,6 +274,38 @@ async function ticketsOnSale(settings) {
   }
   return out.sort((a, b) => a.sort - b.sort).slice(0, TICKETS_MAX).map(({ sort, ...t }) => t);
 }
+
+// ---------- caching for busy times ----------
+// Public answers are kept in memory for 2 minutes, photo details for good,
+// and photo/video files on the server's disk. A crowd of visitors then costs
+// a handful of database queries instead of one per visitor, which keeps the
+// free database (100 compute hours and 5 GB of downloads a month) alive.
+// Anything the admin changes clears the memory straight away.
+const API_TTL = 2 * 60 * 1000;
+const apiCache = new Map();
+const mediaMeta = new Map();
+let heroCache = null;
+function clearPublicCache() {
+  apiCache.clear();
+  mediaMeta.clear();
+  heroCache = null;
+}
+function cachedApi(req, res, next) {
+  if (req.method !== 'GET') return next();
+  const key = req.originalUrl;
+  const hit = apiCache.get(key);
+  if (hit && hit.exp > Date.now()) return res.json(hit.body);
+  const send = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode === 200) {
+      apiCache.set(key, { body, exp: Date.now() + API_TTL });
+      if (apiCache.size > 500) apiCache.delete(apiCache.keys().next().value);
+    }
+    return send(body);
+  };
+  next();
+}
+app.use(['/api/home', '/api/settings', '/api/events', '/api/photos'], cachedApi);
 
 app.get('/api/home', wrap(async (req, res) => {
   const [settings, upcoming, past, slots] = await Promise.all([
@@ -355,10 +389,15 @@ app.get('/api/photos', wrap(async (req, res) => {
 // Photos are immutable once uploaded (edits create new ids), so cache hard.
 app.get('/media/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
-  const head = await pool.query('SELECT mime, in_bucket, COALESCE(bytes, octet_length(data)) AS size FROM media WHERE id = $1', [id]);
-  if (head.rowCount === 0) throw httpError(404, 'Photo not found.');
-  const { mime, in_bucket: inBucket } = head.rows[0];
-  const size = Number(head.rows[0].size);
+  let meta = mediaMeta.get(id);
+  if (!meta) {
+    const head = await pool.query('SELECT mime, in_bucket, COALESCE(bytes, octet_length(data)) AS size FROM media WHERE id = $1', [id]);
+    if (head.rowCount === 0) throw httpError(404, 'Photo not found.');
+    meta = { mime: head.rows[0].mime, inBucket: head.rows[0].in_bucket, size: Number(head.rows[0].size) };
+    mediaMeta.set(id, meta);
+    if (mediaMeta.size > 20000) mediaMeta.delete(mediaMeta.keys().next().value);
+  }
+  const { mime, inBucket, size } = meta;
   res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes' });
 
   if (inBucket) return sendFromBucket(req, res, id, mime, size);
@@ -386,8 +425,55 @@ app.get('/media/:id', wrap(async (req, res) => {
   res.set('Content-Type', mime).send(rows[0].bytes);
 }));
 
-// Streams a photo or video (or the requested piece of a video) from object storage.
+// Files from object storage are kept on the server's disk after the first
+// visitor asks for them, so later visitors don't download them from Neon again.
+const DISK_CACHE = path.join(require('os').tmpdir(), 'rnb-media-cache');
+const DISK_CACHE_MAX = 2 * 1024 * 1024 * 1024;
+let diskCacheBytes = 0;
+const fetching = new Map();
+try { fs.rmSync(DISK_CACHE, { recursive: true, force: true }); fs.mkdirSync(DISK_CACHE, { recursive: true }); } catch { /* cache stays off */ }
+function cachedFile(id, thumb) {
+  const file = path.join(DISK_CACHE, `${id}-${thumb ? 'thumb' : 'full'}`);
+  if (fs.existsSync(file)) return Promise.resolve(file);
+  if (diskCacheBytes > DISK_CACHE_MAX) return Promise.resolve(null);
+  if (fetching.has(file)) return fetching.get(file);
+  const p = (async () => {
+    const part = `${file}.${process.pid}.part`;
+    try {
+      const { body } = await storage.getMedia(id, { thumb });
+      await require('stream/promises').pipeline(body, fs.createWriteStream(part));
+      diskCacheBytes += fs.statSync(part).size;
+      fs.renameSync(part, file);
+      return file;
+    } catch (err) {
+      fs.rmSync(part, { force: true });
+      throw err;
+    } finally {
+      fetching.delete(file);
+    }
+  })();
+  fetching.set(file, p);
+  return p;
+}
+
+// Sends a photo or video (or the requested piece of a video) from object storage.
 async function sendFromBucket(req, res, id, mime, size) {
+  const wantThumb = !mime.startsWith('video/') && req.query.size === 'thumb';
+  let local = null;
+  try {
+    local = await cachedFile(id, wantThumb);
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || (err.$metadata && err.$metadata.httpStatusCode === 404)) throw httpError(404, 'Photo not found.');
+    console.warn(`[media] ${id}: disk cache skipped: ${err.message}`);
+  }
+  if (local) {
+    // sendFile handles "Range" requests itself, so videos can be skipped through.
+    return res.sendFile(local, { headers: { 'Content-Type': mime }, cacheControl: false, lastModified: false });
+  }
+  return streamFromBucket(req, res, id, mime, size);
+}
+
+async function streamFromBucket(req, res, id, mime, size) {
   const thumb = !mime.startsWith('video/') && req.query.size === 'thumb';
   let range;
   let status = 200;
@@ -429,6 +515,9 @@ app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, r
     throw httpError(429, `Too many wrong passwords. This login is locked for ${Math.ceil((new Date(a.locked_until) - Date.now()) / 60000)} more minutes.`);
   }
   const ok = await auth.verifyPassword(password, a && a.password_hash);
+  if (a && ok && a.expires_at && new Date(a.expires_at) < new Date()) {
+    throw httpError(401, 'This temporary login has expired. Ask Siweni Innovative Solutions for a new one.');
+  }
   if (!a || !ok) {
     recordFailure(req.ip);
     if (a) {
@@ -443,7 +532,7 @@ app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, r
   await pool.query('UPDATE admins SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1', [a.id]);
   const sess = makeSession(a, body.remember === true);
   setSessionCookie(res, sess.value, sess.maxAge);
-  res.json({ ok: true, mustChange: a.must_change, email: a.email, name: a.name });
+  res.json({ ok: true, mustChange: a.must_change, email: a.email, name: a.name, temporary: !!a.expires_at, expiresAt: a.expires_at });
 }));
 
 app.post('/api/admin/logout', (req, res) => {
@@ -453,7 +542,7 @@ app.post('/api/admin/logout', (req, res) => {
 
 app.get('/api/admin/session', wrap(async (req, res) => {
   const a = await currentAdmin(req);
-  res.json(a ? { loggedIn: true, email: a.email, name: a.name, mustChange: a.must_change } : { loggedIn: false });
+  res.json(a ? { loggedIn: true, email: a.email, name: a.name, mustChange: a.must_change, temporary: !!a.expires_at, expiresAt: a.expires_at } : { loggedIn: false });
 }));
 
 const admin = express.Router();
@@ -492,17 +581,27 @@ admin.post('/account/password', wrap(async (req, res) => {
   if (!(await auth.verifyPassword(String(body.current_password || ''), rows[0].password_hash))) {
     throw httpError(400, 'Your current password is not right.');
   }
+  // A temporary login also gets its owner's own email (and name) here.
+  let email = req.admin.email;
+  let name = req.admin.name;
+  if (body.email !== undefined || req.admin.expires_at) {
+    email = auth.normaliseEmail(body.email);
+    if (!auth.validEmail(email)) throw httpError(400, 'Please enter your own email address. You will log in with it.');
+    const taken = await pool.query('SELECT 1 FROM admins WHERE email = $1 AND id <> $2', [email, req.admin.id]);
+    if (taken.rowCount) throw httpError(400, 'Another login already uses that email.');
+  }
+  if (body.name !== undefined) name = cleanText(body.name, 100, 'Your name');
   const next = String(body.new_password || '');
-  const problem = auth.passwordProblem(next, req.admin.email);
+  const problem = auth.passwordProblem(next, email);
   if (problem) throw httpError(400, problem);
   if (await auth.verifyPassword(next, rows[0].password_hash)) throw httpError(400, 'Choose a password different from the one you have now.');
   const u = await pool.query(
-    `UPDATE admins SET password_hash = $2, must_change = false, password_changed_at = now(),
-            session_version = session_version + 1 WHERE id = $1 RETURNING id, session_version`,
-    [req.admin.id, await auth.hashPassword(next)]);
+    `UPDATE admins SET password_hash = $2, must_change = false, password_changed_at = now(), expires_at = NULL,
+            email = $3, name = $4, session_version = session_version + 1 WHERE id = $1 RETURNING id, session_version`,
+    [req.admin.id, await auth.hashPassword(next), email, name]);
   const sess = makeSession(u.rows[0], body.remember === true);
   setSessionCookie(res, sess.value, sess.maxAge);
-  res.json({ ok: true });
+  res.json({ ok: true, email, name });
 }));
 
 // Sign out on every phone and computer, including this one.
@@ -986,16 +1085,16 @@ function sendPage(res, file, status = 200) {
   // Public pages: fill in the website text and hand the scripts their words.
   // The home page also gets its header video (or first photo) in the HTML,
   // so it starts loading at once instead of after the page's scripts run.
-  const heroMedia = file === 'index.html'
-    ? pool.query("SELECT id, mime FROM media WHERE category = 'site' AND slot = 'hero' ORDER BY created_at, id")
+  const heroMedia = file !== 'index.html' ? Promise.resolve('')
+    : heroCache && heroCache.exp > Date.now() ? Promise.resolve(heroCache.html)
+    : pool.query("SELECT id, mime FROM media WHERE category = 'site' AND slot = 'hero' ORDER BY created_at, id")
       .then(({ rows }) => {
         const video = rows.find((r) => r.mime.startsWith('video/'));
         if (video) {
           return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="/media/${video.id}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
         }
         return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}')"></div></div>` : '';
-      }).catch(() => '')
-    : Promise.resolve('');
+      }).then((html) => { heroCache = { html, exp: Date.now() + API_TTL }; return html; }).catch(() => '');
   Promise.all([savedContent().catch(() => ({})), heroMedia]).then(([saved, hero]) => {
     const json = JSON.stringify(content.clientText(saved)).replace(/</g, '\\u003c');
     const out = content.fillPage(html, saved)
@@ -1096,7 +1195,7 @@ if (require.main === module) {
         .then(() => sweepOrphanFiles()).catch((err) => console.warn('[storage] sweep failed:', err.message))
         .then(() => startVideoCompression())
         .then(() => jobs.resumeDriveImports()).catch((err) => console.error('[drive] resume failed:', err.message));
-      jobs.configure({ assertRoom: assertRoomFor });
+      jobs.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
       // Look for new photos in linked Google Drive folders every 6 hours.
       const sync = () => jobs.syncDriveFolders().catch((err) => console.warn('[drive] sync failed:', err.message));
       setTimeout(sync, 3 * 60 * 1000).unref();

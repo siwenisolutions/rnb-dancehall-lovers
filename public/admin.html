@@ -44,9 +44,14 @@
   <div class="login-card">
     <img src="/img/logo.png" alt="RnB Dancehall Lovers" class="login-logo">
     <h1 class="display">Choose your password</h1>
-    <p class="muted">You logged in with a temporary password. Choose your own now. Only you will know it.</p>
+    <p class="muted" id="setPwIntro">You logged in with a temporary password. Choose your own now. Only you will know it.</p>
     <form id="setPwForm">
-      <input type="email" autocomplete="username" id="setPwEmail" hidden>
+      <div id="setPwOwnBox" hidden>
+        <label for="setPwName">Your name</label>
+        <input type="text" id="setPwName" maxlength="100" autocomplete="name">
+        <label for="setPwEmail">Your email <small>you'll log in with this from now on</small></label>
+        <input type="email" id="setPwEmail" autocomplete="username">
+      </div>
       <div id="setPwCurrentBox">
         <label for="setPwCurrent">Temporary password</label>
         <input type="password" id="setPwCurrent" autocomplete="current-password">
