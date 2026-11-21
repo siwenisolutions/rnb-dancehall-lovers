@@ -332,7 +332,70 @@ async function getSlots(withDetails = false) {
     if (!out[r.slot]) continue;
     out[r.slot].push(withDetails ? r : { id: r.id, mime: r.mime });
   }
+  if (!withDetails) await fillFromLatestEvent(out);
   return out;
+}
+
+// The picture spots on the home page follow the most recent event that has
+// photos, so the site always shows the latest night without anyone swapping
+// pictures by hand. The header keeps whatever was uploaded for it (the video).
+// Ticket cards only borrow event photos when nobody uploaded their own.
+const AUTO_SLOTS = {
+  exp1: 'portrait', exp2: 'portrait', exp3: 'portrait',
+  join1: 'portrait', join2: 'portrait', promo: 'landscape',
+  ticket1: 'landscape', ticket2: 'landscape',
+};
+const AUTO_PER_SLOT = 3;
+async function fillFromLatestEvent(out) {
+  const { rows } = await pool.query(
+    `SELECT m.id, m.mime, m.width, m.height FROM media m
+      WHERE m.event_id = (
+        SELECT e.id FROM events e
+         WHERE e.starts_at <= now() AND EXISTS (SELECT 1 FROM media x WHERE x.event_id = e.id AND x.mime LIKE 'image/%')
+         ORDER BY e.starts_at DESC LIMIT 1)
+        AND m.mime LIKE 'image/%'
+      ORDER BY m.id`);
+  if (!rows.length) return;
+  const pools = { portrait: [], landscape: [] };
+  for (const r of rows) (r.height > r.width ? pools.portrait : pools.landscape).push(r);
+  // Spread the picks across the whole event (not just the first photos
+  // imported), and never show the same photo in two spots.
+  const used = new Set();
+  const spread = (list, n) => {
+    const free = list.filter((r) => !used.has(r.id));
+    if (!free.length) return [];
+    const step = free.length / n;
+    const picks = [];
+    for (let i = 0; i < n && i < free.length; i += 1) picks.push(free[Math.floor(i * step + step / 2) % free.length]);
+    return [...new Set(picks)];
+  };
+  const entries = Object.entries(AUTO_SLOTS);
+  const need = { portrait: 0, landscape: 0 };
+  for (const [, shape] of entries) need[shape] += AUTO_PER_SLOT;
+  const chosen = {
+    portrait: spread(pools.portrait.length >= AUTO_PER_SLOT ? pools.portrait : rows, need.portrait),
+    landscape: spread(pools.landscape.length >= AUTO_PER_SLOT ? pools.landscape : rows, need.landscape),
+  };
+  const next = { portrait: 0, landscape: 0 };
+  for (const [slot, shape] of entries) {
+    if (slot.startsWith('ticket') && out[slot].length) continue;
+    const list = chosen[shape];
+    const picks = [];
+    while (picks.length < AUTO_PER_SLOT && next[shape] < list.length) {
+      const r = list[next[shape]++];
+      if (used.has(r.id)) continue;
+      used.add(r.id);
+      picks.push({ id: r.id, mime: r.mime });
+    }
+    // Not enough photos of the right shape left: any unused photo will do.
+    for (const r of rows) {
+      if (picks.length) break;
+      if (used.has(r.id)) continue;
+      used.add(r.id);
+      picks.push({ id: r.id, mime: r.mime });
+    }
+    if (picks.length) out[slot] = picks;
+  }
 }
 
 app.get('/api/settings', wrap(async (req, res) => {

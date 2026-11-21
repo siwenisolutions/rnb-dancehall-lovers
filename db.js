@@ -277,6 +277,40 @@ async function migrate() {
     // Remember it was seeded, so a section the client empties on purpose stays empty.
     await pool.query("INSERT INTO settings (key, value) VALUES ($1, 'yes') ON CONFLICT (key) DO NOTHING", [`_slot_seed_${slot}`]);
   }
+  await installHeaderVideo();
+}
+
+// One-time swap of the header background for the video the client sent in
+// November 2026 (seed/hero-2026-11.mp4, already compressed for phones). The
+// old header video and photo are removed. Runs once; after that the header
+// is managed from the admin panel as usual.
+const HEADER_VIDEO = { key: '_hero_video_2026_11', file: path.join(__dirname, 'seed', 'hero-2026-11.mp4') };
+async function installHeaderVideo() {
+  const done = await pool.query('SELECT 1 FROM settings WHERE key = $1', [HEADER_VIDEO.key]);
+  if (done.rowCount || !fs.existsSync(HEADER_VIDEO.file)) return;
+  const data = fs.readFileSync(HEADER_VIDEO.file);
+  const client = await pool.connect();
+  let oldIds = [];
+  try {
+    await client.query('BEGIN');
+    const old = await client.query("SELECT id FROM media WHERE category = 'site' AND slot = 'hero'");
+    oldIds = old.rows.map((r) => r.id);
+    await insertMedia({
+      category: 'site', caption: '', eventId: null, slot: 'hero',
+      img: { mime: 'video/mp4', width: 0, height: 0, data, thumb: Buffer.alloc(0), videoState: 'done' },
+    }, client);
+    if (oldIds.length) await client.query('DELETE FROM media WHERE id = ANY($1::int[])', [oldIds]);
+    await client.query("INSERT INTO settings (key, value) VALUES ($1, 'yes')", [HEADER_VIDEO.key]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[hero] new header video not installed yet:', err.message);
+    return;
+  } finally {
+    client.release();
+  }
+  for (const id of oldIds) forgetMediaFiles(id);
+  console.log(`[hero] header video replaced (removed media ${oldIds.join(', ') || 'none'})`);
 }
 
 // Saves a photo or video. With object storage set up, the file goes to the
