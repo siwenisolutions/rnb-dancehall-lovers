@@ -40,6 +40,7 @@ Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:i
 | `AWS_REGION` | `eu-central-1` |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Neon storage credential `rnb-website-render` (scopes `storage:read`, `storage:write`) |
 | `MEDIA_BUCKET` | `rnb-media` |
+| `GOOGLE_API_KEY` | Optional: a Google API key with the Drive API enabled. Without it, Drive folders are read from their public embed page; with it, the Drive API is used (better for very large folders) |
 | `MEDIA_LIMIT_MB` | Storage cap shown in the admin panel when the bucket is used. Default `5120` (5 GB) |
 | `NODE_ENV` | `production` on Render (makes cookies HTTPS-only) |
 | `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render doesn't put it to sleep. Set to `off` after moving to a paid plan |
@@ -63,3 +64,7 @@ Render account. In the Render dashboard for this service, open **Settings → Cu
 
 Remove any old `A`/`CNAME` records for those names that point to the previous site. Render issues the HTTPS
 certificate automatically once DNS has updated (minutes to a few hours). Then set `CANONICAL_HOST`.
+
+## Google Drive
+
+Admin → Events → **Add from Google Drive**: paste the link to a folder shared as "Anyone with the link" (`drive.js`, `jobs.js`). The admin can make one event per folder inside it (dates in folder names are read), one new event, or add the photos to an existing event. Photos (including folders inside, two levels deep) are copied into the website in the background, compressed like uploads, so the site never depends on Drive. Each event stays linked to its folder: new photos are copied every 6 hours, or straight away with "Check for new photos now" in the event's photos. Photos the admin deletes are never copied again (`drive_removed`).

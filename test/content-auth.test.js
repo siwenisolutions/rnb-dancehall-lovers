@@ -41,3 +41,21 @@ test('passwords: hashing, checking and rules', async () => {
   assert.ok(auth.passwordProblem('tendai-2026-xyz', 'tendai@b.co'));
   assert.strictEqual(auth.passwordProblem('sweet jams every saturday', 'tendai@b.co'), '');
 });
+
+const drive = require('../drive');
+test('Google Drive links and folder names', () => {
+  assert.deepStrictEqual(drive.parseFolderLink('https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOp?usp=sharing'), { id: '1AbCdEfGhIjKlMnOp', resourceKey: '' });
+  assert.deepStrictEqual(drive.parseFolderLink('drive.google.com/drive/u/0/folders/1AbCdEfGhIjKlMnOp?resourcekey=0-xyz'), { id: '1AbCdEfGhIjKlMnOp', resourceKey: '0-xyz' });
+  assert.throws(() => drive.parseFolderLink('https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view'), /one file/);
+  assert.strictEqual(drive.dateFromName('Harare Night 28 Nov 2026'), '2026-11-28');
+  assert.strictEqual(drive.dateFromName('Bulawayo 2026-12-12'), '2026-12-12');
+  assert.strictEqual(drive.dateFromName('Party 05.12.2026'), '2026-12-05');
+  assert.strictEqual(drive.dateFromName('December 13th, 2026 show'), '2026-12-13');
+  assert.strictEqual(drive.dateFromName('Photos'), '');
+  const page = '<title>Night - Google Drive</title><div class="flip-entry" id="entry-1aaaaaaaaaaa"><a href="https://drive.google.com/file/d/1aaaaaaaaaaa/view"><div class="flip-entry-title">a.jpg</div></a></div>'
+    + '<div class="flip-entry" id="entry-1bbbbbbbbbbb"><a href="https://drive.google.com/drive/folders/1bbbbbbbbbbb"><div class="flip-entry-title">Sub &amp; more</div></a></div>'
+    + '<div class="flip-entry" id="entry-1cccccccccccc"><a href="https://drive.google.com/file/d/1cccccccccccc/view"><div class="flip-entry-title">clip.mp4</div></a></div>';
+  const r = drive.parseEmbedPage(page);
+  assert.strictEqual(r.title, 'Night');
+  assert.deepStrictEqual(r.items.map((i) => [i.id, i.kind, i.name]), [['1aaaaaaaaaaa', 'image', 'a.jpg'], ['1bbbbbbbbbbb', 'folder', 'Sub & more'], ['1cccccccccccc', 'other', 'clip.mp4']]);
+});

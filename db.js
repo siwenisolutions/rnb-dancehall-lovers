@@ -132,6 +132,43 @@ ALTER TABLE media ALTER COLUMN thumb DROP NOT NULL;
 UPDATE media SET bytes = octet_length(data), thumb_bytes = octet_length(thumb)
   WHERE bytes IS NULL AND data IS NOT NULL;
 UPDATE media SET video_state = 'pending' WHERE mime LIKE 'video/%' AND video_state IS NULL;
+-- source: where an imported photo came from ('drive:<file id>'), so the
+-- same Drive photo is never added to an event twice.
+ALTER TABLE media ADD COLUMN IF NOT EXISTS source text;
+CREATE UNIQUE INDEX IF NOT EXISTS media_event_source_idx ON media (event_id, source) WHERE source IS NOT NULL;
+
+-- An event can be linked to a Google Drive folder; new photos put in that
+-- folder are copied to the event automatically.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_folder text;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_resource_key text NOT NULL DEFAULT '';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_name text NOT NULL DEFAULT '';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_synced_at timestamptz;
+
+-- Copying photos from Google Drive, one job per event and folder.
+-- status: pending, running, done, failed.
+CREATE TABLE IF NOT EXISTS drive_imports (
+  id          serial PRIMARY KEY,
+  event_id    integer NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  folder_id   text NOT NULL,
+  resource_key text NOT NULL DEFAULT '',
+  status      text NOT NULL DEFAULT 'pending',
+  total       integer NOT NULL DEFAULT 0,
+  added       integer NOT NULL DEFAULT 0,
+  skipped     integer NOT NULL DEFAULT 0,
+  failed      integer NOT NULL DEFAULT 0,
+  error       text NOT NULL DEFAULT '',
+  automatic   boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS drive_imports_status_idx ON drive_imports (status, id);
+-- Drive photos the admin deleted or replaced on the website: never copied again.
+CREATE TABLE IF NOT EXISTS drive_removed (
+  event_id integer NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  source   text NOT NULL,
+  PRIMARY KEY (event_id, source)
+);
+
 CREATE INDEX IF NOT EXISTS media_video_state_idx ON media (video_state) WHERE video_state = 'pending';
 
 DO $$ BEGIN
@@ -275,16 +312,16 @@ async function setUpAdmin() {
   }
 }
 
-async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null }, db = pool) {
+async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null, source = null }, db = pool) {
   const inBucket = storage.enabled;
   const videoState = img.mime.startsWith('video/') ? (img.videoState || 'pending') : null;
   const { rows } = await db.query(
     `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb, slot, created_at,
-                        in_bucket, bytes, thumb_bytes, video_state)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12, $13, $14) RETURNING id`,
+                        in_bucket, bytes, thumb_bytes, video_state, source)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12, $13, $14, $15) RETURNING id`,
     [category, eventId, caption, img.mime, img.width, img.height,
       inBucket ? null : img.data, inBucket ? null : img.thumb, slot, createdAt,
-      inBucket, img.data.length, img.thumb.length, videoState]
+      inBucket, img.data.length, img.thumb.length, videoState, source]
   );
   const id = rows[0].id;
   if (inBucket) await storage.putMedia(id, img);

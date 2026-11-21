@@ -213,6 +213,15 @@
       el('button', { class: 'lb-next', 'aria-label': 'Next photo', text: '›', onclick: function () { showLightbox(lbIndex + 1); } })
     ]);
     lb.addEventListener('click', function (e) { if (e.target === lb) closeLightbox(); });
+    // Swipe left/right to move between photos on phones.
+    var touchX = null;
+    lb.addEventListener('touchstart', function (e) { touchX = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+    lb.addEventListener('touchend', function (e) {
+      if (touchX === null) return;
+      var dx = e.changedTouches[0].clientX - touchX;
+      touchX = null;
+      if (Math.abs(dx) > 50) showLightbox(lbIndex + (dx < 0 ? 1 : -1));
+    }, { passive: true });
     document.addEventListener('keydown', function (e) {
       if (!lb.classList.contains('open')) return;
       if (e.key === 'Escape') closeLightbox();
@@ -227,7 +236,10 @@
     var p = lbItems[lbIndex];
     lbImg.src = mediaUrl(p.id);
     lbImg.alt = p.caption || t('site_name') + ' photo';
-    lbCap.textContent = [p.caption, p.event_title].filter(Boolean).join(' · ');
+    lbCap.textContent = [p.caption, p.event_title, (lbIndex + 1) + ' / ' + lbItems.length].filter(Boolean).join(' · ');
+    // Load the next photo early so swiping feels instant.
+    var next = lbItems[(lbIndex + 1) % lbItems.length];
+    if (next) { var pre = new Image(); pre.src = mediaUrl(next.id); }
   }
   function openLightbox(items, i) {
     ensureLightbox();

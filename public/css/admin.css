@@ -501,3 +501,33 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .text-field .reset{border:0; background:none; font:inherit; font-size:12px; font-weight:700; color:var(--purple); cursor:pointer; white-space:nowrap;}
 .text-field.changed input,.text-field.changed textarea{border-color:var(--purple);}
 .text-field .hint{margin-top:6px;}
+
+/* ---------- Google Drive ---------- */
+.drive-step{margin-bottom:22px;}
+.drive-summary{display:flex; gap:14px; align-items:center; background:#fff; border-radius:18px; padding:14px 16px; margin-bottom:14px;}
+.drive-summary .ic{width:42px; height:42px; border-radius:12px; background:var(--soft); display:grid; place-items:center; flex:none;}
+.drive-summary .ic svg{width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8;}
+.drive-summary b{display:block; font-size:16px;}
+.drive-summary small{color:var(--muted);}
+#driveModeSeg{margin-bottom:6px;}
+.drive-folders{display:flex; flex-direction:column; gap:10px; margin-top:14px;}
+.drive-folder{background:#fff; border-radius:16px; padding:12px 14px; display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:start;}
+.drive-folder > input[type=checkbox]{width:20px; height:20px; margin-top:12px; accent-color:var(--purple);}
+.drive-folder .row3{display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:8px;}
+.drive-folder .row3 input{margin:0;}
+.drive-folder small{color:var(--muted); font-size:12px;}
+.drive-folder.off{opacity:.5;}
+@media (max-width:620px){ .drive-folder .row3{grid-template-columns:1fr;} }
+.drive-jobs{border-top:1px solid var(--line); padding-top:16px;}
+.drive-jobs h3{font-size:15px; margin-bottom:10px;}
+.drive-job{background:#fff; border-radius:14px; padding:12px 14px; margin-bottom:8px;}
+.drive-job .top{display:flex; justify-content:space-between; gap:10px; font-size:14px;}
+.drive-job .top b{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.drive-job small{color:var(--muted); font-size:12px; display:block; margin-top:4px;}
+.drive-job .bar{height:6px; border-radius:99px; background:var(--soft); margin-top:8px; overflow:hidden;}
+.drive-job .bar span{display:block; height:100%; background:var(--purple); border-radius:99px; transition:width .4s;}
+.drive-job.failed small{color:var(--red);}
+.drive-box{margin:16px 0 4px; background:#fff; border-radius:16px; padding:14px 16px;}
+.drive-box b{font-size:14px;}
+.drive-box p{font-size:13px; color:var(--muted); margin:4px 0 10px; line-height:1.5;}
+.drive-box .btn-row{display:flex; gap:8px; flex-wrap:wrap;}

@@ -501,17 +501,20 @@ body.subpage .burger span{background:#3a3733;}
 .tabs button[aria-pressed="true"]{background:#141210; color:#fff; border-color:#141210;}
 .sub-title{font-family:'Anton',sans-serif; text-transform:uppercase; font-size:clamp(30px,4vw,44px); margin-top:70px;}
 
-.gallery-grid{columns:4 240px; column-gap:12px; padding-top:30px;}
+/* Photo grid like a phone's photo library / Instagram explore: square tiles,
+   3 in a row (4 on wide screens), thin gaps. Tap a tile to see the whole photo. */
+.gallery-grid{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px; padding-top:30px;}
+@media (min-width:1000px){ .gallery-grid{grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px;} }
+@media (max-width:560px){ .gallery-grid{gap:2px; margin:0 -18px;} }
 .gallery-item{
-  display:block; width:100%; break-inside:avoid; margin-bottom:12px; padding:0; border:none; cursor:zoom-in;
-  border-radius:14px; overflow:hidden; background:var(--card); position:relative; text-align:left;
+  display:block; width:100%; aspect-ratio:1/1; padding:0; border:none; cursor:zoom-in;
+  overflow:hidden; background:#e9e6df; position:relative; border-radius:0;
 }
-.gallery-item img{height:auto; transition:transform .3s ease;}
-.gallery-item:hover img{transform:scale(1.03);}
-.gallery-item .gcap{
-  position:absolute; left:10px; bottom:10px; right:10px; font-size:12px; font-weight:700; color:#fff;
-  text-shadow:0 1px 6px rgba(0,0,0,.7);
-}
+.gallery-item img{width:100%; height:100%; object-fit:cover; transition:transform .3s ease, opacity .3s ease;}
+.gallery-item:hover img{transform:scale(1.04);}
+.gallery-item:focus-visible{outline:3px solid var(--purple); outline-offset:-3px;}
+.gallery-item .gcap{display:none;}
+.gallery-count{margin-top:6px; color:var(--muted); font-size:14px; font-weight:600;}
 .load-more{display:flex; justify-content:center; padding:30px 0;}
 .status-msg{padding:40px 0; color:var(--muted);}
 

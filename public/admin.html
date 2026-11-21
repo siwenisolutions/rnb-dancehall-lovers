@@ -209,9 +209,14 @@
 
     <!-- ===== EVENTS ===== -->
     <section data-panel="events" hidden>
-      <div class="page-head">
-        <h1>Events</h1>
-        <p class="muted">Upcoming events show on the home page. After the date they move to "Recent events" for 30 days, then to the Event history page. Nothing is deleted.</p>
+      <div class="page-head row">
+        <div>
+          <h1>Events</h1>
+          <p class="muted">Upcoming events show on the home page. After the date they move to "Recent events" for 30 days, then to the Event history page. Nothing is deleted.</p>
+        </div>
+        <button class="btn btn-light" type="button" data-action="drive">
+          <svg viewBox="0 0 24 24"><path d="M8 3h8l6 10-4 7H6l-4-7z"/><path d="M8 3l6 10M16 3 10 13M2 13h20"/></svg> Add from Google Drive
+        </button>
       </div>
       <div class="photos-layout">
         <!-- Add / edit event -->
@@ -492,7 +497,42 @@
       </label>
       <button class="btn btn-dark btn-block" id="evPhotosUpload" type="button">Upload</button>
       <div class="msg" id="evPhotosMsg" hidden></div>
+      <div class="drive-box" id="evDriveBox"></div>
       <div class="photo-grid" id="eventPhotoGrid"></div>
+    </div>
+  </aside>
+
+  <!-- ===== DRAWER: Google Drive ===== -->
+  <aside class="drawer drawer-wide" id="driveDrawer" aria-hidden="true" aria-labelledby="driveTitle" role="dialog">
+    <div class="drawer-head">
+      <div>
+        <h2 id="driveTitle">Add from Google Drive</h2>
+        <small class="muted">Bring in every photo from a Google Drive folder. New photos you add to the folder later are brought in by themselves.</small>
+      </div>
+      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="drawer-body">
+      <form id="driveLookForm" class="drive-step">
+        <label for="driveLink">Link to the folder</label>
+        <input type="text" id="driveLink" inputmode="url" autocomplete="off" placeholder="https://drive.google.com/drive/folders/…" required>
+        <p class="hint">In Google Drive, open the folder, tap <b>Share</b>, set <b>General access</b> to <b>Anyone with the link</b>, then tap <b>Copy link</b> and paste it here. A folder with one folder per event can bring in many events at once.</p>
+        <button class="btn btn-dark btn-block" type="submit">Look in the folder</button>
+        <div class="msg" id="driveLookMsg" hidden></div>
+      </form>
+
+      <form id="driveImportForm" class="drive-step" hidden>
+        <div class="drive-summary" id="driveSummary"></div>
+        <div class="seg" role="radiogroup" id="driveModeSeg"></div>
+        <div id="driveModeBody"></div>
+        <button class="btn btn-dark btn-block" type="submit" id="driveImportBtn">Bring in the photos</button>
+        <div class="msg" id="driveImportMsg" hidden></div>
+        <button class="link-btn" type="button" id="driveAgain">Use a different folder</button>
+      </form>
+
+      <div class="drive-jobs">
+        <h3>Recent imports</h3>
+        <div id="driveJobs"><p class="hint">Nothing brought in yet.</p></div>
+      </div>
     </div>
   </aside>
 

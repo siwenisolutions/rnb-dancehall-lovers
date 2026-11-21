@@ -6,7 +6,9 @@ const express = require('express');
 const multer = require('multer');
 const { pool, migrate, insertMedia, forgetMediaFiles, moveMediaToBucket, sweepOrphanFiles, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
 const storage = require('./storage');
-const { compressPendingVideos } = require('./jobs');
+const jobs = require('./jobs');
+const { compressPendingVideos } = jobs;
+const drive = require('./drive');
 const { processImage, detectVideo } = require('./images');
 const { importPost } = require('./social');
 const auth = require('./auth');
@@ -651,6 +653,116 @@ admin.post('/events', wrap(async (req, res) => {
   res.status(201).json({ id: rows[0].id });
 }));
 
+// ---------- Google Drive ----------
+
+// Looks inside a shared folder: its photos and the folders in it (with their
+// photo counts), so the admin can choose what to bring in.
+admin.post('/drive/look', wrap(async (req, res) => {
+  const { id, resourceKey } = drive.parseFolderLink((req.body || {}).url);
+  const top = await drive.listFolder(id, resourceKey);
+  const subs = top.folders.slice(0, 30);
+  const counted = [];
+  for (let i = 0; i < subs.length; i += 4) {
+    counted.push(...await Promise.all(subs.slice(i, i + 4).map(async (f) => {
+      try {
+        const l = await drive.listFolder(f.id, '');
+        return { id: f.id, name: f.name || l.name, images: l.images.length, folders: l.folders.length, date: drive.dateFromName(f.name || l.name) };
+      } catch {
+        return { id: f.id, name: f.name, images: 0, folders: 0, date: drive.dateFromName(f.name), error: true };
+      }
+    })));
+  }
+  const linked = await pool.query('SELECT id, title FROM events WHERE drive_folder = ANY($1::text[])', [[id, ...subs.map((f) => f.id)]]);
+  res.json({
+    folder: { id, resourceKey, name: top.name, images: top.images.length, date: drive.dateFromName(top.name) },
+    folders: counted,
+    more_folders: Math.max(0, top.folders.length - subs.length),
+    linked: linked.rows,
+  });
+}));
+
+async function linkFolder(eventId, folderId, resourceKey, name, db = pool) {
+  await db.query('UPDATE events SET drive_folder = $2, drive_resource_key = $3, drive_name = $4 WHERE id = $1',
+    [eventId, folderId, resourceKey || '', String(name || '').slice(0, 200)]);
+}
+function cleanFolderId(v) {
+  const s = String(v || '');
+  if (!/^[A-Za-z0-9_-]{10,100}$/.test(s)) throw httpError(400, 'That folder is not valid. Look at the folder again.');
+  return s;
+}
+
+// Bring photos in: either into one existing event, or as new events (one per folder).
+admin.post('/drive/import', wrap(async (req, res) => {
+  const body = req.body || {};
+  if (body.mode === 'existing') {
+    const eventId = parseId(body.event_id);
+    const ev = await pool.query('SELECT 1 FROM events WHERE id = $1', [eventId]);
+    if (!ev.rowCount) throw httpError(400, 'That event no longer exists.');
+    await linkFolder(eventId, cleanFolderId(body.folder_id), body.resource_key, cleanText(body.name, 200, 'Folder'));
+    const jobId = await jobs.queueDriveImport(eventId);
+    return res.status(201).json({ events: [eventId], jobs: [jobId] });
+  }
+  const list = Array.isArray(body.events) ? body.events : [];
+  if (!list.length) throw httpError(400, 'Choose at least one folder.');
+  if (list.length > 30) throw httpError(400, 'Bring in at most 30 folders at a time.');
+  const created = [];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const item of list) {
+      const date = String(item.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw httpError(400, `Pick a date for "${String(item.title || item.name || 'an event').slice(0, 60)}".`);
+      const e = eventFromBody({ title: item.title, venue: item.venue, starts_at: `${date}T${/^\d{2}:\d{2}$/.test(item.time || '') ? item.time : '20:00'}`, description: '', ticket_url: '' });
+      const { rows } = await client.query('INSERT INTO events (title, venue, starts_at) VALUES ($1, $2, $3) RETURNING id', [e.title, e.venue, e.startsAt]);
+      await linkFolder(rows[0].id, cleanFolderId(item.folder_id), item.resource_key, cleanText(item.name, 200, 'Folder'), client);
+      created.push(rows[0].id);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  const jobIds = [];
+  for (const id of created) jobIds.push(await jobs.queueDriveImport(id));
+  res.status(201).json({ events: created, jobs: jobIds });
+}));
+
+// Progress of recent imports, newest first.
+admin.get('/drive/imports', wrap(async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT d.id, d.event_id, e.title, d.status, d.total, d.added, d.skipped, d.failed, d.error, d.automatic, d.created_at, d.finished_at
+       FROM drive_imports d JOIN events e ON e.id = d.event_id
+      WHERE NOT d.automatic OR d.added > 0 OR d.status IN ('pending', 'running', 'failed')
+      ORDER BY d.id DESC LIMIT 15`);
+  res.json({ imports: rows });
+}));
+
+admin.get('/events/:id/drive', wrap(async (req, res) => {
+  const id = parseId(req.params.id);
+  const { rows } = await pool.query('SELECT drive_folder, drive_resource_key, drive_name, drive_synced_at FROM events WHERE id = $1', [id]);
+  if (!rows.length) throw httpError(404, 'Event not found.');
+  const r = rows[0];
+  res.json(r.drive_folder ? {
+    linked: true, name: r.drive_name, synced_at: r.drive_synced_at,
+    url: `https://drive.google.com/drive/folders/${r.drive_folder}${r.drive_resource_key ? `?resourcekey=${r.drive_resource_key}` : ''}`,
+  } : { linked: false });
+}));
+
+admin.post('/events/:id/drive/sync', wrap(async (req, res) => {
+  const id = parseId(req.params.id);
+  const jobId = await jobs.queueDriveImport(id);
+  if (!jobId) throw httpError(400, 'This event is not linked to a Google Drive folder.');
+  res.json({ job: jobId });
+}));
+
+admin.delete('/events/:id/drive', wrap(async (req, res) => {
+  const id = parseId(req.params.id);
+  await pool.query("UPDATE events SET drive_folder = NULL, drive_resource_key = '', drive_name = '' WHERE id = $1", [id]);
+  res.json({ ok: true });
+}));
+
 admin.put('/events/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   const e = eventFromBody(req.body || {});
@@ -788,6 +900,7 @@ admin.post('/photos/:id/replace', uploadMedia.single('file'), wrap(async (req, r
     await client.query('BEGIN');
     const newId = await insertMedia({ category: o.category, caption: o.caption, eventId: o.event_id, img, slot: o.slot, createdAt: o.created_at }, client);
     await client.query('UPDATE events SET cover_media_id = $1 WHERE cover_media_id = $2', [newId, id]);
+    await rememberRemoved(id, client);
     await client.query('DELETE FROM media WHERE id = $1', [id]);
     await client.query('COMMIT');
     forgetMediaFiles(id);
@@ -820,8 +933,18 @@ admin.post('/events/:id/cover', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// A Drive photo removed from the website is remembered, so the folder sync
+// doesn't bring it back.
+async function rememberRemoved(id, db = pool) {
+  await db.query(
+    `INSERT INTO drive_removed (event_id, source)
+     SELECT event_id, source FROM media WHERE id = $1 AND source IS NOT NULL AND event_id IS NOT NULL
+     ON CONFLICT DO NOTHING`, [id]);
+}
+
 admin.delete('/photos/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
+  await rememberRemoved(id);
   const r = await pool.query('DELETE FROM media WHERE id = $1', [id]);
   if (r.rowCount === 0) throw httpError(404, 'Photo not found.');
   forgetMediaFiles(id);
@@ -955,7 +1078,13 @@ if (require.main === module) {
       compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message))
         .then(() => moveMediaToBucket()).catch((err) => console.error('[storage] move failed:', err.message))
         .then(() => sweepOrphanFiles()).catch((err) => console.warn('[storage] sweep failed:', err.message))
-        .then(() => startVideoCompression());
+        .then(() => startVideoCompression())
+        .then(() => jobs.resumeDriveImports()).catch((err) => console.error('[drive] resume failed:', err.message));
+      jobs.configure({ assertRoom: assertRoomFor });
+      // Look for new photos in linked Google Drive folders every 6 hours.
+      const sync = () => jobs.syncDriveFolders().catch((err) => console.warn('[drive] sync failed:', err.message));
+      setTimeout(sync, 3 * 60 * 1000).unref();
+      setInterval(sync, 6 * 3600 * 1000).unref();
       keepAwake();
     }))
     .catch((err) => {

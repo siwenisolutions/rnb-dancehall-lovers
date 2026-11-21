@@ -21,6 +21,7 @@
   </section>
   <section id="photosSection" hidden>
     <h2 class="sub-title">{{event_photos}}</h2>
+    <p class="gallery-count" id="photoCount"></p>
     <div class="gallery-grid" id="grid"></div>
   </section>
 </main>
@@ -57,6 +58,7 @@
     if (data.photos.length) {
       var grid = document.getElementById('grid');
       data.photos.forEach(function (p, i) { grid.appendChild(R.galleryItem(data.photos, i)); });
+      document.getElementById('photoCount').textContent = data.photos.length + (data.photos.length === 1 ? ' photo' : ' photos');
       document.getElementById('photosSection').hidden = false;
     }
   }).catch(function () {

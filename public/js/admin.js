@@ -586,6 +586,41 @@
     openDrawer('photosDrawer');
     currentEvent = ev;
     loadEventPhotos();
+    loadEventDrive(ev);
+  }
+
+  // The Google Drive box in an event's photos drawer.
+  function loadEventDrive(ev) {
+    var box = $('evDriveBox');
+    box.textContent = '';
+    get('/api/admin/events/' + ev.id + '/drive').then(function (d) {
+      if (currentEvent !== ev) return;
+      if (!d.linked) {
+        box.appendChild(el('b', { text: 'Photos in Google Drive?' }));
+        box.appendChild(el('p', { text: 'Bring in every photo from a shared Drive folder. Photos added to the folder later come in by themselves.' }));
+        box.appendChild(el('div', { class: 'btn-row' }, [el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Add from Google Drive', onclick: function () { openDrive(ev); } })]));
+        return;
+      }
+      box.appendChild(el('b', { text: 'Linked to Google Drive' }));
+      box.appendChild(el('p', {}, [
+        el('a', { href: d.url, target: '_blank', rel: 'noopener', text: d.name || 'Open the folder', style: 'text-decoration:underline;' }),
+        '. New photos in this folder are brought in every few hours' + (d.synced_at ? ' (last checked ' + fmtDate(d.synced_at) + ' at ' + fmtTime(d.synced_at) + ').' : '.')
+      ]));
+      var syncBtn = el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Check for new photos now' });
+      syncBtn.addEventListener('click', function () {
+        busy(syncBtn, true, 'Checking…');
+        call('POST', '/api/admin/events/' + ev.id + '/drive/sync').then(function () {
+          toast('Checking the folder. New photos appear here in a moment.');
+          watchImports(function () { loadEventPhotos(); });
+        }).catch(function (err) { toast(err.message); }).then(function () { busy(syncBtn, false); });
+      });
+      var unlink = el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Stop linking', title: 'Photos already brought in stay' });
+      unlink.addEventListener('click', function () {
+        if (!confirm('Stop bringing in new photos from this folder? Photos already on the website stay.')) return;
+        call('DELETE', '/api/admin/events/' + ev.id + '/drive').then(function () { loadEventDrive(ev); }).catch(function (err) { toast(err.message); });
+      });
+      box.appendChild(el('div', { class: 'btn-row' }, [syncBtn, unlink]));
+    }).catch(function () { /* box stays empty */ });
   }
 
   function loadEventPhotos() {
@@ -1081,6 +1116,198 @@
     }).catch(function (err) { say($('settingsMsg'), err.message, false); })
       .then(function () { busy(btn, false); });
   });
+
+  // ---------- Google Drive ----------
+  var driveLook = null, driveMode = '', driveForEvent = null;
+  var DRIVE_IC = '<svg viewBox="0 0 24 24"><path d="M8 3h8l6 10-4 7H6l-4-7z"/><path d="M8 3l6 10M16 3 10 13M2 13h20"/></svg>';
+  function openDrive(ev) {
+    driveForEvent = ev || null;
+    closeDrawers();
+    $('driveLookForm').hidden = false;
+    $('driveImportForm').hidden = true;
+    $('driveLookMsg').hidden = true;
+    $('driveImportMsg').hidden = true;
+    $('driveLink').value = '';
+    $('driveTitle').textContent = ev ? 'Photos for ' + ev.title : 'Add from Google Drive';
+    openDrawer('driveDrawer');
+    loadImports();
+    setTimeout(function () { $('driveLink').focus(); }, 300);
+  }
+  $$('[data-action="drive"]').forEach(function (b) { b.addEventListener('click', function () { openDrive(null); }); });
+  $('driveAgain').addEventListener('click', function () { $('driveImportForm').hidden = true; $('driveLookForm').hidden = false; $('driveLink').focus(); });
+
+  $('driveLookForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = this.querySelector('button[type=submit]');
+    busy(btn, true, 'Looking in the folder…');
+    call('POST', '/api/admin/drive/look', { url: $('driveLink').value }).then(function (d) {
+      driveLook = d;
+      $('driveLookMsg').hidden = true;
+      if (!d.folder.images && !d.folders.length) return say($('driveLookMsg'), 'This folder has no photos in it. Check that it is the right folder.', false);
+      showDriveChoices();
+    }).catch(function (err) { say($('driveLookMsg'), err.message, false); })
+      .then(function () { busy(btn, false); });
+  });
+
+  function showDriveChoices() {
+    var d = driveLook, f = d.folder;
+    var withPhotos = d.folders.filter(function (x) { return x.images > 0 || x.folders > 0; });
+    var sum = $('driveSummary');
+    sum.innerHTML = '';
+    var ic = el('span', { class: 'ic' }); ic.innerHTML = DRIVE_IC;
+    var parts = [];
+    if (f.images) parts.push(plural(f.images, 'photo'));
+    if (d.folders.length) parts.push(plural(d.folders.length + d.more_folders, 'folder'));
+    sum.appendChild(ic);
+    sum.appendChild(el('div', null, [el('b', { text: f.name }), el('small', { text: parts.join(' and ') || 'Empty' })]));
+
+    var modes = [];
+    if (driveForEvent) modes.push(['existing', 'Add to ' + driveForEvent.title]);
+    else {
+      if (withPhotos.length) modes.push(['many', 'One event per folder']);
+      modes.push(['new', 'Make one new event']);
+      if (events.length) modes.push(['existing', 'Add to an event']);
+    }
+    driveMode = modes[0][0];
+    var seg = $('driveModeSeg');
+    seg.textContent = '';
+    seg.hidden = modes.length < 2;
+    modes.forEach(function (m) {
+      var b = el('button', { type: 'button', role: 'radio', 'aria-checked': m[0] === driveMode ? 'true' : 'false', text: m[1] });
+      b.addEventListener('click', function () {
+        driveMode = m[0];
+        $$('#driveModeSeg button').forEach(function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+        renderDriveMode();
+      });
+      seg.appendChild(b);
+    });
+    if (d.linked.length) say($('driveImportMsg'), 'Already linked: ' + d.linked.map(function (x) { return x.title; }).join(', ') + '. Bringing it in again only adds new photos.', true);
+    else $('driveImportMsg').hidden = true;
+    $('driveLookForm').hidden = true;
+    $('driveImportForm').hidden = false;
+    renderDriveMode();
+  }
+
+  function dateInput(value) { return el('input', { type: 'date', value: value || '', required: true, 'aria-label': 'Event date' }); }
+  function renderDriveMode() {
+    var d = driveLook, box = $('driveModeBody');
+    box.textContent = '';
+    if (driveMode === 'existing') {
+      var total = d.folder.images + d.folders.reduce(function (n, x) { return n + x.images; }, 0);
+      if (driveForEvent) {
+        box.appendChild(el('p', { class: 'hint', text: 'Every photo in this folder (and the folders inside it) is added to ' + driveForEvent.title + '. About ' + plural(total, 'photo') + '.' }));
+        return;
+      }
+      box.appendChild(el('label', { for: 'driveEvent', text: 'Which event?' }));
+      var sel = el('select', { id: 'driveEvent' });
+      events.slice().sort(function (a, b) { return b.starts_at < a.starts_at ? -1 : 1; }).forEach(function (ev) {
+        sel.appendChild(el('option', { value: ev.id, text: ev.title + ' · ' + fmtDate(ev.starts_at) }));
+      });
+      box.appendChild(sel);
+      box.appendChild(el('p', { class: 'hint', text: 'About ' + plural(total, 'photo') + ' will be added to that event.' }));
+      return;
+    }
+    if (driveMode === 'new') {
+      box.appendChild(el('label', { for: 'driveNewTitle', text: 'Event name' }));
+      box.appendChild(el('input', { type: 'text', id: 'driveNewTitle', maxlength: 200, value: d.folder.name, required: true }));
+      box.appendChild(el('label', { for: 'driveNewDate', text: 'Date of the event' }));
+      var di = dateInput(d.folder.date); di.id = 'driveNewDate'; box.appendChild(di);
+      box.appendChild(el('label', { for: 'driveNewVenue', text: 'Venue (optional)' }));
+      box.appendChild(el('input', { type: 'text', id: 'driveNewVenue', maxlength: 200 }));
+      box.appendChild(el('p', { class: 'hint', text: 'All photos in this folder and the folders inside it go into this one event.' }));
+      return;
+    }
+    // one event per folder
+    var list = el('div', { class: 'drive-folders' });
+    d.folders.forEach(function (f) {
+      var has = f.images > 0 || f.folders > 0;
+      var cb = el('input', { type: 'checkbox', 'aria-label': 'Bring in ' + f.name });
+      cb.checked = has; cb.disabled = !has;
+      var title = el('input', { type: 'text', maxlength: 200, value: f.name, 'aria-label': 'Event name' });
+      var date = dateInput(f.date);
+      date.required = has; title.required = has;
+      var venue = el('input', { type: 'text', maxlength: 200, placeholder: 'Venue (optional)', 'aria-label': 'Venue' });
+      var row = el('div', { class: 'drive-folder' + (has ? '' : ' off'), 'data-folder': f.id }, [
+        cb,
+        el('div', null, [
+          el('div', { class: 'row3' }, [title, date, venue]),
+          el('small', { text: f.error ? 'Could not open this folder' : has ? plural(f.images, 'photo') + (f.folders ? ' + ' + plural(f.folders, 'folder') + ' inside' : '') + (f.date ? '' : ' · pick the date') : 'No photos' })
+        ])
+      ]);
+      row._get = function () { return cb.checked ? { folder_id: f.id, name: f.name, title: title.value, date: date.value, venue: venue.value } : null; };
+      cb.addEventListener('change', function () { row.classList.toggle('off', !cb.checked); date.required = cb.checked; title.required = cb.checked; });
+      list.appendChild(row);
+    });
+    if (d.more_folders) list.appendChild(el('p', { class: 'hint', text: plural(d.more_folders, 'more folder') + ' not shown. Bring in at most 30 at a time.' }));
+    box.appendChild(el('p', { class: 'hint', text: 'Each folder becomes its own event with its photos. Check the names and dates (dates in folder names are filled in for you).' }));
+    box.appendChild(list);
+  }
+
+  $('driveImportForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var d = driveLook, body;
+    if (driveMode === 'existing') {
+      body = { mode: 'existing', event_id: driveForEvent ? driveForEvent.id : Number($('driveEvent').value), folder_id: d.folder.id, resource_key: d.folder.resourceKey, name: d.folder.name };
+    } else if (driveMode === 'new') {
+      body = { mode: 'new', events: [{ folder_id: d.folder.id, resource_key: d.folder.resourceKey, name: d.folder.name, title: $('driveNewTitle').value, date: $('driveNewDate').value, venue: $('driveNewVenue').value }] };
+    } else {
+      var chosen = $$('#driveModeBody .drive-folder').map(function (r) { return r._get(); }).filter(Boolean);
+      if (!chosen.length) return say($('driveImportMsg'), 'Tick at least one folder.', false);
+      body = { mode: 'new', events: chosen };
+    }
+    var btn = $('driveImportBtn');
+    busy(btn, true, 'Starting…');
+    call('POST', '/api/admin/drive/import', body).then(function (r) {
+      say($('driveImportMsg'), r.events.length > 1
+        ? plural(r.events.length, 'event') + ' made. Their photos are being brought in now; you can close this and keep working.'
+        : 'Bringing in the photos now. You can close this and keep working.', true);
+      $('driveImportForm').hidden = true;
+      $('driveLookForm').hidden = false;
+      $('driveLink').value = '';
+      loadAll();
+      watchImports(function () { loadAll(); if (currentEvent) loadEventPhotos(); });
+    }).catch(function (err) { say($('driveImportMsg'), err.message, false); })
+      .then(function () { busy(btn, false); });
+  });
+
+  function renderImports(list) {
+    var box = $('driveJobs');
+    box.textContent = '';
+    if (!list.length) { box.appendChild(el('p', { class: 'hint', text: 'Nothing brought in yet.' })); return; }
+    list.forEach(function (j) {
+      var todo = Math.max(0, j.total - j.skipped);
+      var doneN = j.added + j.failed;
+      var pct = j.status === 'done' ? 100 : todo ? Math.round(doneN / todo * 100) : (j.status === 'running' ? 5 : 0);
+      var line = j.status === 'pending' ? 'Waiting to start…'
+        : j.status === 'running' ? (j.total ? 'Bringing in ' + doneN + ' of ' + todo + ' new photos…' : 'Looking in the folder…')
+        : j.status === 'failed' ? 'Stopped: ' + j.error
+        : (j.added ? plural(j.added, 'new photo') + ' added' : 'No new photos') + (j.failed ? ', ' + j.failed + ' could not be copied' : '') + (j.skipped ? ' · ' + j.skipped + ' already there' : '');
+      box.appendChild(el('div', { class: 'drive-job' + (j.status === 'failed' ? ' failed' : '') }, [
+        el('div', { class: 'top' }, [el('b', { text: j.title }), el('span', { class: 'muted', text: fmtDate(j.created_at) })]),
+        el('div', { class: 'bar' }, [el('span', { style: 'width:' + pct + '%' })]),
+        el('small', { text: line + (j.automatic ? ' (automatic check)' : '') })
+      ]));
+    });
+  }
+  function loadImports() {
+    return get('/api/admin/drive/imports').then(function (r) { renderImports(r.imports); return r.imports; }).catch(function () { return []; });
+  }
+  // Refreshes progress every few seconds until all imports have finished.
+  var watching = null;
+  function watchImports(onChange) {
+    if (watching) clearTimeout(watching);
+    var lastAdded = -1;
+    (function tick() {
+      loadImports().then(function (list) {
+        var added = list.reduce(function (n, j) { return n + j.added; }, 0);
+        if (added !== lastAdded && lastAdded >= 0 && onChange) onChange();
+        lastAdded = added;
+        var active = list.some(function (j) { return j.status === 'pending' || j.status === 'running'; });
+        if (active) watching = setTimeout(tick, 4000);
+        else { watching = null; if (onChange) onChange(); }
+      });
+    })();
+  }
 
   // ---------- passwords ----------
   $$('.pw-toggle').forEach(function (b) {
