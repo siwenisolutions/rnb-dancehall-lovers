@@ -121,7 +121,6 @@
     var s = data.settings || {};
     var slots = data.slots || {};
     if (s.hero_text) document.getElementById('heroText').textContent = s.hero_text;
-    if (s.about_text) document.getElementById('aboutText').textContent = s.about_text;
     R.renderFooter(s);
     slideshow(document.querySelector('.hero'), slots.hero, { video: true });
     renderTickets(s, slots);

@@ -282,6 +282,30 @@ header.is-scrolled .burger span{background:#3a3733;}
 .pill:nth-child(6){background:var(--yellow); --r:4deg; --x:60px;}
 .pill:nth-child(7){background:#8ce65c; --r:-2deg; --x:-10px;}
 .pill:nth-child(8){background:var(--blue); --r:3deg; --x:50px;}
+.pill:nth-child(9){background:var(--pink); --r:-3deg; --x:14px;}
+.pill:nth-child(10){background:var(--mint); --r:4deg; --x:64px;}
+.pill:nth-child(11){background:var(--orange); --r:-4deg; --x:20px;}
+.pills-merch{gap:8px;}
+
+/* INTRO CARDS (client layout: "Old is the new vibe" / "More than music") */
+.intro-cards{padding:72px 0 56px; display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+.intro-card{
+  background:#1c1c1c; color:#f5f3ef; border-radius:22px; padding:44px 32px;
+  text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+.intro-card-dark{background:#0d0d0d;}
+.intro-eyebrow{font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#cfccc6;}
+.intro-title{
+  margin-top:14px; font-family:'Archivo',sans-serif; font-weight:800;
+  font-size:clamp(26px,3.2vw,38px); line-height:1.12; letter-spacing:-.01em; color:#fff;
+}
+.intro-sub{margin-top:14px; font-size:15px; line-height:1.6; color:#e4e1db;}
+.intro-ctas{display:flex; gap:12px; margin-top:26px; flex-wrap:wrap; justify-content:center; width:100%;}
+.intro-ctas .btn{flex:1 1 140px; max-width:220px; justify-content:center; white-space:nowrap; padding:15px 12px;}
+@media (max-width: 760px){
+  .intro-cards{grid-template-columns:1fr; padding:40px 0 40px;}
+  .intro-card{padding:36px 20px;}
+}
 
 /* CASE STUDIES */
 .cases-grid{
