@@ -171,6 +171,16 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_folder text;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_resource_key text NOT NULL DEFAULT '';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_name text NOT NULL DEFAULT '';
 ALTER TABLE events ADD COLUMN IF NOT EXISTS drive_synced_at timestamptz;
+-- Table bookings: a second link next to "Get Tickets" (with its own flyer).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS tables_url text NOT NULL DEFAULT '';
+-- Events found on Megaticket (see megaticket.js). A slug once seen is never
+-- added again, so an event the admin deleted stays deleted.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS megaticket_slug text;
+CREATE TABLE IF NOT EXISTS megaticket_seen (
+  slug       text PRIMARY KEY,
+  event_id   integer,
+  seen_at    timestamptz NOT NULL DEFAULT now()
+);
 
 -- Copying photos from Google Drive, one job per event and folder.
 -- status: pending, running, done, failed.
@@ -202,11 +212,11 @@ CREATE INDEX IF NOT EXISTS media_video_state_idx ON media (video_state) WHERE vi
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conname = 'media_category_check' AND pg_get_constraintdef(oid) LIKE '%site%'
+    WHERE conname = 'media_category_check' AND pg_get_constraintdef(oid) LIKE '%flyer%'
   ) THEN
     ALTER TABLE media DROP CONSTRAINT IF EXISTS media_category_check;
     ALTER TABLE media ADD CONSTRAINT media_category_check
-      CHECK (category IN ('experience', 'gallery', 'event', 'site'));
+      CHECK (category IN ('experience', 'gallery', 'event', 'site', 'flyer'));
   END IF;
 END $$;
 

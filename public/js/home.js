@@ -148,7 +148,7 @@
       var when = at ? R.fmtDay(at) + ' ' + R.fmtMonth(at) : '';
       // "Harare" for a city; the event's name when only the country is known.
       var city = tk.place && tk.place !== tk.country ? tk.place.replace(/, [^,]+$/, '') : '';
-      return { url: tk.url, label: label, country: tk.country || '', flag: tk.flag || '', place: city || tk.title || '', title: tk.title || '', when: when };
+      return { url: tk.url, tables_url: tk.tables_url || '', label: label, country: tk.country || '', flag: tk.flag || '', place: city || tk.title || '', title: tk.title || '', when: when };
     });
     R.renderFooter(s);
     slideshow(document.querySelector('.hero'), slots.hero, { video: true, videoBase: data.video_base });

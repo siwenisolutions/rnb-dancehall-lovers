@@ -619,3 +619,20 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .visit-list li span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .visit-list li b{font-variant-numeric:tabular-nums;}
 @media (max-width:760px){ .visit-stats{grid-template-columns:1fr 1fr;} .visit-lists{grid-template-columns:1fr;} .visit-chart .bar i{display:none;} }
+
+/* event flyers in the event form */
+.flyer-picks{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:6px;}
+.flyer-pick{position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; border:1.5px dashed #d3d0c9; border-radius:16px; padding:10px 8px 12px; cursor:pointer; background:var(--soft);}
+.flyer-pick:hover{border-color:var(--purple);}
+.flyer-pick .poster-preview{width:100%; height:auto; aspect-ratio:4/5; border-radius:10px;}
+.flyer-pick b{font-size:12px;}
+.flyer-pick small{font-size:11px; color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.flyer-pick input[type=file]{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;}
+.flyer-x{position:absolute; top:4px; right:4px; width:26px; height:26px; border-radius:50%; border:0; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.2); font-size:18px; line-height:1; cursor:pointer;}
+/* Megaticket status */
+.mt-box{display:flex; align-items:center; gap:12px; background:var(--soft); border-radius:16px; padding:12px 14px; margin-bottom:14px;}
+.mt-ic{width:36px; height:36px; border-radius:11px; background:var(--card); display:flex; align-items:center; justify-content:center; flex:0 0 auto;}
+.mt-txt{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+.mt-txt b{font-size:14px;}
+.mt-txt small{font-size:12px; color:var(--muted);}
+.tag-mt{display:inline-block; margin-left:6px; font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--purple); background:#f6defa; border-radius:99px; padding:1px 7px; vertical-align:middle;}

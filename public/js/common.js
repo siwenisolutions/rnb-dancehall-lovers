@@ -198,6 +198,17 @@
         ]),
         el('span', { class: 'bt-arrow', 'aria-hidden': 'true', text: '→' })
       ]));
+      var tables = safeLink(tk.tables_url);
+      if (tables) {
+        buttons.push(el('a', { class: 'btn btn-outline btn-ticket btn-tables', href: tables, target: '_blank', rel: 'noopener' }, [
+          tk.flag ? el('span', { class: 'flag', 'aria-hidden': 'true', text: tk.flag }) : null,
+          el('span', { class: 'bt-txt' }, [
+            el('b', { text: (t('tables_btn') || 'Buy Tables') + (tk.country ? ' · ' + tk.country : '') }),
+            where ? el('small', { text: where }) : null
+          ]),
+          el('span', { class: 'bt-arrow', 'aria-hidden': 'true', text: '→' })
+        ]));
+      }
     });
     contact.push(el('div', { class: 'footer-buttons', style: 'margin-top:14px;' }, buttons));
 
@@ -227,17 +238,53 @@
     ]));
   }
 
+  // The event's flyers: its poster, plus the tickets and tables flyers when
+  // it has them. Tapping a flyer goes where it says (event page, ticket site,
+  // table booking).
+  function flyersOf(ev) {
+    var ticket = safeLink(ev.ticket_url), tables = safeLink(ev.tables_url);
+    var out = [{ kind: 'main', id: ev.cover_media_id, href: '/events/' + ev.id }];
+    if (ev.tickets_flyer_id) out.push({ kind: 'tickets', id: ev.tickets_flyer_id, href: ticket || '/events/' + ev.id, out: !!ticket, tag: t('flyer_tag_tickets') || 'Tickets' });
+    if (ev.tables_flyer_id) out.push({ kind: 'tables', id: ev.tables_flyer_id, href: tables || '/events/' + ev.id, out: !!tables, tag: t('flyer_tag_tables') || 'Tables' });
+    return out;
+  }
+  function flyerStrip(ev, thumb) {
+    var flyers = flyersOf(ev);
+    var strip = el('div', { class: 'flyer-strip' });
+    flyers.forEach(function (f) {
+      var a = el('a', { class: 'poster flyer ' + (f.id ? 'ph media' : 'empty'), href: f.href, 'aria-label': ev.title + (f.tag ? ': ' + f.tag : '') },
+        f.id ? [] : [el('span', { text: ev.title })]);
+      if (f.out) { a.target = '_blank'; a.rel = 'noopener'; }
+      if (f.id) a.style.backgroundImage = "url('" + mediaUrl(f.id, thumb) + "')";
+      if (f.tag) a.appendChild(el('span', { class: 'flyer-tag', text: f.tag + (f.out ? ' →' : '') }));
+      strip.appendChild(a);
+    });
+    var wrap = el('div', { class: 'flyers' + (flyers.length > 1 ? ' many' : '') }, [strip]);
+    if (flyers.length > 1) {
+      var dots = el('div', { class: 'flyer-dots', 'aria-hidden': 'true' }, flyers.map(function (f, i) { return el('span', { class: i ? '' : 'on' }); }));
+      wrap.appendChild(dots);
+      strip.addEventListener('scroll', function () {
+        var i = Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth));
+        [].forEach.call(dots.children, function (d, j) { d.className = j === i ? 'on' : ''; });
+      }, { passive: true });
+    }
+    return wrap;
+  }
+  function eventButtons(ev, cls, ticketText) {
+    var out = [];
+    var ticket = safeLink(ev.ticket_url), tables = safeLink(ev.tables_url);
+    if (ticket) out.push(el('a', { class: 'btn btn-primary ' + (cls || ''), href: ticket, target: '_blank', rel: 'noopener', text: ticketText || t('ticket_btn') || 'Get Tickets' }));
+    if (tables) out.push(el('a', { class: 'btn btn-dark ' + (cls || ''), href: tables, target: '_blank', rel: 'noopener', text: t('tables_btn') || 'Buy Tables' }));
+    return out;
+  }
+
   // ---------- event card ----------
   function eventCard(ev) {
-    var poster = ev.cover_media_id
-      ? el('div', { class: 'poster ph media', style: "background-image:url('" + mediaUrl(ev.cover_media_id, true) + "')", role: 'img', 'aria-label': ev.title })
-      : el('div', { class: 'poster empty' }, [el('span', { text: ev.title })]);
-    poster.appendChild(el('div', { class: 'date-badge' }, [el('b', { text: fmtDay(ev.starts_at) }), el('small', { text: fmtMonth(ev.starts_at) })]));
-    var actions = [el('a', { class: 'btn btn-outline', href: '/events/' + ev.id, text: 'Details' })];
-    var ticket = safeLink(ev.ticket_url);
-    if (ticket) actions.unshift(el('a', { class: 'btn btn-primary', href: ticket, target: '_blank', rel: 'noopener', text: 'Get Tickets' }));
+    var flyers = flyerStrip(ev, true);
+    flyers.appendChild(el('div', { class: 'date-badge' }, [el('b', { text: fmtDay(ev.starts_at) }), el('small', { text: fmtMonth(ev.starts_at) })]));
+    var actions = eventButtons(ev).concat([el('a', { class: 'btn btn-outline', href: '/events/' + ev.id, text: 'Details' })]);
     return el('article', { class: 'event-card' }, [
-      el('a', { href: '/events/' + ev.id, 'aria-label': ev.title }, [poster]),
+      flyers,
       el('div', { class: 'body' }, [
         el('h3', { text: ev.title }),
         el('div', { class: 'when', text: fmtLong(ev.starts_at) }),
@@ -349,7 +396,7 @@
 
   window.RNB = {
     t: t, el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
-    safeLink: safeLink, eventCard: eventCard, galleryItem: galleryItem, renderFooter: renderFooter
+    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, renderFooter: renderFooter
   };
 
   renderHeader();

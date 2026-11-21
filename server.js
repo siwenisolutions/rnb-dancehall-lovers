@@ -12,6 +12,7 @@ const drive = require('./drive');
 const visits = require('./visits');
 const { processImage, detectVideo } = require('./images');
 const { importPost } = require('./social');
+const megaticket = require('./megaticket');
 const auth = require('./auth');
 const content = require('./content');
 
@@ -246,9 +247,14 @@ function requireAdmin(req, res, next) {
 // ---------- public API ----------
 
 // photo_ids: up to 5 of the event's photos (cover first) for its slideshow card.
-const eventColumns = `e.id, e.title, e.venue, e.starts_at, e.description, e.ticket_url, e.cover_media_id,
-  (SELECT count(*)::int FROM media m WHERE m.event_id = e.id) AS photo_count,
-  ARRAY(SELECT m.id FROM media m WHERE m.event_id = e.id
+// Flyers (category 'flyer', slot 'tickets' or 'tables') belong to an event
+// but are not among its photos.
+const eventColumns = `e.id, e.title, e.venue, e.starts_at, e.description, e.ticket_url, e.tables_url, e.cover_media_id,
+  e.megaticket_slug,
+  (SELECT m.id FROM media m WHERE m.event_id = e.id AND m.category = 'flyer' AND m.slot = 'tickets' ORDER BY m.id DESC LIMIT 1) AS tickets_flyer_id,
+  (SELECT m.id FROM media m WHERE m.event_id = e.id AND m.category = 'flyer' AND m.slot = 'tables' ORDER BY m.id DESC LIMIT 1) AS tables_flyer_id,
+  (SELECT count(*)::int FROM media m WHERE m.event_id = e.id AND m.category <> 'flyer') AS photo_count,
+  ARRAY(SELECT m.id FROM media m WHERE m.event_id = e.id AND m.category <> 'flyer'
         ORDER BY (m.id = e.cover_media_id) DESC, m.created_at, m.id LIMIT ${SLOT_MAX}) AS photo_ids`;
 // An event counts as "upcoming" until 12 hours after it starts.
 const UPCOMING = "e.starts_at >= now() - interval '12 hours'";
@@ -300,7 +306,7 @@ async function ticketsOnSale(settings) {
     `SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} AND e.ticket_url <> '' ORDER BY e.starts_at ASC LIMIT ${TICKETS_MAX}`);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Harare' }).format(new Date()); // YYYY-MM-DD
   const out = rows.map((e) => ({
-    kind: 'event', event_id: e.id, title: e.title, venue: e.venue, starts_at: e.starts_at, url: e.ticket_url,
+    kind: 'event', event_id: e.id, title: e.title, venue: e.venue, starts_at: e.starts_at, url: e.ticket_url, tables_url: e.tables_url,
     photo_ids: e.photo_ids, sort: new Date(e.starts_at).getTime(), ...placeOf(e.venue, e.title, e.description),
   }));
   const eventUrls = new Set(out.map((t) => t.url));
@@ -403,9 +409,9 @@ async function fillFromLatestEvent(out) {
     `SELECT m.id, m.mime, m.width, m.height FROM media m
       WHERE m.event_id = (
         SELECT e.id FROM events e
-         WHERE e.starts_at <= now() AND EXISTS (SELECT 1 FROM media x WHERE x.event_id = e.id AND x.mime LIKE 'image/%')
+         WHERE e.starts_at <= now() AND EXISTS (SELECT 1 FROM media x WHERE x.event_id = e.id AND x.mime LIKE 'image/%' AND x.category <> 'flyer')
          ORDER BY e.starts_at DESC LIMIT 1)
-        AND m.mime LIKE 'image/%'
+        AND m.mime LIKE 'image/%' AND m.category <> 'flyer'
       ORDER BY m.id`);
   if (!rows.length) return;
   const pools = { portrait: [], landscape: [] };
@@ -469,7 +475,7 @@ app.get('/api/events/:id', wrap(async (req, res) => {
   const ev = await pool.query(`SELECT ${eventColumns}, (${UPCOMING}) AS is_upcoming FROM events e WHERE e.id = $1`, [id]);
   if (ev.rowCount === 0) throw httpError(404, 'Event not found.');
   const photos = await pool.query(
-    'SELECT id, caption, width, height FROM media WHERE event_id = $1 ORDER BY created_at DESC, id DESC',
+    "SELECT id, caption, width, height FROM media WHERE event_id = $1 AND category <> 'flyer' ORDER BY created_at DESC, id DESC",
     [id]
   );
   res.json({ event: ev.rows[0], photos: photos.rows });
@@ -482,10 +488,10 @@ app.get('/api/photos', wrap(async (req, res) => {
   const params = [limit + 1, offset];
   // Gallery: every photo on the site (videos are not shown in the gallery).
   const filters = {
-    '': "m.mime LIKE 'image/%'",
+    '': "m.mime LIKE 'image/%' AND m.category <> 'flyer'",
     event: "m.category = 'event'",
-    experience: "m.slot IN ('exp1', 'exp2', 'exp3')",
-    gallery: "m.mime LIKE 'image/%' AND m.category <> 'event' AND (m.slot IS NULL OR m.slot NOT IN ('exp1', 'exp2', 'exp3'))",
+    experience: "m.category = 'site' AND m.slot IN ('exp1', 'exp2', 'exp3')",
+    gallery: "m.mime LIKE 'image/%' AND m.category NOT IN ('event', 'flyer') AND (m.slot IS NULL OR m.slot NOT IN ('exp1', 'exp2', 'exp3'))",
   };
   if (!(category in filters)) throw httpError(400, 'Unknown category.');
   const where = `WHERE ${filters[category]}`;
@@ -896,15 +902,16 @@ function eventFromBody(body) {
     startsAt: parseEventTime(body.starts_at),
     description: cleanText(body.description, 5000, 'Description'),
     ticketUrl: cleanUrl(body.ticket_url, 'Where to buy tickets'),
+    tablesUrl: cleanUrl(body.tables_url, 'Where to book tables'),
   };
 }
 
 admin.post('/events', wrap(async (req, res) => {
   const e = eventFromBody(req.body || {});
   const { rows } = await pool.query(
-    `INSERT INTO events (title, venue, starts_at, description, ticket_url)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [e.title, e.venue, e.startsAt, e.description, e.ticketUrl]
+    `INSERT INTO events (title, venue, starts_at, description, ticket_url, tables_url)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [e.title, e.venue, e.startsAt, e.description, e.ticketUrl, e.tablesUrl]
   );
   res.status(201).json({ id: rows[0].id });
 }));
@@ -1023,12 +1030,22 @@ admin.put('/events/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   const e = eventFromBody(req.body || {});
   const r = await pool.query(
-    `UPDATE events SET title = $1, venue = $2, starts_at = $3, description = $4, ticket_url = $5
-     WHERE id = $6`,
-    [e.title, e.venue, e.startsAt, e.description, e.ticketUrl, id]
+    `UPDATE events SET title = $1, venue = $2, starts_at = $3, description = $4, ticket_url = $5, tables_url = $6
+     WHERE id = $7`,
+    [e.title, e.venue, e.startsAt, e.description, e.ticketUrl, e.tablesUrl, id]
   );
   if (r.rowCount === 0) throw httpError(404, 'Event not found.');
   res.json({ ok: true });
+}));
+
+// Megaticket: events found there are added by themselves (megaticket.js).
+admin.get('/megaticket', wrap(async (req, res) => {
+  const { next } = megaticket.slots();
+  res.json({ last: await megaticket.lastResult(), next });
+}));
+admin.post('/megaticket/check', wrap(async (req, res) => {
+  const result = await megaticket.check('admin');
+  res.json({ last: result, next: megaticket.slots().next });
 }));
 
 // Quick add: read a public social media post (caption + picture) from its link.
@@ -1093,6 +1110,31 @@ async function storageUsed() {
   const { rows } = await pool.query(`SELECT ${STORAGE_USED_SQL}::bigint AS b`);
   return Number(rows[0].b);
 }
+// Flyers for tickets and table bookings: one of each per event. A new one
+// replaces the old one.
+const FLYER_KINDS = ['tickets', 'tables'];
+admin.post('/events/:id/flyers/:kind', upload.single('photo'), wrap(async (req, res) => {
+  const id = parseId(req.params.id);
+  const kind = req.params.kind;
+  if (!FLYER_KINDS.includes(kind)) throw httpError(404, 'Not found.');
+  if (!req.file) throw httpError(400, 'Choose a flyer.');
+  const ev = await pool.query('SELECT 1 FROM events WHERE id = $1', [id]);
+  if (!ev.rowCount) throw httpError(400, 'That event no longer exists.');
+  await assertRoomFor(req.file.size);
+  const img = await processImage(req.file.buffer);
+  const newId = await insertMedia({ category: 'flyer', caption: '', eventId: id, img, slot: kind });
+  const old = await pool.query("DELETE FROM media WHERE event_id = $1 AND category = 'flyer' AND slot = $2 AND id <> $3 RETURNING id", [id, kind, newId]);
+  old.rows.forEach((r) => forgetMediaFiles(r.id));
+  res.status(201).json({ id: newId });
+}));
+admin.delete('/events/:id/flyers/:kind', wrap(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!FLYER_KINDS.includes(req.params.kind)) throw httpError(404, 'Not found.');
+  const old = await pool.query("DELETE FROM media WHERE event_id = $1 AND category = 'flyer' AND slot = $2 RETURNING id", [id, req.params.kind]);
+  old.rows.forEach((r) => forgetMediaFiles(r.id));
+  res.json({ ok: true });
+}));
+
 async function assertRoomFor(bytes) {
   if ((await storageUsed()) + bytes > STORAGE_LIMIT_BYTES * 0.98) {
     throw httpError(400, 'Your storage is full. Delete some old photos or videos first, or ask Siweni to upgrade your storage.');
@@ -1359,6 +1401,8 @@ if (require.main === module) {
         .then(() => startVideoCompression())
         .then(() => jobs.resumeDriveImports()).catch((err) => console.error('[drive] resume failed:', err.message));
       jobs.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
+      megaticket.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
+      megaticket.start();
       visits.start();
       // Look for new photos in linked Google Drive folders every 6 hours.
       const sync = () => jobs.syncDriveFolders().catch((err) => console.warn('[drive] sync failed:', err.message));

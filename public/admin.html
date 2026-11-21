@@ -273,23 +273,47 @@
           <label for="evTicket">Where to buy tickets <small>(optional)</small></label>
           <input type="text" id="evTicket" inputmode="url" autocomplete="off" placeholder="Paste the ticket page here">
           <p class="hint">Open your event on Megaticket (or any ticket site), copy the address from the top of your browser and paste it here. A "Get Tickets" button will appear on the event.</p>
+          <label for="evTables">Where to book tables <small>(optional)</small></label>
+          <input type="text" id="evTables" inputmode="url" autocomplete="off" placeholder="Paste the table booking page here">
+          <p class="hint">A "Buy Tables" button appears next to "Get Tickets" and takes people to this page. A WhatsApp link works too, e.g. wa.me/263771674200</p>
           <label for="evDesc">About the event <small>(optional)</small></label>
           <textarea id="evDesc" maxlength="5000" rows="4" placeholder="Line-up, dress code, prices…"></textarea>
-          <label>Poster <small>(optional)</small></label>
-          <label class="drop drop-poster" for="evPoster">
-            <span class="poster-preview" id="posterPreview"></span>
-            <span class="poster-text">
-              <b id="evPosterName">Choose a poster</b>
-              <small id="evPosterHint">Shows on the event card and page</small>
-            </span>
-            <input type="file" id="evPoster" accept="image/*">
-          </label>
+          <label>Flyers <small>(optional)</small></label>
+          <p class="hint" style="margin-top:0">People swipe through them on the event. Tapping the tickets flyer opens the ticket site; tapping the tables flyer opens the table booking page.</p>
+          <div class="flyer-picks">
+            <label class="flyer-pick" for="evPoster">
+              <span class="poster-preview" id="posterPreview"></span>
+              <b>Main flyer</b>
+              <small id="evPosterName">Choose</small>
+              <input type="file" id="evPoster" accept="image/*">
+            </label>
+            <label class="flyer-pick" for="evFlyerTickets" data-flyer="tickets">
+              <span class="poster-preview"></span>
+              <b>Tickets flyer</b>
+              <small>Choose</small>
+              <input type="file" id="evFlyerTickets" accept="image/*">
+              <button type="button" class="flyer-x" hidden aria-label="Remove the tickets flyer">×</button>
+            </label>
+            <label class="flyer-pick" for="evFlyerTables" data-flyer="tables">
+              <span class="poster-preview"></span>
+              <b>Tables flyer</b>
+              <small>Choose</small>
+              <input type="file" id="evFlyerTables" accept="image/*">
+              <button type="button" class="flyer-x" hidden aria-label="Remove the tables flyer">×</button>
+            </label>
+          </div>
+          <span id="evPosterHint" hidden></span>
           <button class="btn btn-dark btn-block" type="submit" id="evSubmit">Add event</button>
           <div class="msg" id="evMsg" hidden></div>
         </form>
 
         <!-- All events -->
         <div class="card">
+          <div class="mt-box" id="mtBox">
+            <span class="mt-ic"><svg viewBox="0 0 24 24"><path d="M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z"/><path d="M14 7v12" stroke-dasharray="2 2"/></svg></span>
+            <div class="mt-txt"><b>Megaticket events add themselves</b><small id="mtStatus">Checks every day at 12:00 and 21:00.</small></div>
+            <button class="btn btn-light btn-sm" type="button" id="mtCheck">Check now</button>
+          </div>
           <div class="card-row wrap">
             <h3>All events</h3>
             <div class="table-tools">

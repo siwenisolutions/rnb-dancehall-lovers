@@ -102,6 +102,9 @@ const FIELDS = [
   { key: 'event_photos', page: 'Events page', section: 'One event', label: 'Photos heading', type: 'line', def: 'Photos' },
   { key: 'event_tag_upcoming', page: 'Events page', section: 'One event', label: 'Label for an upcoming event', type: 'line', def: 'Upcoming', client: true },
   { key: 'event_tag_past', page: 'Events page', section: 'One event', label: 'Label for a past event', type: 'line', def: 'Past event', client: true },
+  { key: 'tables_btn', page: 'Events page', section: 'One event', label: 'Table booking button', type: 'line', def: 'Buy Tables', client: true, hint: 'Shows on events that have a tables link (Admin → Events).' },
+  { key: 'flyer_tag_tickets', page: 'Events page', section: 'One event', label: 'Label on the tickets flyer', type: 'line', def: 'Tickets', client: true },
+  { key: 'flyer_tag_tables', page: 'Events page', section: 'One event', label: 'Label on the tables flyer', type: 'line', def: 'Tables', client: true },
   { key: 'event_ticket_btn', page: 'Events page', section: 'One event', label: 'Ticket button', type: 'line', def: 'Get Tickets →', client: true },
 
   // ---------- gallery ----------

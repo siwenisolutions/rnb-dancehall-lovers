@@ -232,6 +232,7 @@
   function goTo(name) {
     closeMenu();
     if (name === 'text') loadText();
+    if (name === 'events') loadMegaticket();
     if (name === 'account') loadAccount();
     $$('[data-tab]').forEach(function (t) { t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'); });
     $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
@@ -460,7 +461,7 @@
       tbody.appendChild(el('tr', null, [
         el('td', null, [el('div', { class: 'ev-cell' }, [
           el('span', { class: 'ev-thumb', style: ev.cover_media_id ? "background-image:url('" + media(ev.cover_media_id, true) + "')" : '' }),
-          el('span', null, [el('b', { text: ev.title }), el('small', { text: ev.ticket_url ? 'Tickets on sale' : 'No ticket page yet' })])
+          el('span', null, [el('b', { text: ev.title }), el('small', null, [ev.ticket_url ? 'Tickets on sale' : 'No ticket page yet', ev.megaticket_slug ? el('span', { class: 'tag-mt', text: 'From Megaticket' }) : null])])
         ])]),
         el('td', null, [el('span', { text: fmtDate(ev.starts_at) }), el('br'), el('small', { class: 'muted', text: fmtTime(ev.starts_at) })]),
         el('td', { text: ev.venue || '—' }),
@@ -544,11 +545,34 @@
     $('eventFormTitle').textContent = 'Add an event';
     $('evSubmit').textContent = 'Add event';
     $('evCancel').hidden = true;
-    $('evPosterName').textContent = 'Choose a poster';
-    $('evPosterHint').textContent = 'Shows on the event card and page';
+    $('evPosterName').textContent = 'Choose';
     $('posterPreview').style.backgroundImage = '';
+    flyerState = { tickets: null, tables: null };
+    $$('.flyer-pick[data-flyer]').forEach(function (box) { showFlyer(box, null); });
     renderEventGrid();
   }
+  // Tickets and tables flyers: id of the saved one, and what to do on save.
+  var flyerState = { tickets: null, tables: null }, flyerRemove = {};
+  function showFlyer(box, src, name) {
+    box.querySelector('.poster-preview').style.backgroundImage = src ? "url('" + src + "')" : '';
+    box.querySelector('small').textContent = name || (src ? 'Change' : 'Choose');
+    box.querySelector('.flyer-x').hidden = !src;
+  }
+  $$('.flyer-pick[data-flyer]').forEach(function (box) {
+    var kind = box.dataset.flyer, input = box.querySelector('input');
+    input.addEventListener('change', function () {
+      var f = input.files[0];
+      if (!f) return;
+      flyerRemove[kind] = false;
+      showFlyer(box, URL.createObjectURL(f), f.name);
+    });
+    box.querySelector('.flyer-x').addEventListener('click', function (e) {
+      e.preventDefault();
+      input.value = '';
+      flyerRemove[kind] = !!flyerState[kind];
+      showFlyer(box, null);
+    });
+  });
   $('evCancel').addEventListener('click', resetEventForm);
 
   function openEventForm(ev) {
@@ -563,12 +587,18 @@
       $('evStart').value = toLocalInput(ev.starts_at);
       $('evVenue').value = ev.venue;
       $('evTicket').value = ev.ticket_url;
+      $('evTables').value = ev.tables_url || '';
       $('evDesc').value = ev.description;
       if (ev.cover_media_id) {
-        $('evPosterName').textContent = 'Change poster';
-        $('evPosterHint').textContent = 'This is the current poster';
+        $('evPosterName').textContent = 'Change';
         $('posterPreview').style.backgroundImage = "url('" + media(ev.cover_media_id, true) + "')";
       }
+      flyerState = { tickets: ev.tickets_flyer_id || null, tables: ev.tables_flyer_id || null };
+      flyerRemove = {};
+      $$('.flyer-pick[data-flyer]').forEach(function (box) {
+        var fid = flyerState[box.dataset.flyer];
+        showFlyer(box, fid ? media(fid, true) : null);
+      });
       renderEventGrid();
     }
     $('eventForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -579,7 +609,6 @@
     var f = this.files[0];
     if (!f) return;
     $('evPosterName').textContent = f.name;
-    $('evPosterHint').textContent = 'New poster, saved when you press the button below';
     $('posterPreview').style.backgroundImage = "url('" + URL.createObjectURL(f) + "')";
   });
 
@@ -589,21 +618,36 @@
     var id = $('evId').value;
     var body = {
       title: $('evTitle').value, starts_at: $('evStart').value, venue: $('evVenue').value,
-      ticket_url: $('evTicket').value, description: $('evDesc').value
+      ticket_url: $('evTicket').value, tables_url: $('evTables').value, description: $('evDesc').value
     };
+    var flyerFiles = { tickets: $('evFlyerTickets').files[0], tables: $('evFlyerTables').files[0] };
+    var removeNow = Object.assign({}, flyerRemove);
     var poster = $('evPoster').files[0];
     busy(btn, true);
     var save = id ? call('PUT', '/api/admin/events/' + id, body).then(function () { return id; })
       : call('POST', '/api/admin/events', body).then(function (r) { return r.id; });
     save.then(function (eventId) {
-      if (!poster) return;
+      if (!poster) return eventId;
       btn.textContent = 'Uploading poster…';
       var fd = new FormData();
       fd.append('category', 'event');
       fd.append('event_id', eventId);
       fd.append('cover', '1');
       fd.append('photos', poster);
-      return call('POST', '/api/admin/photos', fd);
+      return call('POST', '/api/admin/photos', fd).then(function () { return eventId; });
+    }).then(function (eventId) {
+      // Flyers, one after the other.
+      return ['tickets', 'tables'].reduce(function (p, kind) {
+        return p.then(function () {
+          if (flyerFiles[kind]) {
+            btn.textContent = 'Uploading the ' + kind + ' flyer…';
+            var fd = new FormData();
+            fd.append('photo', flyerFiles[kind]);
+            return call('POST', '/api/admin/events/' + eventId + '/flyers/' + kind, fd);
+          }
+          if (removeNow[kind]) return call('DELETE', '/api/admin/events/' + eventId + '/flyers/' + kind);
+        });
+      }, Promise.resolve());
     }).then(function () {
       busy(btn, false);
       resetEventForm();
@@ -1808,6 +1852,40 @@
   });
   window.addEventListener('beforeunload', function (e) {
     if (!$('txSheet').hidden && txInput() && txInput().value !== tx.before) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // ---------- Megaticket ----------
+  function mtWhen(d) {
+    d = new Date(d);
+    var today = new Date().toDateString() === d.toDateString();
+    return (today ? 'today' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Africa/Harare' })) +
+      ' at ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Harare' });
+  }
+  function showMegaticket(d) {
+    var box = $('mtStatus');
+    var parts = [];
+    var last = d.last;
+    if (last) {
+      parts.push('Last checked ' + mtWhen(last.at) + '.');
+      if (last.error) parts.push('Megaticket could not be opened.');
+      else if (last.added && last.added.length) parts.push(plural(last.added.length, 'new event') + ' added: ' + last.added.map(function (a) { return a.title; }).join(', ') + '.');
+      else parts.push('Nothing new.');
+    }
+    if (d.next) parts.push('Next check ' + mtWhen(d.next) + '.');
+    box.textContent = parts.join(' ') || 'Checks every day at 12:00 and 21:00.';
+  }
+  function loadMegaticket() { get('/api/admin/megaticket').then(showMegaticket).catch(function () { /* optional */ }); }
+  $('mtCheck').addEventListener('click', function () {
+    var btn = this;
+    busy(btn, true);
+    $('mtStatus').textContent = 'Looking at Megaticket…';
+    call('POST', '/api/admin/megaticket/check').then(function (d) {
+      showMegaticket(d);
+      var n = d.last && d.last.added ? d.last.added.length : 0;
+      toast(d.last && d.last.error ? d.last.error : n ? plural(n, 'new event') + ' added from Megaticket' : 'No new events on Megaticket');
+      if (n) loadAll();
+    }).catch(function (err) { toast(err.message); loadMegaticket(); })
+      .then(function () { busy(btn, false); });
   });
 
   // ---------- start ----------

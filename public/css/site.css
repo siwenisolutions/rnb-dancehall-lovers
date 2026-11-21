@@ -553,7 +553,8 @@ body.subpage .burger span{background:#3a3733;}
 .event-detail .when{margin-top:16px; font-weight:700; font-size:16px;}
 .event-detail .venue{color:var(--muted); margin-top:4px; font-weight:600;}
 .event-detail .desc{margin-top:22px; line-height:1.75; white-space:pre-line; color:#3a3733;}
-.event-detail .btn{margin-top:26px;}
+.event-detail .event-btns{display:flex; flex-wrap:wrap; gap:10px; margin-top:26px;}
+.event-detail .event-btns .btn{margin-top:0;}
 .tag{display:inline-block; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; margin-bottom:14px;}
 .tag.up{background:var(--green); color:#0f2400;}
 .tag.past{background:var(--cream); color:#3a3733;}
@@ -650,3 +651,19 @@ video.slide{width:100%; height:100%; object-fit:cover;}
 .exp-card .photo .slides,.promo-photo .slides,.ticket-thumb .slides{z-index:0;}
 .ticket-thumb .ticket-chip{z-index:2;}
 @media (prefers-reduced-motion: reduce){ .slide{transition:none;} }
+
+/* ---------- event flyers: poster + tickets flyer + tables flyer ---------- */
+.flyers{position:relative;}
+.flyer-strip{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain;}
+.flyer-strip::-webkit-scrollbar{display:none;}
+.flyer-strip > .poster{flex:0 0 100%; scroll-snap-align:start; display:block; position:relative; aspect-ratio:4/5; background-size:cover; background-position:center;}
+.flyer-strip > .poster.empty{display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--violet),var(--purple));}
+.flyer-strip > .poster.empty span{font-family:'Anton',sans-serif; font-size:30px; color:#fff; text-transform:uppercase; padding:20px; text-align:center; line-height:1;}
+.flyer-tag{position:absolute; left:14px; bottom:14px; background:var(--yellow,#ffe95f); color:#141108; font-weight:800; font-size:12px; letter-spacing:.06em; text-transform:uppercase; padding:7px 12px; border-radius:999px; box-shadow:0 6px 16px rgba(0,0,0,.25);}
+.flyer-dots{position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:6px; pointer-events:none;}
+.flyer-dots span{width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.55); box-shadow:0 0 0 1px rgba(0,0,0,.15); transition:width .2s, background .2s;}
+.flyer-dots span.on{width:18px; border-radius:99px; background:#fff;}
+.flyers.many .flyer-tag{bottom:30px;}
+.event-card .flyers .date-badge{pointer-events:none;}
+.event-detail .flyers{border-radius:18px; overflow:hidden;}
+@media (max-width:900px){ .event-detail .flyers{max-width:420px;} }
