@@ -63,7 +63,7 @@ async function get(url, { maxBytes = 5 * 1024 * 1024, asBuffer = false, timeout 
       chunks.push(value);
     }
     const buf = Buffer.concat(chunks);
-    return { status: res.status, type: res.headers.get('content-type') || '', body: asBuffer ? buf : buf.toString('utf8') };
+    return { status: res.status, url: current, type: res.headers.get('content-type') || '', body: asBuffer ? buf : buf.toString('utf8') };
   }
   throw new DriveError('Google Drive redirected too many times.');
 }
@@ -117,11 +117,17 @@ function parseEmbedPage(html) {
 async function listViaEmbed(id, resourceKey) {
   const url = `${WEB}/embeddedfolderview?id=${encodeURIComponent(id)}${resourceKey ? `&resourcekey=${encodeURIComponent(resourceKey)}` : ''}`;
   const r = await get(url);
-  if (r.status === 404 || r.status === 403 || /ServiceLogin|accounts\.google\.com/.test(r.body)) {
+  const signIn = /^accounts\./i.test(r.url.hostname) || /ServiceLogin/.test(r.url.pathname);
+  if (r.status === 404 || r.status === 403 || r.status === 401 || signIn) {
+    console.warn(`[drive] folder ${id}: HTTP ${r.status} at ${r.url.hostname}${r.url.pathname}`);
     throw new DriveError('We can\'t open that folder. In Google Drive, set it to "Anyone with the link" (Share → General access), then try again.');
   }
-  if (r.status !== 200) throw new DriveError('Google Drive is not answering right now. Please try again in a minute.');
+  if (r.status !== 200) {
+    console.warn(`[drive] folder ${id}: HTTP ${r.status}`);
+    throw new DriveError('Google Drive is not answering right now. Please try again in a minute.');
+  }
   const { title, items } = parseEmbedPage(r.body);
+  if (!items.length) console.warn(`[drive] folder ${id}: no items read; page "${title}" (${r.body.length} bytes)`);
   return { id, resourceKey, name: title || 'Google Drive folder', items };
 }
 
