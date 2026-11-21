@@ -1460,88 +1460,354 @@
   });
 
   // ---------- website text ----------
-  var textFields = [], textPage = '';
-  function loadText() {
-    return get('/api/admin/content').then(function (d) {
-      textFields = d.fields;
-      if (!textPage) textPage = textFields[0].page;
-      renderText();
-    }).catch(function (err) { say($('textMsg'), err.message, false); });
-  }
-  function pagesOf() {
+  // The real website, section by section, in frames (public/js/edit-mode.js
+  // runs inside them). Tapping words opens the edit sheet; typing shows the
+  // new words in the frame straight away; Save puts them live.
+  var tx = { fields: [], sections: [], page: '', view: 'phone', cards: [], key: null, observer: null };
+  var TX_W = { phone: 390, computer: 1280 };
+  var TX_H = { phone: 680, computer: 760 };       // first frame height (the header fills it)
+  var TX_MAX = { phone: 760, computer: 860 };     // taller sections scroll inside the frame
+  var TX_ICONS = {
+    'Every page': '<svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg>',
+    'Home page': '<svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>',
+    'Events page': '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    'Gallery page': '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>'
+  };
+  var TX_HELP = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/></svg>';
+
+  function txField(key) { return tx.fields.filter(function (f) { return f.key === key; })[0]; }
+  function txValue(f) { return f.value !== '' ? f.value : f.default; }
+  function txPages() {
     var out = [];
-    textFields.forEach(function (f) { if (out.indexOf(f.page) < 0) out.push(f.page); });
+    tx.sections.forEach(function (s) { if (out.indexOf(s.page) < 0) out.push(s.page); });
     return out;
   }
-  function currentValue(f) { return f.value !== '' ? f.value : f.default; }
-  function renderText() {
-    var bar = $('textPages');
+  function txFieldsOf(sec) { return tx.fields.filter(function (f) { return f.page === sec.page && f.section === sec.section; }); }
+
+  // Same layout as content.js on the server, so typing shows the real look.
+  var TX_RECENT = ['p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11'];
+  function txEsc(v) { return String(v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function txLines(v) { return String(v).split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
+  function txRepeat(v) {
+    var w = txLines(v), out = [];
+    if (!w.length) return '';
+    while (out.length < 8) out = out.concat(w);
+    return out.slice(0, Math.max(8, w.length)).map(function (x) { return '<span>' + txEsc(x) + '</span>'; }).join('');
+  }
+  function txRender(f, v) {
+    switch (f.key) {
+      case 'home_words': return txLines(v).map(function (w) { return '<span>' + txEsc(w) + '</span>'; }).join('');
+      case 'merch_items': return txLines(v).map(function (w) { return '<div class="pill">' + txEsc(w) + '</div>'; }).join('');
+      case 'recent_cards': return txLines(v).slice(0, 8).map(function (l, i) {
+        var p = l.split('|').map(function (x) { return x.trim(); });
+        return '<div class="case-card ph ' + TX_RECENT[i] + '"><div class="meta">' + txEsc(p[0]) + '<small>' + txEsc(p[1] || '') + '</small></div></div>';
+      }).join('');
+      case 'banner_scroll': return new Array(9).join('<span>' + txEsc(v) + '</span>');
+      case 'join1_words': case 'join2_words': return txRepeat(v);
+    }
+    if (f.type === 'heading') {
+      var open = f.accent === 'dark' ? '<span style="color:#141108">' : '<span class="accent">';
+      return txLines(v).map(function (l) { return txEsc(l).replace(/\*([^*]+)\*/g, open + '$1</span>').replace(/\*/g, ''); }).join('<br>');
+    }
+    if (f.type === 'text') return txLines(v).map(txEsc).join('<br>');
+    if (f.type === 'list') return txLines(v).map(txEsc).join(', ');
+    return txEsc(v);
+  }
+  function txSend(win, msg) { try { win.postMessage(msg, location.origin); } catch (e) { /* frame gone */ } }
+  function txShowEverywhere(f, v) {
+    var html = txRender(f, v);
+    tx.cards.forEach(function (c) { if (c.frame && c.frame.contentWindow) txSend(c.frame.contentWindow, { rnb: 'set', key: f.key, html: html, text: v }); });
+    tx.cards.forEach(function (c) { if (c.mock) c.mock(); });
+  }
+
+  function loadText() {
+    return get('/api/admin/content').then(function (d) {
+      tx.fields = d.fields;
+      tx.sections = d.sections.filter(function (s) { return tx.fields.some(function (f) { return f.page === s.page && f.section === s.section; }); });
+      if (!tx.page) tx.page = tx.sections[0].page;
+      if (!tx.view0) { tx.view0 = true; if (window.innerWidth >= 1100) tx.view = 'computer'; }
+      txRenderPages();
+      txRenderCards();
+    }).catch(function (err) { say($('textMsg'), err.message, false); });
+  }
+
+  function txRenderPages() {
+    var bar = $('txPages');
     bar.textContent = '';
-    pagesOf().forEach(function (p) {
-      var changed = textFields.filter(function (f) { return f.page === p && f.value !== ''; }).length;
-      var b = el('button', { type: 'button', 'aria-pressed': p === textPage ? 'true' : 'false' }, [p, changed ? el('span', { class: 'n', text: String(changed), title: changed + ' changed from the original' }) : null]);
+    txPages().forEach(function (p) {
+      var secs = tx.sections.filter(function (s) { return s.page === p; }).length;
+      var changed = tx.fields.filter(function (f) { return f.page === p && f.value !== ''; }).length;
+      var ic = el('span', { class: 'ic' });
+      ic.innerHTML = TX_ICONS[p] || TX_HELP;
+      var b = el('button', { type: 'button', class: 'tx-page', role: 'tab', 'aria-selected': p === tx.page ? 'true' : 'false' }, [
+        ic,
+        el('b', { text: p }),
+        el('small', { text: secs === 1 ? '1 section' : secs + ' sections' }),
+        changed ? el('span', { class: 'n', text: changed + ' changed' }) : null
+      ]);
       b.addEventListener('click', function () {
-        if (textDirty() && !confirm('You have unsaved changes on this page. Leave them?')) return;
-        textPage = p; renderText();
+        if (tx.page === p) return;
+        tx.page = p;
+        txRenderPages();
+        txRenderCards();
       });
       bar.appendChild(b);
     });
-    var box = $('textSections');
+    var on = bar.querySelector('[aria-selected="true"]');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function txRow(f, onScreen) {
+    var changed = f.value !== '';
+    var b = el('button', { type: 'button', class: 'tx-row', 'data-key': f.key }, [
+      el('span', { class: 'txt' }, [el('b', { text: f.label }), el('span', { text: txValue(f).replace(/\n/g, ' / ') })]),
+      changed ? el('span', { class: 'tag changed', text: 'Changed' }) : null,
+      onScreen === false ? el('span', { class: 'tag', text: 'Not showing now' }) : null,
+      el('span', { class: 'pen', 'aria-hidden': 'true', text: '✎' })
+    ]);
+    b.addEventListener('click', function () { txOpen(f.key); });
+    return b;
+  }
+
+  function txRenderCards() {
+    var track = $('txTrack');
+    if (tx.observer) tx.observer.disconnect();
+    tx.cards.forEach(function (c) { if (c.frame) c.frame.src = 'about:blank'; });
+    tx.cards = [];
+    track.textContent = '';
+    track.classList.toggle('computer', tx.view === 'computer');
+    $$('.tx-view button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.view === tx.view ? 'true' : 'false'); });
+    var secs = tx.sections.filter(function (s) { return s.page === tx.page; });
+    secs.forEach(function (sec, i) {
+      var fields = txFieldsOf(sec);
+      var changed = fields.filter(function (f) { return f.value !== ''; }).length;
+      var card = el('article', { class: 'tx-card', 'aria-label': sec.section }, [
+        el('div', { class: 'tx-card-head' }, [
+          el('span', { class: 'num', text: String(i + 1) }),
+          el('h3', { text: sec.section }),
+          changed ? el('span', { class: 'n', text: changed + ' changed' }) : null
+        ])
+      ]);
+      var c = { sec: sec, el: card, fields: fields, frame: null, box: null, list: null, keys: null };
+      if (sec.url) {
+        c.box = el('div', { class: 'tx-frame' }, [el('div', { class: 'tx-wait', text: 'Loading the website…' })]);
+        card.appendChild(c.box);
+        card.appendChild(el('p', { class: 'tx-tip', text: 'Tap the words with a dotted line to change them.' }));
+      } else {
+        txMock(c);
+      }
+      c.list = el('div', { class: 'tx-fields' });
+      card.appendChild(c.list);
+      txFillList(c);
+      tx.cards.push(c);
+      track.appendChild(card);
+    });
+    var dots = $('txDots');
+    dots.textContent = '';
+    secs.forEach(function () { dots.appendChild(el('span')); });
+    track.scrollLeft = 0;
+    // Frames load as their card comes near, so a page with 11 sections
+    // doesn't open the website 11 times at once.
+    if ('IntersectionObserver' in window) {
+      tx.observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          var c = tx.cards.filter(function (x) { return x.el === e.target; })[0];
+          if (c) txLoadFrame(c);
+        });
+      }, { root: track, rootMargin: '0px 120% 0px 120%' });
+      tx.cards.forEach(function (c) { tx.observer.observe(c.el); });
+    } else tx.cards.forEach(txLoadFrame);
+    txWhere();
+  }
+
+  function txFillList(c) {
+    c.list.textContent = '';
+    var label = c.sec.url ? 'All the words in this section' : 'Words in this section';
+    c.list.appendChild(el('p', { text: label }));
+    c.fields.forEach(function (f) { c.list.appendChild(txRow(f, c.keys ? c.keys.indexOf(f.key) >= 0 : undefined)); });
+  }
+
+  function txLoadFrame(c) {
+    if (c.frame || !c.sec.url) return;
+    var w = TX_W[tx.view];
+    var q = 'rnbedit=1&only=' + encodeURIComponent(c.sec.show || '') + (c.sec.hero ? '' : '&hero=0');
+    var frame = el('iframe', { title: 'Preview: ' + c.sec.section, loading: 'eager', scrolling: 'yes' });
+    frame.style.width = w + 'px';
+    frame.style.height = TX_H[tx.view] + 'px';
+    c.frame = frame;
+    c.h = TX_H[tx.view];
+    c.box.insertBefore(frame, c.box.firstChild);
+    txScale(c);
+    frame.src = c.sec.url + (c.sec.url.indexOf('?') < 0 ? '?' : '&') + q;
+  }
+  function txScale(c) {
+    if (!c.frame) return;
+    var w = TX_W[tx.view];
+    var s = c.box.clientWidth / w || 1;
+    c.frame.style.transform = 'scale(' + s + ')';
+    c.box.style.height = Math.round(c.h * s) + 'px';
+  }
+  window.addEventListener('resize', function () { tx.cards.forEach(txScale); });
+
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || typeof e.data.rnb !== 'string') return;
+    var c = tx.cards.filter(function (x) { return x.frame && x.frame.contentWindow === e.source; })[0];
+    if (!c) return;
+    if (e.data.rnb === 'size') {
+      var h = Math.max(120, Math.min(TX_MAX[tx.view], e.data.h || 0));
+      if (Math.abs(h - c.h) > 2) { c.h = h; c.frame.style.height = h + 'px'; txScale(c); }
+      c.box.classList.add('ready');
+      var keys = (e.data.keys || []).slice().sort().join(',');
+      if (keys !== (c.keys || []).slice().sort().join(',')) { c.keys = e.data.keys || []; txFillList(c); }
+    } else if (e.data.rnb === 'edit') {
+      txOpen(e.data.key, c);
+    }
+  });
+
+  // Browser tab and sharing: show what Google and a shared link look like.
+  function txMock(c) {
+    var g = el('div', { class: 'tx-google' });
+    var share = el('div', { class: 'tx-share' });
+    c.el.appendChild(el('p', { class: 'tx-mock-label', text: 'On Google' }));
+    c.el.appendChild(g);
+    c.el.appendChild(el('p', { class: 'tx-mock-label', text: 'When the link is shared on WhatsApp' }));
+    c.el.appendChild(share);
+    c.mock = function () {
+      var title = txValue(txField('home_title') || { value: '', default: '' });
+      var desc = txValue(txField('home_description') || { value: '', default: '' });
+      var site = txValue(txField('site_name') || { value: '', default: '' });
+      g.textContent = '';
+      g.appendChild(el('div', { class: 'site' }, [el('img', { src: '/img/logo.png', alt: '' }), el('div', null, [el('span', { text: site }), el('small', { text: location.host + ' ›' })])]));
+      g.appendChild(el('div', { class: 't', text: title }));
+      g.appendChild(el('div', { class: 'd', text: desc }));
+      share.textContent = '';
+      share.appendChild(el('div', null, [el('div', { class: 'img' }), el('div', { class: 'body' }, [el('b', { text: title }), el('span', { text: desc }), el('small', { text: location.host })])]));
+    };
+    c.mock();
+  }
+
+  function txWhere() {
+    var track = $('txTrack');
+    var n = tx.cards.length;
+    if (!n) { $('txWhere').textContent = ''; return; }
+    var w = tx.cards[0].el.offsetWidth + 16;
+    var i = Math.max(0, Math.min(n - 1, Math.round(track.scrollLeft / w)));
+    $('txWhere').textContent = 'Section ' + (i + 1) + ' of ' + n + ' · ' + tx.cards[i].sec.section;
+    $('txPrev').disabled = i === 0;
+    $('txNext').disabled = i >= n - 1;
+    $$('#txDots span').forEach(function (d, j) { d.classList.toggle('on', j === i); });
+    tx.at = i;
+  }
+  $('txTrack').addEventListener('scroll', function () { window.requestAnimationFrame(txWhere); }, { passive: true });
+  function txGo(step) {
+    var c = tx.cards[(tx.at || 0) + step];
+    if (c) $('txTrack').scrollTo({ left: c.el.offsetLeft - $('txTrack').offsetLeft, behavior: 'smooth' });
+  }
+  $('txPrev').addEventListener('click', function () { txGo(-1); });
+  $('txNext').addEventListener('click', function () { txGo(1); });
+  $$('.tx-view button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (tx.view === b.dataset.view) return;
+      tx.view = b.dataset.view;
+      txRenderCards();
+    });
+  });
+
+  // ---------- the edit sheet ----------
+  function txInput() { return $('txInputBox').firstChild; }
+  function txActive(key, scroll) {
+    tx.cards.forEach(function (c) { if (c.frame && c.frame.contentWindow) txSend(c.frame.contentWindow, { rnb: 'active', key: key, scroll: !!scroll && c === tx.from }); });
+  }
+  function txOpen(key, fromCard) {
+    var f = txField(key);
+    if (!f) return;
+    tx.key = key;
+    tx.from = fromCard || tx.cards.filter(function (c) { return c.fields.indexOf(f) >= 0; })[0] || null;
+    tx.before = txValue(f);
+    $('txWhereEdit').textContent = f.page + ' · ' + f.section;
+    $('txLabel').textContent = f.label;
+    var box = $('txInputBox');
     box.textContent = '';
-    var sections = [];
-    textFields.forEach(function (f) { if (f.page === textPage && sections.indexOf(f.section) < 0) sections.push(f.section); });
-    sections.forEach(function (sec) {
-      var card = el('div', { class: 'card' }, [el('div', { class: 'card-head' }, [el('h3', { text: sec })])]);
-      textFields.filter(function (f) { return f.page === textPage && f.section === sec; }).forEach(function (f) {
-        var id = 't_' + f.key;
-        var multi = f.type !== 'line';
-        var rows = f.type === 'list' ? Math.min(12, Math.max(3, f.default.split('\n').length + 1)) : f.type === 'text' ? 4 : 2;
-        var input = multi ? el('textarea', { id: id, rows: rows, maxlength: f.type === 'heading' ? 200 : 2000 }) : el('input', { type: 'text', id: id, maxlength: 200 });
-        input.value = currentValue(f);
-        input.dataset.key = f.key;
-        var reset = el('button', { type: 'button', class: 'reset', text: 'Original words', title: 'Put back: ' + f.default });
-        var wrap = el('div', { class: 'text-field' }, [
-          el('label', { for: id }, [f.label, reset]),
-          input,
-          f.type === 'list' ? el('p', { class: 'hint', text: f.hint || 'One per line.' }) : (f.hint ? el('p', { class: 'hint', text: f.hint }) : null)
-        ]);
-        function mark() {
-          var differs = input.value.trim() !== f.default.trim();
-          reset.hidden = !differs;
-          wrap.classList.toggle('changed', input.value !== currentValue(f));
-        }
-        reset.addEventListener('click', function () { input.value = f.default; mark(); input.focus(); });
-        input.addEventListener('input', mark);
-        mark();
-        card.appendChild(wrap);
-      });
-      box.appendChild(card);
-    });
+    var input;
+    if (f.type === 'line') input = el('input', { type: 'text', maxlength: '200', 'aria-labelledby': 'txLabel' });
+    else {
+      var rows = f.type === 'list' ? Math.min(12, Math.max(4, txLines(txValue(f)).length + 1)) : f.type === 'text' ? 5 : 3;
+      input = el('textarea', { rows: String(rows), maxlength: f.type === 'heading' ? '200' : '2000', 'aria-labelledby': 'txLabel' });
+    }
+    input.value = txValue(f);
+    input.addEventListener('input', txTyped);
+    box.appendChild(input);
+    var hint = f.hint || (f.type === 'list' ? 'One per line.' : f.type === 'heading' ? 'A new line starts a new line on the page. Put *stars* around words to colour them.' : '');
+    $('txHint').textContent = hint;
+    $('txHint').hidden = !hint;
+    $('txMsg').hidden = true;
+    txMarkReset();
+    $('txSheet').hidden = false;
+    txActive(key, true);
+    setTimeout(function () { input.focus(); if (input.select && f.type === 'line') input.select(); }, 60);
   }
-  function textChanges() {
-    var out = {};
-    $$('#textSections [data-key]').forEach(function (input) {
-      var f = textFields.filter(function (x) { return x.key === input.dataset.key; })[0];
-      if (f && input.value !== currentValue(f)) out[f.key] = input.value;
-    });
-    return out;
+  function txMarkReset() {
+    var f = txField(tx.key);
+    $('txReset').hidden = !f || txInput().value.trim() === f.default.trim();
   }
-  function textDirty() { return Object.keys(textChanges()).length > 0; }
-  $('textForm').addEventListener('submit', function (e) {
+  function txTyped() {
+    var f = txField(tx.key);
+    var v = txInput().value;
+    if (f.type === 'line') v = v.replace(/\s*\n\s*/g, ' ');
+    txShowEverywhere(f, v.trim() === '' ? f.default : v);
+    if (f.key === 'home_title' || f.key === 'home_description' || f.key === 'site_name') {
+      var keep = f.value; f.value = v; tx.cards.forEach(function (c) { if (c.mock) c.mock(); }); f.value = keep;
+    }
+    txMarkReset();
+  }
+  function txClose(saved) {
+    var f = txField(tx.key);
+    if (!saved && f && txInput() && txInput().value !== tx.before) {
+      if (!confirm('Close without saving? The new words will be thrown away.')) return;
+    }
+    if (!saved && f) txShowEverywhere(f, txValue(f));
+    $('txSheet').hidden = true;
+    txActive(null);
+    tx.key = null;
+  }
+  $$('#txSheet [data-close]').forEach(function (b) { b.addEventListener('click', function () { txClose(false); }); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('txSheet').hidden) txClose(false); });
+  $('txReset').addEventListener('click', function () {
+    var f = txField(tx.key);
+    txInput().value = f.default;
+    txTyped();
+    txInput().focus();
+  });
+  $('txForm').addEventListener('submit', function (e) {
     e.preventDefault();
-    var changes = textChanges();
-    var n = Object.keys(changes).length;
-    if (!n) return say($('textMsg'), 'Nothing has changed yet.', true);
-    var btn = $('textSubmit');
+    var f = txField(tx.key);
+    var v = txInput().value;
+    if (v === txValue(f)) return txClose(true);
+    var btn = $('txSave');
+    var body = {};
+    body[f.key] = v.trim() === f.default.trim() ? '' : v;
     busy(btn, true);
-    call('PUT', '/api/admin/content', changes).then(function () {
-      say($('textMsg'), (n === 1 ? '1 change' : n + ' changes') + ' saved. They are live on the website now.', true);
-      return loadText();
-    }).catch(function (err) { say($('textMsg'), err.message, false); })
+    call('PUT', '/api/admin/content', body).then(function () {
+      f.value = body[f.key] === '' ? '' : v.trim();
+      txShowEverywhere(f, txValue(f));
+      txClose(true);
+      toast('Saved. It’s live on the website now.');
+      // Update the "changed" counts and the word lists.
+      txRenderPages();
+      tx.cards.forEach(function (c) {
+        txFillList(c);
+        var n = c.fields.filter(function (x) { return x.value !== ''; }).length;
+        var head = c.el.querySelector('.tx-card-head');
+        var tag = head.querySelector('.n');
+        if (n && !tag) head.appendChild(tag = el('span', { class: 'n' }));
+        if (tag) { if (n) tag.textContent = n + ' changed'; else tag.remove(); }
+      });
+    }).catch(function (err) { say($('txMsg'), err.message, false); })
       .then(function () { busy(btn, false); });
   });
   window.addEventListener('beforeunload', function (e) {
-    if (!$('appView').hidden && !document.querySelector('[data-panel="text"]').hidden && textDirty()) { e.preventDefault(); e.returnValue = ''; }
+    if (!$('txSheet').hidden && txInput() && txInput().value !== tx.before) { e.preventDefault(); e.returnValue = ''; }
   });
 
   // ---------- start ----------

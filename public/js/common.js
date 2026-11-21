@@ -9,12 +9,16 @@
     address: '383 Glen Helen Way, Glen Lorne, Harare, Zimbabwe',
     instagram_url: 'https://www.instagram.com/rnbdancehalllovers/',
     facebook_url: '', tiktok_url: '', youtube_url: '',
+    whatsapp_url: 'https://whatsapp.com/channel/0029Vb6xj0D47Xe6bVFhv92q',
     ticket1_label: 'Get Tickets', ticket1_url: '',
     ticket2_label: '', ticket2_url: ''
   };
 
+  // The admin panel's Website text preview (see edit-mode.js).
+  var EDIT = window.RNB_EDIT === true;
+
   // Count this page view (no cookies; see visits.js on the server).
-  try {
+  if (!EDIT) try {
     var hit = JSON.stringify({ p: location.pathname, r: document.referrer });
     if (navigator.sendBeacon) navigator.sendBeacon('/api/hit', hit);
     else fetch('/api/hit', { method: 'POST', body: hit, keepalive: true });
@@ -24,7 +28,12 @@
   // in the page as JSON; t(key) returns one.
   var TEXT = {};
   try { TEXT = JSON.parse((document.getElementById('rnb-text') || {}).textContent || '{}'); } catch (e) { TEXT = {}; }
-  function t(key) { return TEXT[key] !== undefined ? TEXT[key] : ''; }
+  // In the preview each word comes with invisible markers naming its key,
+  // so edit-mode.js can make it tappable wherever the scripts put it.
+  function t(key) {
+    var v = TEXT[key] !== undefined ? TEXT[key] : '';
+    return EDIT && v ? '\uE000' + key + '\uE001' + v + '\uE002' : v;
+  }
 
   // Tiny DOM builder. Text is always set with textContent, never innerHTML,
   // so anything typed in the admin panel is shown as plain text.
@@ -117,6 +126,27 @@
     onScroll();
   }
 
+  // ---------- social icons ----------
+  var SOCIALS = [
+    ['instagram_url', 'ig', 'Instagram'], ['facebook_url', 'fb', 'Facebook'], ['tiktok_url', 'tt', 'TikTok'],
+    ['whatsapp_url', 'wa', 'WhatsApp channel'], ['youtube_url', 'yt', 'YouTube']
+  ];
+  var ICONS = {
+    ig: '<rect x="3" y="3" width="18" height="18" rx="5.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.4" cy="6.6" r="1.3" fill="currentColor"/>',
+    fb: '<path fill="currentColor" d="M13.6 21v-7.7h2.6l.4-3h-3V8.4c0-.9.3-1.5 1.5-1.5h1.6V4.2c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H7.9v3h2.6V21z"/>',
+    tt: '<path fill="currentColor" d="M16.2 3c.4 2.2 1.8 3.7 4.1 3.9v3.2a7.4 7.4 0 0 1-4.1-1.3v6.1a6 6 0 1 1-6-6c.3 0 .7 0 1 .1v3.3a2.8 2.8 0 1 0 2 2.6V3z"/>',
+    wa: '<path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M4.2 19.8l1.1-3.9a8.2 8.2 0 1 1 3 2.9z"/><path fill="currentColor" d="M9.3 7.6c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.7 1.6c.1.2 0 .4-.1.6l-.5.6c-.1.1-.1.3 0 .5a6 6 0 0 0 2.6 2.4c.2.1.3.1.5-.1l.6-.7c.1-.2.3-.2.5-.1l1.6.8c.2.1.3.2.3.4v.5c0 .3-.1.6-.4.8a2.5 2.5 0 0 1-2.1.4 7.6 7.6 0 0 1-5.3-5.1c-.2-.8 0-1.5.4-2z"/>',
+    yt: '<rect x="2.5" y="5.5" width="19" height="13" rx="4" fill="currentColor"/><path fill="#fff" d="M10.2 9.2v5.6l4.8-2.8z"/>'
+  };
+  function icon(name) {
+    var span = document.createElement('span');
+    span.className = 'soc-ic';
+    span.setAttribute('aria-hidden', 'true');
+    // Fixed markup from ICONS above, never from the admin panel.
+    span.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20">' + ICONS[name] + '</svg>';
+    return span;
+  }
+
   // ---------- footer ----------
   function renderFooter(s) {
     var footer = document.querySelector('footer[data-site]');
@@ -124,10 +154,10 @@
     s = Object.assign({}, DEFAULTS, s || {});
     footer.textContent = '';
 
-    var socials = [['instagram_url', 'ig'], ['facebook_url', 'f'], ['tiktok_url', 'tt'], ['youtube_url', 'yt']]
+    var socials = SOCIALS
       .filter(function (x) { return safeLink(s[x[0]]); })
       .map(function (x) {
-        return el('a', { href: safeLink(s[x[0]]), target: '_blank', rel: 'noopener', 'aria-label': x[0].replace('_url', ''), text: x[1] });
+        return el('a', { class: 'soc soc-' + x[1], href: safeLink(s[x[0]]), target: '_blank', rel: 'noopener', 'aria-label': x[2], title: x[2] }, [icon(x[1])]);
       });
 
     var tel = s.phone ? '+263' + s.phone.replace(/\D/g, '').replace(/^(263|0)/, '') : '';
@@ -154,10 +184,20 @@
     if (safeLink(s.instagram_url)) {
       buttons.push(el('a', { class: 'btn btn-cta', href: safeLink(s.instagram_url), target: '_blank', rel: 'noopener', text: '@rnbdancehalllovers →' }));
     }
-    // Only tickets still on sale (the home page passes them in).
+    // Only tickets still on sale (the home page passes them in), each saying
+    // where it is so people pick the right country.
     (s.ticket_links || []).forEach(function (tk) {
       var url = safeLink(tk.url);
-      if (url) buttons.push(el('a', { class: 'btn btn-outline', href: url, target: '_blank', rel: 'noopener', text: tk.label + ' →' }));
+      if (!url) return;
+      var where = [tk.place || tk.title, tk.when].filter(Boolean).join(' · ');
+      buttons.push(el('a', { class: 'btn btn-outline btn-ticket', href: url, target: '_blank', rel: 'noopener' }, [
+        tk.flag ? el('span', { class: 'flag', 'aria-hidden': 'true', text: tk.flag }) : null,
+        el('span', { class: 'bt-txt' }, [
+          el('b', { text: tk.label + (tk.country ? ' · ' + tk.country : '') }),
+          where ? el('small', { text: where }) : null
+        ]),
+        el('span', { class: 'bt-arrow', 'aria-hidden': 'true', text: '→' })
+      ]));
     });
     contact.push(el('div', { class: 'footer-buttons', style: 'margin-top:14px;' }, buttons));
 

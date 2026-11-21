@@ -271,13 +271,37 @@ app.use('/api', (req, res, next) => {
 // page), plus the two ticket cards from Website details while their event
 // date hasn't passed. Soonest first; at most 4. Past tickets never show.
 const TICKETS_MAX = 4;
+
+// Where a ticket is for, worked out from the event's words, so the footer can
+// say "Zimbabwe" or "South Africa" next to each ticket button.
+const PLACES = [
+  ['Zimbabwe', '🇿🇼', ['Harare', 'Bulawayo', 'Gweru', 'Mutare', 'Masvingo', 'Victoria Falls', 'Kwekwe', 'Kadoma', 'Chitungwiza', 'Marondera', 'Chinhoyi']],
+  ['South Africa', '🇿🇦', ['Johannesburg', 'Joburg', 'Jozi', 'JHB', 'Sandton', 'Pretoria', 'Cape Town', 'Durban', 'Soweto', 'Midrand', 'Centurion', 'Randburg', 'Rosebank', 'Gauteng', 'Polokwane']],
+  ['Botswana', '🇧🇼', ['Gaborone', 'Francistown']],
+  ['Zambia', '🇿🇲', ['Lusaka', 'Livingstone']],
+  ['Mozambique', '🇲🇿', ['Maputo']],
+  ['United Kingdom', '🇬🇧', ['London', 'Manchester', 'Birmingham', 'Leeds']],
+];
+const CITY_NAMES = { JHB: 'Johannesburg', Joburg: 'Johannesburg', Jozi: 'Johannesburg' };
+function placeOf(...texts) {
+  const words = texts.filter(Boolean).join(' \n ');
+  let best = null;
+  for (const [country, flag, cities] of PLACES) {
+    for (const name of [...cities, country]) {
+      const m = new RegExp(`\\b${name.replace(/ /g, '\\s+')}\\b`, 'i').exec(words);
+      if (m && (!best || m.index < best.index)) best = { index: m.index, country, flag, city: cities.includes(name) ? (CITY_NAMES[name] || name) : '' };
+    }
+  }
+  if (!best) return {};
+  return { country: best.country, flag: best.flag, place: best.city ? `${best.city}, ${best.country}` : best.country };
+}
 async function ticketsOnSale(settings) {
   const { rows } = await pool.query(
     `SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} AND e.ticket_url <> '' ORDER BY e.starts_at ASC LIMIT ${TICKETS_MAX}`);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Harare' }).format(new Date()); // YYYY-MM-DD
   const out = rows.map((e) => ({
     kind: 'event', event_id: e.id, title: e.title, venue: e.venue, starts_at: e.starts_at, url: e.ticket_url,
-    photo_ids: e.photo_ids, sort: new Date(e.starts_at).getTime(),
+    photo_ids: e.photo_ids, sort: new Date(e.starts_at).getTime(), ...placeOf(e.venue, e.title, e.description),
   }));
   const eventUrls = new Set(out.map((t) => t.url));
   for (const n of [1, 2]) {
@@ -287,6 +311,7 @@ async function ticketsOnSale(settings) {
     out.push({
       kind: 'card', card: n, title: settings[`ticket${n}_title`], subtitle: settings[`ticket${n}_subtitle`],
       label: settings[`ticket${n}_label`], date, url, sort: new Date(`${date}T23:59:00+02:00`).getTime(),
+      ...placeOf(settings[`ticket${n}_subtitle`], settings[`ticket${n}_title`]),
     });
   }
   return out.sort((a, b) => a.sort - b.sort).slice(0, TICKETS_MAX).map(({ sort, ...t }) => t);
@@ -743,9 +768,15 @@ async function savedContent() {
 
 admin.get('/content', wrap(async (req, res) => {
   const saved = await savedContent();
+  // "One event" previews the newest event that has photos (else any event).
+  const ev = await pool.query('SELECT e.id FROM events e ORDER BY (SELECT count(*) FROM media m WHERE m.event_id = e.id) > 0 DESC, e.starts_at DESC LIMIT 1');
+  const eventId = ev.rows[0] && ev.rows[0].id;
   res.json({
+    sections: content.SECTIONS.map((sec) => ({
+      ...sec, url: sec.url && sec.url.includes(':event') ? (eventId ? sec.url.replace(':event', eventId) : null) : sec.url,
+    })),
     fields: content.FIELDS.map((f) => ({
-      key: f.key, page: f.page, section: f.section, label: f.label, type: f.type, hint: f.hint || '',
+      key: f.key, page: f.page, section: f.section, label: f.label, type: f.type, hint: f.hint || '', accent: f.accent || '', client: !!f.client,
       default: f.def, value: saved[f.key] === undefined ? '' : saved[f.key],
     })),
   });
@@ -815,7 +846,7 @@ admin.get('/stats', wrap(async (req, res) => {
 // Names used in error messages, matching the labels in the admin panel.
 const SETTING_LABELS = {
   hero_text: 'Home page tagline', about_text: 'About us', contact_email: 'Email', phone: 'Phone', address: 'Address',
-  instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', youtube_url: 'YouTube',
+  instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', whatsapp_url: 'WhatsApp channel', youtube_url: 'YouTube',
   ticket1_title: 'Ticket card 1 event name', ticket1_subtitle: 'Ticket card 1 where', ticket1_label: 'Ticket card 1 button text', ticket1_url: 'Ticket card 1 ticket website',
   exp1_label: 'Experience card 1 word', exp2_label: 'Experience card 2 word', exp3_label: 'Experience card 3 word',
   ticket1_date: 'Ticket card 1 event date', ticket2_date: 'Ticket card 2 event date',
@@ -1208,7 +1239,12 @@ function sendPage(res, file, status = 200) {
   // Public pages: fill in the website text and hand the scripts their words.
   // The home page also gets its header video (or first photo) in the HTML,
   // so it starts loading at once instead of after the page's scripts run.
-  const heroMedia = file !== 'index.html' ? Promise.resolve('')
+  // ?rnbedit=1 is the admin panel's Website text preview: every piece of text
+  // can be tapped to edit it (public/js/edit-mode.js). It only adds markers;
+  // saving still needs an admin login. &hero=0 leaves out the header video.
+  const q = (res.req && res.req.query) || {};
+  const edit = q.rnbedit === '1';
+  const heroMedia = file !== 'index.html' || (edit && q.hero === '0') ? Promise.resolve('')
     : heroCache && heroCache.exp > Date.now() ? Promise.resolve(heroCache.html)
     : pool.query("SELECT id, mime FROM media WHERE category = 'site' AND slot = 'hero' ORDER BY created_at, id")
       .then(({ rows }) => {
@@ -1220,9 +1256,13 @@ function sendPage(res, file, status = 200) {
       }).then((html) => { heroCache = { html, exp: Date.now() + API_TTL }; return html; }).catch(() => '');
   Promise.all([savedContent().catch(() => ({})), heroMedia]).then(([saved, hero]) => {
     const json = JSON.stringify(content.clientText(saved)).replace(/</g, '\\u003c');
-    const out = content.fillPage(html, saved)
+    let out = content.fillPage(html, saved, { edit })
       .replace('<section class="hero"><!--HERO_MEDIA-->', hero ? `<section class="hero has-slides">${hero}` : '<section class="hero">')
-      .replace('<script src="/js/common.js', `<script id="rnb-text" type="application/json">${json}</script>\n<script src="/js/common.js`);
+      .replace('<script src="/js/common.js', `<script id="rnb-text" type="application/json">${json}</script>\n${edit ? '<script>window.RNB_EDIT = true;</script>\n' : ''}<script src="/js/common.js`);
+    if (edit) {
+      out = out.replace('</body>', `<script src="/js/edit-mode.js?v=${assetVersion('/js/edit-mode.js')}"></script>\n</body>`)
+        .replace('<head>', '<head>\n<meta name="robots" content="noindex">');
+    }
     res.status(status).set('Cache-Control', 'no-cache').type('html').send(out);
   });
 }

@@ -29,6 +29,7 @@ const SETTING_DEFAULTS = {
   instagram_url: 'https://www.instagram.com/rnbdancehalllovers/',
   facebook_url: '',
   tiktok_url: '',
+  whatsapp_url: 'https://whatsapp.com/channel/0029Vb6xj0D47Xe6bVFhv92q',
   youtube_url: '',
   // Ticket cards on the home page (also used for the footer buttons).
   ticket1_title: '1 Year Anniversary',

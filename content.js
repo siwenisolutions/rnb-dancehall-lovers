@@ -14,21 +14,20 @@
 
 const FIELDS = [
   // ---------- every page ----------
-  { key: 'site_name', page: 'Every page', section: 'Name, menu and footer', label: 'Website name', type: 'line', def: 'RnB Dancehall Lovers', client: true, hint: 'Used in the footer, the browser tab and when links are shared.' },
-  { key: 'nav_tickets', page: 'Every page', section: 'Name, menu and footer', label: 'Menu: tickets', type: 'line', def: 'Tickets', client: true },
-  { key: 'nav_upcoming', page: 'Every page', section: 'Name, menu and footer', label: 'Menu: upcoming', type: 'line', def: 'Upcoming', client: true },
-  { key: 'nav_events', page: 'Every page', section: 'Name, menu and footer', label: 'Menu: events', type: 'line', def: 'Events', client: true },
-  { key: 'nav_gallery', page: 'Every page', section: 'Name, menu and footer', label: 'Menu: gallery', type: 'line', def: 'Gallery', client: true },
-  { key: 'nav_experiences', page: 'Every page', section: 'Name, menu and footer', label: 'Menu: experiences', type: 'line', def: 'Experiences', client: true },
-  { key: 'footer_events', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: events heading', type: 'line', def: 'Events', client: true },
-  { key: 'footer_upcoming', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: upcoming events link', type: 'line', def: 'Upcoming Events', client: true },
-  { key: 'footer_past', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: past events link', type: 'line', def: 'Past Events', client: true },
-  { key: 'footer_gallery', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: gallery link', type: 'line', def: 'Photo Gallery', client: true },
-  { key: 'footer_experience', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: experience link', type: 'line', def: 'The Experience', client: true },
-  { key: 'footer_visit', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: address heading', type: 'line', def: 'Visit', client: true },
-  { key: 'footer_contact', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: contact heading', type: 'line', def: 'Contact', client: true },
-  { key: 'footer_place', page: 'Every page', section: 'Name, menu and footer', label: 'Footer: city after the © line', type: 'line', def: 'Harare, Zimbabwe', client: true },
-  { key: 'back_home', page: 'Every page', section: 'Name, menu and footer', label: '"Back to home" link', type: 'line', def: '← Back to home' },
+  { key: 'site_name', page: 'Every page', section: 'Footer', label: 'Website name', type: 'line', def: 'RnB Dancehall Lovers', client: true, hint: 'Used in the footer, the browser tab and when links are shared.' },
+  { key: 'nav_tickets', page: 'Every page', section: 'Menu', label: 'Menu: tickets', type: 'line', def: 'Tickets', client: true },
+  { key: 'nav_upcoming', page: 'Every page', section: 'Menu', label: 'Menu: upcoming', type: 'line', def: 'Upcoming', client: true },
+  { key: 'nav_events', page: 'Every page', section: 'Menu', label: 'Menu: events', type: 'line', def: 'Events', client: true },
+  { key: 'nav_gallery', page: 'Every page', section: 'Menu', label: 'Menu: gallery', type: 'line', def: 'Gallery', client: true },
+  { key: 'nav_experiences', page: 'Every page', section: 'Menu', label: 'Menu: experiences', type: 'line', def: 'Experiences', client: true },
+  { key: 'footer_events', page: 'Every page', section: 'Footer', label: 'Footer: events heading', type: 'line', def: 'Events', client: true },
+  { key: 'footer_upcoming', page: 'Every page', section: 'Footer', label: 'Footer: upcoming events link', type: 'line', def: 'Upcoming Events', client: true },
+  { key: 'footer_past', page: 'Every page', section: 'Footer', label: 'Footer: past events link', type: 'line', def: 'Past Events', client: true },
+  { key: 'footer_gallery', page: 'Every page', section: 'Footer', label: 'Footer: gallery link', type: 'line', def: 'Photo Gallery', client: true },
+  { key: 'footer_experience', page: 'Every page', section: 'Footer', label: 'Footer: experience link', type: 'line', def: 'The Experience', client: true },
+  { key: 'footer_visit', page: 'Every page', section: 'Footer', label: 'Footer: address heading', type: 'line', def: 'Visit', client: true },
+  { key: 'footer_contact', page: 'Every page', section: 'Footer', label: 'Footer: contact heading', type: 'line', def: 'Contact', client: true },
+  { key: 'footer_place', page: 'Every page', section: 'Footer', label: 'Footer: city after the © line', type: 'line', def: 'Harare, Zimbabwe', client: true },
 
   // ---------- home page ----------
   { key: 'home_title', page: 'Home page', section: 'Browser tab and sharing', label: 'Title in the browser tab', type: 'line', def: 'RnB Dancehall Lovers — Old Is the New Vibe' },
@@ -91,13 +90,14 @@ const FIELDS = [
   { key: 'join2_btn', page: 'Home page', section: 'Bottom panels', label: 'Right panel: button', type: 'line', def: 'See the photos →' },
 
   // ---------- events ----------
-  { key: 'events_title1', page: 'Events page', section: 'Events page', label: 'Title, first line (outlined)', type: 'line', def: 'ALL' },
-  { key: 'events_title2', page: 'Events page', section: 'Events page', label: 'Title, second line', type: 'line', def: 'EVENTS' },
-  { key: 'events_tab_upcoming', page: 'Events page', section: 'Events page', label: 'Upcoming tab and heading', type: 'line', def: 'Upcoming' },
-  { key: 'events_tab_past', page: 'Events page', section: 'Events page', label: 'History tab and heading', type: 'line', def: 'Event history' },
-  { key: 'events_past_text', page: 'Events page', section: 'Events page', label: 'Text above past events', type: 'text', def: 'Every past event, with its photos. Events show on the home page for 30 days, then live here.' },
-  { key: 'events_empty_upcoming', page: 'Events page', section: 'Events page', label: 'When there are no upcoming events', type: 'line', def: 'No upcoming events yet. New dates coming soon.', client: true },
-  { key: 'events_empty_past', page: 'Events page', section: 'Events page', label: 'When there are no past events', type: 'line', def: 'No past events added yet.', client: true },
+  { key: 'back_home', page: 'Events page', section: 'Top of the page', label: '"Back to home" link', type: 'line', def: '← Back to home' },
+  { key: 'events_title1', page: 'Events page', section: 'Top of the page', label: 'Title, first line (outlined)', type: 'line', def: 'ALL' },
+  { key: 'events_title2', page: 'Events page', section: 'Top of the page', label: 'Title, second line', type: 'line', def: 'EVENTS' },
+  { key: 'events_tab_upcoming', page: 'Events page', section: 'Top of the page', label: 'Upcoming tab and heading', type: 'line', def: 'Upcoming' },
+  { key: 'events_tab_past', page: 'Events page', section: 'Top of the page', label: 'History tab and heading', type: 'line', def: 'Event history' },
+  { key: 'events_past_text', page: 'Events page', section: 'Event lists', label: 'Text above past events', type: 'text', def: 'Every past event, with its photos. Events show on the home page for 30 days, then live here.' },
+  { key: 'events_empty_upcoming', page: 'Events page', section: 'Event lists', label: 'When there are no upcoming events', type: 'line', def: 'No upcoming events yet. New dates coming soon.', client: true },
+  { key: 'events_empty_past', page: 'Events page', section: 'Event lists', label: 'When there are no past events', type: 'line', def: 'No past events added yet.', client: true },
   { key: 'event_back', page: 'Events page', section: 'One event', label: '"All events" link', type: 'line', def: '← All events' },
   { key: 'event_photos', page: 'Events page', section: 'One event', label: 'Photos heading', type: 'line', def: 'Photos' },
   { key: 'event_tag_upcoming', page: 'Events page', section: 'One event', label: 'Label for an upcoming event', type: 'line', def: 'Upcoming', client: true },
@@ -105,23 +105,48 @@ const FIELDS = [
   { key: 'event_ticket_btn', page: 'Events page', section: 'One event', label: 'Ticket button', type: 'line', def: 'Get Tickets →', client: true },
 
   // ---------- gallery ----------
-  { key: 'gallery_title1', page: 'Gallery page', section: 'Gallery page', label: 'Title, first line (outlined)', type: 'line', def: 'PHOTO' },
-  { key: 'gallery_title2', page: 'Gallery page', section: 'Gallery page', label: 'Title, second line', type: 'line', def: 'GALLERY' },
-  { key: 'gallery_tab_all', page: 'Gallery page', section: 'Gallery page', label: 'Tab: all photos', type: 'line', def: 'All photos' },
-  { key: 'gallery_tab_experience', page: 'Gallery page', section: 'Gallery page', label: 'Tab: the experience', type: 'line', def: 'The Experience' },
-  { key: 'gallery_tab_event', page: 'Gallery page', section: 'Gallery page', label: 'Tab: event photos', type: 'line', def: 'Event photos' },
-  { key: 'gallery_tab_highlights', page: 'Gallery page', section: 'Gallery page', label: 'Tab: highlights', type: 'line', def: 'Highlights' },
-  { key: 'gallery_this_month', page: 'Gallery page', section: 'Gallery page', label: 'Heading for this month', type: 'line', def: 'This month', client: true },
-  { key: 'gallery_last_month', page: 'Gallery page', section: 'Gallery page', label: 'Heading for last month', type: 'line', def: 'Last month', client: true },
-  { key: 'photo_download', page: 'Gallery page', section: 'Gallery page', label: 'Photo viewer: download button', type: 'line', def: 'Download', client: true },
-  { key: 'photo_share', page: 'Gallery page', section: 'Gallery page', label: 'Photo viewer: share button', type: 'line', def: 'Share', client: true },
-  { key: 'gallery_empty', page: 'Gallery page', section: 'Gallery page', label: 'When a tab has no photos', type: 'line', def: 'No photos here yet.', client: true },
+  { key: 'gallery_title1', page: 'Gallery page', section: 'Top of the page', label: 'Title, first line (outlined)', type: 'line', def: 'PHOTO' },
+  { key: 'gallery_title2', page: 'Gallery page', section: 'Top of the page', label: 'Title, second line', type: 'line', def: 'GALLERY' },
+  { key: 'gallery_tab_all', page: 'Gallery page', section: 'Top of the page', label: 'Tab: all photos', type: 'line', def: 'All photos' },
+  { key: 'gallery_tab_experience', page: 'Gallery page', section: 'Top of the page', label: 'Tab: the experience', type: 'line', def: 'The Experience' },
+  { key: 'gallery_tab_event', page: 'Gallery page', section: 'Top of the page', label: 'Tab: event photos', type: 'line', def: 'Event photos' },
+  { key: 'gallery_tab_highlights', page: 'Gallery page', section: 'Top of the page', label: 'Tab: highlights', type: 'line', def: 'Highlights' },
+  { key: 'gallery_this_month', page: 'Gallery page', section: 'Photos', label: 'Heading for this month', type: 'line', def: 'This month', client: true },
+  { key: 'gallery_last_month', page: 'Gallery page', section: 'Photos', label: 'Heading for last month', type: 'line', def: 'Last month', client: true },
+  { key: 'photo_download', page: 'Gallery page', section: 'Photos', label: 'Photo viewer: download button', type: 'line', def: 'Download', client: true },
+  { key: 'photo_share', page: 'Gallery page', section: 'Photos', label: 'Photo viewer: share button', type: 'line', def: 'Share', client: true },
+  { key: 'gallery_empty', page: 'Gallery page', section: 'Photos', label: 'When a tab has no photos', type: 'line', def: 'No photos here yet.', client: true },
 
   // ---------- 404 ----------
-  { key: 'notfound_title', page: '"Page not found" page', section: '"Page not found" page', label: 'Title', type: 'heading', def: 'LOST THE RIDDIM?' },
-  { key: 'notfound_text', page: '"Page not found" page', section: '"Page not found" page', label: 'Text', type: 'text', def: "That page doesn't exist. Head back to the home page or check out our events." },
-  { key: 'notfound_btn1', page: '"Page not found" page', section: '"Page not found" page', label: 'First button', type: 'line', def: 'Home' },
-  { key: 'notfound_btn2', page: '"Page not found" page', section: '"Page not found" page', label: 'Second button', type: 'line', def: 'Events' },
+  { key: 'notfound_title', page: '"Page not found" page', section: 'Whole page', label: 'Title', type: 'heading', def: 'LOST THE RIDDIM?' },
+  { key: 'notfound_text', page: '"Page not found" page', section: 'Whole page', label: 'Text', type: 'text', def: "That page doesn't exist. Head back to the home page or check out our events." },
+  { key: 'notfound_btn1', page: '"Page not found" page', section: 'Whole page', label: 'First button', type: 'line', def: 'Home' },
+  { key: 'notfound_btn2', page: '"Page not found" page', section: 'Whole page', label: 'Second button', type: 'line', def: 'Events' },
+];
+
+// Where each section is on the website, for the admin panel's live preview:
+// the page to open and the part of it to show (a CSS selector). Sections
+// without a url are edited as a form (they aren't visible on the page).
+const SECTIONS = [
+  { page: 'Every page', section: 'Menu', url: '/events', show: 'header' },
+  { page: 'Every page', section: 'Footer', url: '/', show: 'footer' },
+  { page: 'Home page', section: 'Browser tab and sharing', url: null, show: null },
+  { page: 'Home page', section: 'Header', url: '/', show: '.hero', hero: true },
+  { page: 'Home page', section: 'Intro cards', url: '/', show: '.intro-cards' },
+  { page: 'Home page', section: 'Word strip', url: '/', show: '.logos' },
+  { page: 'Home page', section: 'Upcoming events', url: '/', show: '#upcoming' },
+  { page: 'Home page', section: 'Tickets on sale', url: '/', show: '#tickets' },
+  { page: 'Home page', section: 'The Experience', url: '/', show: '#experience' },
+  { page: 'Home page', section: 'Merchandise', url: '/', show: '.custom-exp' },
+  { page: 'Home page', section: 'Recent events', url: '/', show: '#cases' },
+  { page: 'Home page', section: 'Big words banner', url: '/', show: '.stat-banner' },
+  { page: 'Home page', section: 'Bottom panels', url: '/', show: '.join' },
+  { page: 'Events page', section: 'Top of the page', url: '/events', show: '.page-head' },
+  { page: 'Events page', section: 'Event lists', url: '/events', show: '#upcoming, #past' },
+  { page: 'Events page', section: 'One event', url: '/events/:event', show: 'main' },
+  { page: 'Gallery page', section: 'Top of the page', url: '/gallery', show: '.page-head' },
+  { page: 'Gallery page', section: 'Photos', url: '/gallery', show: '#grid, #status' },
+  { page: '"Page not found" page', section: 'Whole page', url: '/rnb-page-that-is-not-there', show: 'main' },
 ];
 
 const BY_KEY = new Map(FIELDS.map((f) => [f.key, f]));
@@ -175,11 +200,31 @@ function valueOf(field, saved) {
 }
 
 // Fills {{key}} placeholders in a page. Unknown keys are left out.
-function fillPage(html, saved) {
-  return html.replace(/\{\{([a-z0-9_]+)\}\}/g, (m, key) => {
+// With edit: true (the admin panel's preview), text shown on the page is
+// wrapped in <span data-rnb-k="key"> so it can be tapped and edited; text in
+// tags, the tab title and scripts is filled in as usual.
+const RAW_TAGS = /^<(title|script|style|textarea)\b/i;
+const RAW_END = /^<\/(title|script|style|textarea)\b/i;
+function fillPage(html, saved, opts) {
+  const fill = (key) => {
     const f = BY_KEY.get(key);
     return f ? render(f, valueOf(f, saved)) : '';
-  });
+  };
+  if (!opts || !opts.edit) return html.replace(/\{\{([a-z0-9_]+)\}\}/g, (m, key) => fill(key));
+  let raw = false;
+  return html.split(/(<[^>]*>)/).map((part) => {
+    if (part.startsWith('<')) {
+      if (RAW_TAGS.test(part)) raw = true;
+      else if (RAW_END.test(part)) raw = false;
+      return part.replace(/\{\{([a-z0-9_]+)\}\}/g, (m, key) => fill(key));
+    }
+    return part.replace(/\{\{([a-z0-9_]+)\}\}/g, (m, key) => {
+      if (raw || !BY_KEY.has(key)) return fill(key);
+      // Lists with their own layout keep it: the wrapper takes no space.
+      const cls = RENDER[key] ? ' class="rnb-k-box"' : '';
+      return `<span data-rnb-k="${key}"${cls}>${fill(key)}</span>`;
+    });
+  }).join('');
 }
 
 // Words the page scripts need, as plain text.
@@ -202,4 +247,4 @@ function clean(field, value) {
   return v;
 }
 
-module.exports = { FIELDS, BY_KEY, fillPage, clientText, clean, valueOf, render };
+module.exports = { FIELDS, SECTIONS, BY_KEY, fillPage, clientText, clean, valueOf, render };

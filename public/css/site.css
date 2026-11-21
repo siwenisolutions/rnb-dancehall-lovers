@@ -407,10 +407,24 @@ footer{padding:80px 0 40px; margin-top:90px; border-top:1px solid var(--line);}
 .footer-col a{display:block; font-size:14px; margin-bottom:10px; color:#3a3733;}
 .footer-col a:hover{color:var(--text);}
 .footer-brand p{margin-top:14px; font-size:13px; color:var(--muted); max-width:260px; line-height:1.6;}
-.footer-socials{display:flex; gap:10px; margin-top:18px;}
-.footer-socials a{width:32px; height:32px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:12px;}
+.footer-socials{display:flex; flex-wrap:wrap; gap:10px; margin-top:18px;}
+.footer-socials a.soc{width:42px; height:42px; margin:0; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color:#141210; background:#fff; transition:transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease;}
+.footer-socials a.soc:hover{transform:translateY(-2px); color:#fff; border-color:transparent;}
+.footer-socials .soc-ic{display:flex;}
+.footer-socials .soc-ig:hover{background:radial-gradient(circle at 30% 107%,#fdf497 0%,#fd5949 45%,#d6249f 60%,#285aeb 90%);}
+.footer-socials .soc-fb:hover{background:#1877f2;}
+.footer-socials .soc-tt:hover{background:#111;}
+.footer-socials .soc-wa:hover{background:#25d366;}
+.footer-socials .soc-yt:hover{background:#ff0033;}
+.footer-socials .soc-yt:hover path{fill:#ff0033;}
 .footer-buttons{display:flex; flex-direction:column; gap:10px;}
 .footer-buttons .btn{justify-content:center;}
+.footer-buttons .btn-ticket{display:flex; align-items:center; margin-bottom:0; justify-content:flex-start; gap:12px; text-align:left; padding-top:10px; padding-bottom:10px; line-height:1.25;}
+.btn-ticket .flag{font-size:22px; line-height:1;}
+.btn-ticket .bt-txt{display:flex; flex-direction:column; flex:1; min-width:0;}
+.btn-ticket .bt-txt b{font-weight:700;}
+.btn-ticket .bt-txt small{font-size:12px; font-weight:500; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.btn-ticket .bt-arrow{margin-left:auto;}
 .footer-buttons .btn-cta{background:var(--green); color:#0f2400;}
 .footer-bottom{
   display:flex; justify-content:space-between; align-items:center;

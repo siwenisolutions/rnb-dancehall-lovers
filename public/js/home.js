@@ -140,8 +140,15 @@
     var s = data.settings || {};
     var slots = data.slots || {};
     if (s.hero_text) document.getElementById('heroText').textContent = s.hero_text;
-    s.ticket_links = (data.tickets || []).slice(0, 2).map(function (tk) {
-      return { url: tk.url, label: (tk.kind === 'card' && tk.label) || R.t('ticket_btn') || 'Get Tickets' };
+    s.ticket_links = (data.tickets || []).map(function (tk) {
+      var label = (tk.kind === 'card' && tk.label) || R.t('ticket_btn') || 'Get Tickets';
+      // A card's button may already name the country, e.g. "Get Tickets (South Africa)".
+      if (tk.country) label = label.replace(new RegExp('\\s*[(\\-–·,]*\\s*' + tk.country + '\\s*\\)?', 'i'), '').trim() || 'Get Tickets';
+      var at = tk.starts_at || (tk.date ? tk.date + 'T12:00:00+02:00' : '');
+      var when = at ? R.fmtDay(at) + ' ' + R.fmtMonth(at) : '';
+      // "Harare" for a city; the event's name when only the country is known.
+      var city = tk.place && tk.place !== tk.country ? tk.place.replace(/, [^,]+$/, '') : '';
+      return { url: tk.url, label: label, country: tk.country || '', flag: tk.flag || '', place: city || tk.title || '', title: tk.title || '', when: when };
     });
     R.renderFooter(s);
     slideshow(document.querySelector('.hero'), slots.hero, { video: true, videoBase: data.video_base });
