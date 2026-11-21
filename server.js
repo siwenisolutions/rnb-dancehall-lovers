@@ -676,21 +676,39 @@ app.use((err, req, res, next) => {
 
 // Render's free plan puts the site to sleep after 15 minutes without visitors,
 // and the next visitor waits about a minute on a loading screen. Calling our
-// own public address every 10 minutes counts as a visitor, so it never sleeps.
-// Render sets RENDER_EXTERNAL_URL itself; set KEEP_AWAKE=off to turn this off
-// (for example after moving to a paid plan, which never sleeps).
+// own public address every 10 minutes counts as a visitor, so it stays awake.
+// Free hours (750 a month) are shared with every free service in the Render
+// workspace, so by default it only stays awake 06:00-24:00 Zimbabwe time
+// (KEEP_AWAKE_HOURS="6-24"; "0-24" = always). Overnight it is allowed to sleep;
+// the first visitor after 06:00 wakes it and the pings take over again.
+// Render sets RENDER_EXTERNAL_URL itself; KEEP_AWAKE=off turns this off
+// (for example on a paid plan, which never sleeps).
+function awakeWindow(spec) {
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(String(spec || '').trim());
+  const start = m ? Number(m[1]) : 6;
+  const end = m ? Number(m[2]) : 24;
+  return (start >= 0 && end <= 24 && start < end) ? { start, end } : { start: 6, end: 24 };
+}
+
+function hourInZimbabwe(date = new Date()) {
+  return Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Africa/Harare' }).format(date));
+}
+
 function keepAwake() {
   const base = process.env.RENDER_EXTERNAL_URL;
   if (!base || process.env.KEEP_AWAKE === 'off') return;
   const url = `${base.replace(/\/$/, '')}/ping`;
   const minutes = Math.max(1, Number(process.env.KEEP_AWAKE_MINUTES) || 10);
+  const { start, end } = awakeWindow(process.env.KEEP_AWAKE_HOURS);
   const timer = setInterval(() => {
+    const hour = hourInZimbabwe();
+    if (hour < start || hour >= end) return; // quiet hours: let it sleep
     fetch(url, { signal: AbortSignal.timeout(30000) })
       .then((r) => { if (!r.ok) console.warn(`[keep-awake] ${url} answered ${r.status}`); })
       .catch((err) => console.warn('[keep-awake] ping failed:', err.message));
   }, minutes * 60 * 1000);
   timer.unref();
-  console.log(`[keep-awake] pinging ${url} every ${minutes} min`);
+  console.log(`[keep-awake] pinging ${url} every ${minutes} min, ${start}:00-${end}:00 Zimbabwe time`);
 }
 
 if (require.main === module) {
@@ -706,4 +724,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { app };
+module.exports = { app, awakeWindow, hourInZimbabwe };

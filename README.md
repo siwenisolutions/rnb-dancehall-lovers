@@ -32,7 +32,8 @@ Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:i
 | `SESSION_SECRET` | Random string, 32+ characters, used to sign login cookies |
 | `CANONICAL_HOST` | Set to `rnbdancehalllovers.co.zw` once the domain works: every other address (www, onrender.com) redirects there |
 | `NODE_ENV` | `production` on Render (makes cookies HTTPS-only) |
-| `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render never puts it to sleep. Set to `off` after moving to a paid plan |
+| `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render doesn't put it to sleep. Set to `off` after moving to a paid plan |
+| `KEEP_AWAKE_HOURS` | When to stay awake, in Zimbabwe time. Default `6-24` (free hours are shared with other free services in the workspace); `0-24` = always |
 
 ## Run locally
 
