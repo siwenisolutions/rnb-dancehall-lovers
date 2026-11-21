@@ -59,6 +59,7 @@
       document.getElementById('photosSection').hidden = false;
     }
   }).catch(function () {
+    if (detail.querySelector('.event-detail')) return; // the server already put the event in the page
     detail.textContent = '';
     detail.appendChild(el('div', { class: 'empty-state' }, [
       el('b', { text: 'Event not found' }), 'It may have been removed. ',

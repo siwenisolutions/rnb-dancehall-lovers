@@ -72,8 +72,10 @@
     fill(document.getElementById('upcomingList'), data.upcoming, R.t('events_empty_upcoming'));
     fill(document.getElementById('pastList'), data.past, R.t('events_empty_past'));
   }).catch(function () {
+    // Keep the list the server put in the page; only say so if there's none.
     ['upcomingList', 'pastList'].forEach(function (id) {
-      document.getElementById(id).textContent = 'Could not load events. Please refresh the page.';
+      var list = document.getElementById(id);
+      if (!list.querySelector('.event-card')) list.textContent = 'Could not load events. Please refresh the page.';
     });
   });
 })();
