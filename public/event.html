@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <script src="/js/guard.js"></script><!-- no "view source" / "inspect" menu or shortcuts on computers and Android (not iPhone/iPad) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Event — RnB Dancehall Lovers</title>
+<title>Event — {{site_name}}</title>
 <link rel="icon" href="/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,11 +16,11 @@
 
 <main class="wrap">
   <section class="page-head">
-    <a class="back-link" href="/events">← All events</a>
+    <a class="back-link" href="/events">{{event_back}}</a>
     <div id="detail"><p class="status-msg">Loading event…</p></div>
   </section>
   <section id="photosSection" hidden>
-    <h2 class="sub-title">Photos</h2>
+    <h2 class="sub-title">{{event_photos}}</h2>
     <div class="gallery-grid" id="grid"></div>
   </section>
 </main>
@@ -37,7 +37,7 @@
 
   R.api('/api/events/' + encodeURIComponent(id)).then(function (data) {
     var ev = data.event;
-    document.title = ev.title + ' — RnB Dancehall Lovers';
+    document.title = ev.title + ' — ' + R.t('site_name');
     var ticket = R.safeLink(ev.ticket_url);
     var poster = ev.cover_media_id
       ? el('div', { class: 'poster ph media', style: "background-image:url('" + R.mediaUrl(ev.cover_media_id) + "')", role: 'img', 'aria-label': ev.title + ' poster' })
@@ -46,12 +46,12 @@
     detail.appendChild(el('div', { class: 'event-detail' }, [
       poster,
       el('div', null, [
-        el('span', { class: 'tag ' + (ev.is_upcoming ? 'up' : 'past'), text: ev.is_upcoming ? 'Upcoming' : 'Past event' }),
+        el('span', { class: 'tag ' + (ev.is_upcoming ? 'up' : 'past'), text: ev.is_upcoming ? R.t('event_tag_upcoming') : R.t('event_tag_past') }),
         el('h1', { class: 'display', text: ev.title }),
         el('div', { class: 'when', text: R.fmtLong(ev.starts_at) }),
         ev.venue ? el('div', { class: 'venue', text: ev.venue }) : null,
         ev.description ? el('div', { class: 'desc', text: ev.description }) : null,
-        ticket && ev.is_upcoming ? el('a', { class: 'btn btn-primary', href: ticket, target: '_blank', rel: 'noopener', text: 'Get Tickets →' }) : null
+        ticket && ev.is_upcoming ? el('a', { class: 'btn btn-primary', href: ticket, target: '_blank', rel: 'noopener', text: R.t('event_ticket_btn') }) : null
       ])
     ]));
     if (data.photos.length) {

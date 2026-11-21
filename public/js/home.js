@@ -51,8 +51,8 @@
     if (!events.length) {
       var ig = R.safeLink(settings.instagram_url);
       upcomingList.appendChild(el('div', { class: 'empty-state', style: 'grid-column:1/-1; margin-top:0;' }, [
-        el('b', { text: 'New dates coming soon' }),
-        'Follow us on Instagram to be the first to know about our next night.',
+        el('b', { text: R.t('upcoming_empty_title') }),
+        R.t('upcoming_empty_text'),
         el('br'),
         ig ? el('a', { class: 'btn btn-primary', href: ig, target: '_blank', rel: 'noopener', text: '@rnbdancehalllovers →' }) : null
       ]));
@@ -95,10 +95,10 @@
     var cards = [1, 2].map(function (n) {
       var url = R.safeLink(s['ticket' + n + '_url']);
       if (!url) return null;
-      var title = s['ticket' + n + '_title'] || 'RnB Dancehall Lovers';
+      var title = s['ticket' + n + '_title'] || R.t('site_name');
       var host = '';
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
-      var thumb = el('div', { class: 'ticket-thumb ticket-thumb-' + n }, [el('span', { class: 'ticket-chip', text: 'Tickets on sale' })]);
+      var thumb = el('div', { class: 'ticket-thumb ticket-thumb-' + n }, [el('span', { class: 'ticket-chip', text: R.t('ticket_chip') })]);
       slideshow(thumb, slots['ticket' + n]);
       return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
         thumb,

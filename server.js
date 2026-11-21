@@ -9,9 +9,10 @@ const storage = require('./storage');
 const { compressPendingVideos } = require('./jobs');
 const { processImage, detectVideo } = require('./images');
 const { importPost } = require('./social');
+const auth = require('./auth');
+const content = require('./content');
 
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const SESSION_HOURS = 12;
@@ -32,8 +33,8 @@ const STORAGE_USED_SQL = storage.enabled
   ? '(SELECT COALESCE(sum(COALESCE(bytes, 0) + COALESCE(thumb_bytes, 0)), 0) FROM media)'
   : '(SELECT sum(pg_database_size(datname)) FROM pg_database WHERE NOT datistemplate)';
 
-if (ADMIN_PASSWORD.length < 10 || SESSION_SECRET.length < 32) {
-  throw new Error('ADMIN_PASSWORD (10+ chars) and SESSION_SECRET (32+ chars) must be set');
+if (SESSION_SECRET.length < 32) {
+  throw new Error('SESSION_SECRET (32+ chars) must be set');
 }
 
 const app = express();
@@ -124,27 +125,43 @@ function parseId(value) {
   return n;
 }
 
-// ---------- admin sessions (HMAC-signed cookie, no server state) ----------
+// ---------- admin sessions ----------
+// The cookie holds the admin's id, their session version and an expiry,
+// signed with SESSION_SECRET. Changing the password (or "sign out
+// everywhere") raises the version in the database, which ends older sessions.
+const REMEMBER_DAYS = 30;
 
 function sign(payload) {
   return crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
 }
 
-function makeSession() {
-  const payload = `admin.${Date.now() + SESSION_HOURS * 3600 * 1000}`;
-  return `${payload}.${sign(payload)}`;
+function makeSession(admin, remember) {
+  const ms = remember ? REMEMBER_DAYS * 86400 * 1000 : SESSION_HOURS * 3600 * 1000;
+  const payload = `v2.${admin.id}.${admin.session_version}.${Date.now() + ms}`;
+  return { value: `${payload}.${sign(payload)}`, maxAge: Math.floor(ms / 1000) };
 }
 
-function validSession(token) {
-  if (typeof token !== 'string') return false;
+// Returns { id, version } for a well-formed, unexpired, correctly signed cookie.
+function readSession(token) {
+  if (typeof token !== 'string') return null;
   const i = token.lastIndexOf('.');
-  if (i < 0) return false;
+  if (i < 0) return null;
   const payload = token.slice(0, i);
   const expected = Buffer.from(sign(payload));
   const given = Buffer.from(token.slice(i + 1));
-  if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) return false;
-  const exp = Number(payload.split('.')[1]);
-  return Number.isFinite(exp) && exp > Date.now();
+  if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) return null;
+  const [v, id, version, exp] = payload.split('.');
+  if (v !== 'v2' || !(Number(exp) > Date.now())) return null;
+  return { id: Number(id), version: Number(version) };
+}
+
+async function currentAdmin(req) {
+  const sess = readSession(readCookie(req, COOKIE));
+  if (!sess) return null;
+  const { rows } = await pool.query(
+    'SELECT id, email, name, must_change, session_version, password_changed_at, last_login_at FROM admins WHERE id = $1', [sess.id]);
+  const a = rows[0];
+  return a && a.session_version === sess.version ? a : null;
 }
 
 function readCookie(req, name) {
@@ -168,13 +185,8 @@ function setSessionCookie(res, value, maxAgeSeconds) {
   res.set('Set-Cookie', parts.join('; '));
 }
 
-function passwordMatches(given) {
-  const a = crypto.createHash('sha256').update(String(given)).digest();
-  const b = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
-  return crypto.timingSafeEqual(a, b);
-}
-
-// Simple in-memory brute-force guard: 10 failed logins per IP per 15 minutes.
+// Brute-force guards: 10 failed logins per IP per 15 minutes, and an account
+// locks for 15 minutes after 5 wrong passwords in a row.
 const failedLogins = new Map();
 function tooManyAttempts(ip) {
   const now = Date.now();
@@ -188,15 +200,26 @@ function recordFailure(ip) {
   if (!entry || entry.reset < now) failedLogins.set(ip, { count: 1, reset: now + 15 * 60 * 1000 });
   else entry.count += 1;
 }
+const ACCOUNT_MAX_FAILS = 5;
+const LOCK_MINUTES = 15;
+
+// Paths an admin may use before choosing their own password.
+const BEFORE_PASSWORD_CHANGE = new Set(['/account', '/account/password']);
 
 function requireAdmin(req, res, next) {
-  if (!validSession(readCookie(req, COOKIE))) return next(httpError(401, 'Please log in again.'));
   // Writes must come from our own admin page (custom header can't be sent cross-site
   // without a CORS preflight, which we never allow). SameSite=Strict covers the rest.
   if (req.method !== 'GET' && req.get('X-RNB-Admin') !== '1') {
     return next(httpError(403, 'Request blocked.'));
   }
-  next();
+  currentAdmin(req).then((a) => {
+    if (!a) return next(httpError(401, 'Please log in again.'));
+    req.admin = a;
+    if (a.must_change && !BEFORE_PASSWORD_CHANGE.has(req.path)) {
+      return next(Object.assign(httpError(403, 'Please choose your own password first.'), { code: 'must_change' }));
+    }
+    next();
+  }, next);
 }
 
 // ---------- public API ----------
@@ -364,30 +387,152 @@ async function sendFromBucket(req, res, id, mime, size) {
 
 // ---------- admin API ----------
 
-app.post('/api/admin/login', express.json({ limit: '10kb' }), (req, res, next) => {
-  if (tooManyAttempts(req.ip)) return next(httpError(429, 'Too many attempts. Try again in 15 minutes.'));
-  const password = req.body && req.body.password;
-  if (typeof password !== 'string' || !passwordMatches(password)) {
+app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, res) => {
+  if (tooManyAttempts(req.ip)) throw httpError(429, 'Too many attempts. Try again in 15 minutes.');
+  const body = req.body || {};
+  const email = auth.normaliseEmail(body.email);
+  const password = typeof body.password === 'string' ? body.password : '';
+  const { rows } = await pool.query('SELECT * FROM admins WHERE email = $1', [email]);
+  const a = rows[0];
+  if (a && a.locked_until && new Date(a.locked_until) > new Date()) {
+    throw httpError(429, `Too many wrong passwords. This login is locked for ${Math.ceil((new Date(a.locked_until) - Date.now()) / 60000)} more minutes.`);
+  }
+  const ok = await auth.verifyPassword(password, a && a.password_hash);
+  if (!a || !ok) {
     recordFailure(req.ip);
-    return next(httpError(401, 'Wrong password.'));
+    if (a) {
+      await pool.query(
+        `UPDATE admins SET failed_logins = failed_logins + 1,
+           locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE locked_until END
+         WHERE id = $1`, [a.id, ACCOUNT_MAX_FAILS, LOCK_MINUTES]);
+    }
+    throw httpError(401, 'Wrong email or password.');
   }
   failedLogins.delete(req.ip);
-  setSessionCookie(res, makeSession(), SESSION_HOURS * 3600);
-  res.json({ ok: true });
-});
+  await pool.query('UPDATE admins SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1', [a.id]);
+  const sess = makeSession(a, body.remember === true);
+  setSessionCookie(res, sess.value, sess.maxAge);
+  res.json({ ok: true, mustChange: a.must_change, email: a.email, name: a.name });
+}));
 
 app.post('/api/admin/logout', (req, res) => {
   setSessionCookie(res, '', 0);
   res.json({ ok: true });
 });
 
-app.get('/api/admin/session', (req, res) => {
-  res.json({ loggedIn: validSession(readCookie(req, COOKIE)) });
-});
+app.get('/api/admin/session', wrap(async (req, res) => {
+  const a = await currentAdmin(req);
+  res.json(a ? { loggedIn: true, email: a.email, name: a.name, mustChange: a.must_change } : { loggedIn: false });
+}));
 
 const admin = express.Router();
 admin.use(requireAdmin);
 admin.use(express.json({ limit: '100kb' }));
+
+// ---------- your account ----------
+
+admin.get('/account', (req, res) => {
+  const a = req.admin;
+  res.json({ email: a.email, name: a.name, mustChange: a.must_change, passwordChangedAt: a.password_changed_at, lastLoginAt: a.last_login_at });
+});
+
+// Change name and/or login email. Changing the email needs the current password.
+admin.put('/account', wrap(async (req, res) => {
+  const body = req.body || {};
+  const name = cleanText(body.name === undefined ? req.admin.name : body.name, 100, 'Your name');
+  const email = body.email === undefined ? req.admin.email : auth.normaliseEmail(body.email);
+  if (!auth.validEmail(email)) throw httpError(400, 'Please enter a valid email address.');
+  if (email !== req.admin.email) {
+    const { rows } = await pool.query('SELECT password_hash FROM admins WHERE id = $1', [req.admin.id]);
+    if (!(await auth.verifyPassword(String(body.current_password || ''), rows[0].password_hash))) {
+      throw httpError(400, 'Your current password is not right.');
+    }
+    const taken = await pool.query('SELECT 1 FROM admins WHERE email = $1 AND id <> $2', [email, req.admin.id]);
+    if (taken.rowCount) throw httpError(400, 'Another login already uses that email.');
+  }
+  await pool.query('UPDATE admins SET name = $2, email = $3 WHERE id = $1', [req.admin.id, name, email]);
+  res.json({ ok: true, email, name });
+}));
+
+// Choose a new password. Signs out every other device; this one stays signed in.
+admin.post('/account/password', wrap(async (req, res) => {
+  const body = req.body || {};
+  const { rows } = await pool.query('SELECT password_hash FROM admins WHERE id = $1', [req.admin.id]);
+  if (!(await auth.verifyPassword(String(body.current_password || ''), rows[0].password_hash))) {
+    throw httpError(400, 'Your current password is not right.');
+  }
+  const next = String(body.new_password || '');
+  const problem = auth.passwordProblem(next, req.admin.email);
+  if (problem) throw httpError(400, problem);
+  if (await auth.verifyPassword(next, rows[0].password_hash)) throw httpError(400, 'Choose a password different from the one you have now.');
+  const u = await pool.query(
+    `UPDATE admins SET password_hash = $2, must_change = false, password_changed_at = now(),
+            session_version = session_version + 1 WHERE id = $1 RETURNING id, session_version`,
+    [req.admin.id, await auth.hashPassword(next)]);
+  const sess = makeSession(u.rows[0], body.remember === true);
+  setSessionCookie(res, sess.value, sess.maxAge);
+  res.json({ ok: true });
+}));
+
+// Sign out on every phone and computer, including this one.
+admin.post('/account/sign-out-everywhere', wrap(async (req, res) => {
+  await pool.query('UPDATE admins SET session_version = session_version + 1 WHERE id = $1', [req.admin.id]);
+  setSessionCookie(res, '', 0);
+  res.json({ ok: true });
+}));
+
+// ---------- website text ----------
+
+let contentCache = null;
+async function savedContent() {
+  if (contentCache) return contentCache;
+  const { rows } = await pool.query("SELECT key, value FROM settings WHERE key LIKE 'c:%'");
+  const out = {};
+  for (const r of rows) out[r.key.slice(2)] = r.value;
+  contentCache = out;
+  return out;
+}
+
+admin.get('/content', wrap(async (req, res) => {
+  const saved = await savedContent();
+  res.json({
+    fields: content.FIELDS.map((f) => ({
+      key: f.key, page: f.page, section: f.section, label: f.label, type: f.type, hint: f.hint || '',
+      default: f.def, value: saved[f.key] === undefined ? '' : saved[f.key],
+    })),
+  });
+}));
+
+// Save some fields: { key: text }. An empty text goes back to the original words.
+admin.put('/content', wrap(async (req, res) => {
+  const body = req.body || {};
+  const updates = [];
+  for (const [key, value] of Object.entries(body)) {
+    const f = content.BY_KEY.get(key);
+    if (!f) throw httpError(400, 'Unknown text field.');
+    updates.push([key, content.clean(f, value)]);
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const [key, value] of updates) {
+      const f = content.BY_KEY.get(key);
+      if (value === '' || value === f.def) await client.query('DELETE FROM settings WHERE key = $1', [`c:${key}`]);
+      else {
+        await client.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+          [`c:${key}`, value]);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+    contentCache = null;
+  }
+  res.json({ ok: true, saved: updates.length });
+}));
 
 // Numbers for the admin overview page.
 admin.get('/stats', wrap(async (req, res) => {
@@ -679,7 +824,14 @@ function sendPage(res, file, status = 200) {
       .replace(ASSET_LINK, (m, attr, p) => `${attr}="${p}?v=${assetVersion(p)}"`);
     if (IS_PROD) pageCache.set(file, html);
   }
-  res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
+  if (file === 'admin.html') return res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
+  // Public pages: fill in the website text and hand the scripts their words.
+  savedContent().catch(() => ({})).then((saved) => {
+    const json = JSON.stringify(content.clientText(saved)).replace(/</g, '\\u003c');
+    const out = content.fillPage(html, saved)
+      .replace('<script src="/js/common.js', `<script id="rnb-text" type="application/json">${json}</script>\n<script src="/js/common.js`);
+    res.status(status).set('Cache-Control', 'no-cache').type('html').send(out);
+  });
 }
 
 const PAGES = {
@@ -690,6 +842,8 @@ const PAGES = {
 for (const [route, file] of Object.entries(PAGES)) app.get(route, (req, res) => sendPage(res, file));
 app.get('/events/:id', (req, res) => sendPage(res, 'event.html'));
 // Photos rarely change; CSS/JS are versioned by the pages and revalidated otherwise.
+// Pages are only sent through sendPage (which fills in their text).
+app.use((req, res, next) => (/\.html$/i.test(req.path) ? next(httpError(404, 'Not found.')) : next()));
 app.use(express.static(PUBLIC, {
   index: false,
   setHeaders(res, filePath) {
@@ -714,7 +868,7 @@ app.use((err, req, res, next) => {
     message = 'Something went wrong on our side. Please try again.';
   }
   if (req.path.startsWith('/api/') || req.path.startsWith('/media/')) {
-    return res.status(status).json({ error: message });
+    return res.status(status).json(err.code === 'must_change' ? { error: message, code: err.code } : { error: message });
   }
   sendPage(res, '404.html', status);
 });

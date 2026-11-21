@@ -13,6 +13,12 @@
     ticket2_label: '', ticket2_url: ''
   };
 
+  // Website words set in the admin panel (Website text). The server puts them
+  // in the page as JSON; t(key) returns one.
+  var TEXT = {};
+  try { TEXT = JSON.parse((document.getElementById('rnb-text') || {}).textContent || '{}'); } catch (e) { TEXT = {}; }
+  function t(key) { return TEXT[key] !== undefined ? TEXT[key] : ''; }
+
   // Tiny DOM builder. Text is always set with textContent, never innerHTML,
   // so anything typed in the admin panel is shown as plain text.
   function el(tag, attrs, children) {
@@ -69,14 +75,14 @@
   function renderHeader() {
     var header = document.querySelector('header[data-site]');
     if (!header) return;
-    var links = [['/#tickets', 'Tickets'], ['/#upcoming', 'Upcoming'], ['/events', 'Events'], ['/gallery', 'Gallery'], ['/#experience', 'Experiences']];
+    var links = [['/#tickets', t('nav_tickets')], ['/#upcoming', t('nav_upcoming')], ['/events', t('nav_events')], ['/gallery', t('nav_gallery')], ['/#experience', t('nav_experiences')]];
     var nav = el('nav', { class: 'nav-links', id: 'navLinks' }, links.map(function (l) {
       return el('a', { href: l[0], text: l[1] });
     }));
     var burger = el('button', { class: 'burger', id: 'burgerBtn', 'aria-label': 'Toggle menu', 'aria-expanded': 'false' },
       [el('span'), el('span'), el('span')]);
     header.appendChild(el('div', { class: 'nav' }, [
-      el('a', { class: 'logo', href: '/' }, [el('img', { src: '/img/logo.png', alt: 'RnB Dancehall Lovers', width: '60', height: '49' })]),
+      el('a', { class: 'logo', href: '/' }, [el('img', { src: '/img/logo.png', alt: t('site_name'), width: '60', height: '49' })]),
       nav,
       el('div', { class: 'nav-cta' }),
       burger
@@ -118,7 +124,7 @@
       });
 
     var tel = s.phone ? '+263' + s.phone.replace(/\D/g, '').replace(/^(263|0)/, '') : '';
-    var contact = [el('h4', { text: 'Contact' })];
+    var contact = [el('h4', { text: t('footer_contact') })];
     if (s.contact_email) {
       // mailto: only works when the device has an email app set up, so also
       // offer Gmail in the browser and a copy button.
@@ -150,25 +156,25 @@
     footer.appendChild(el('div', { class: 'wrap' }, [
       el('div', { class: 'footer-grid' }, [
         el('div', { class: 'footer-col footer-brand' }, [
-          el('div', { class: 'logo' }, [el('img', { src: '/img/logo.png', alt: 'RnB Dancehall Lovers', style: 'width:60px;' })]),
+          el('div', { class: 'logo' }, [el('img', { src: '/img/logo.png', alt: t('site_name'), style: 'width:60px;' })]),
           el('div', { class: 'footer-socials' }, socials),
-          el('p', { text: 'RnB Dancehall Lovers' + (s.address ? ' · ' + s.address : '') })
+          el('p', { text: t('site_name') + (s.address ? ' · ' + s.address : '') })
         ]),
         el('div', { class: 'footer-col' }, [
-          el('h4', { text: 'Events' }),
-          el('a', { href: '/events#upcoming', text: 'Upcoming Events' }),
-          el('a', { href: '/events#past', text: 'Past Events' }),
-          el('a', { href: '/gallery', text: 'Photo Gallery' }),
-          el('a', { href: '/gallery?category=experience', text: 'The Experience' })
+          el('h4', { text: t('footer_events') }),
+          el('a', { href: '/events#upcoming', text: t('footer_upcoming') }),
+          el('a', { href: '/events#past', text: t('footer_past') }),
+          el('a', { href: '/gallery', text: t('footer_gallery') }),
+          el('a', { href: '/gallery?category=experience', text: t('footer_experience') })
         ]),
         el('div', { class: 'footer-col' }, [
-          el('h4', { text: 'Visit' }),
+          el('h4', { text: t('footer_visit') }),
           el('a', { href: 'https://maps.google.com/?q=' + encodeURIComponent(s.address || ''), target: '_blank', rel: 'noopener', text: s.address || 'Harare, Zimbabwe' })
         ]),
         el('div', { class: 'footer-col' }, contact)
       ]),
       el('div', { class: 'footer-bottom' }, [
-        el('span', { text: '© ' + new Date().getFullYear() + ' RnB Dancehall Lovers · Harare, Zimbabwe' })
+        el('span', { text: '© ' + new Date().getFullYear() + ' ' + t('site_name') + (t('footer_place') ? ' · ' + t('footer_place') : '') })
       ])
     ]));
   }
@@ -219,7 +225,7 @@
     lbIndex = (i + lbItems.length) % lbItems.length;
     var p = lbItems[lbIndex];
     lbImg.src = mediaUrl(p.id);
-    lbImg.alt = p.caption || 'RnB Dancehall Lovers photo';
+    lbImg.alt = p.caption || t('site_name') + ' photo';
     lbCap.textContent = [p.caption, p.event_title].filter(Boolean).join(' · ');
   }
   function openLightbox(items, i) {
@@ -245,7 +251,7 @@
   }
 
   window.RNB = {
-    el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
+    t: t, el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
     safeLink: safeLink, eventCard: eventCard, galleryItem: galleryItem, renderFooter: renderFooter
   };
 

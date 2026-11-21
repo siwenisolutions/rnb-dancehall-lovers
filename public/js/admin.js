@@ -34,6 +34,7 @@
     return fetch(url, opts).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (r.status === 401 && url !== '/api/admin/login') showLogin();
+        if (r.status === 403 && data.code === 'must_change') showSetPassword(false);
         if (!r.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
         return data;
       });
@@ -109,14 +110,30 @@
     }).catch(function () { /* keep the built-in photo */ });
   }
 
+  var me = { email: '', name: '' };
+  var lastPassword = ''; // kept in memory only, for the "choose your password" step right after logging in
   function showLogin() {
     loadLoginBg();
     $('appView').hidden = true;
+    $('setPwView').hidden = true;
     $('loginView').hidden = false;
-    setTimeout(function () { $('password').focus(); }, 50);
+    setTimeout(function () { ($('loginEmail').value ? $('password') : $('loginEmail')).focus(); }, 50);
+  }
+  function showSetPassword(knowCurrent) {
+    $('appView').hidden = true;
+    $('loginView').hidden = true;
+    $('setPwView').hidden = false;
+    $('setPwEmail').value = me.email;
+    $('setPwCurrentBox').hidden = !!(knowCurrent && lastPassword);
+    setTimeout(function () { ($('setPwCurrentBox').hidden ? $('setPwNew') : $('setPwCurrent')).focus(); }, 50);
+  }
+  function setMe(s) {
+    me = { email: s.email || '', name: s.name || '' };
+    $('profileEmail').textContent = me.email || 'Admin';
   }
   function showApp() {
     $('loginView').hidden = true;
+    $('setPwView').hidden = true;
     $('appView').hidden = false;
     loadAll();
     if (!welcomeHidden()) openWelcome();
@@ -157,10 +174,13 @@
     e.preventDefault();
     var btn = this.querySelector('button');
     busy(btn, true, 'Logging in…');
-    call('POST', '/api/admin/login', { password: $('password').value }).then(function () {
+    var pw = $('password').value;
+    call('POST', '/api/admin/login', { email: $('loginEmail').value, password: pw, remember: $('loginRemember').checked }).then(function (r) {
       $('password').value = '';
       $('loginMsg').hidden = true;
-      showApp();
+      setMe(r);
+      try { localStorage.setItem('rnbLoginEmail', me.email); } catch (e2) { /* ignore */ }
+      if (r.mustChange) { lastPassword = pw; showSetPassword(true); } else showApp();
     }).catch(function (err) { say($('loginMsg'), err.message, false); })
       .then(function () { busy(btn, false); });
   });
@@ -203,6 +223,9 @@
   // ---------- tabs ----------
   var loadedPhotos = false;
   function goTo(name) {
+    closeMenu();
+    if (name === 'text') loadText();
+    if (name === 'account') loadAccount();
     $$('[data-tab]').forEach(function (t) { t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'); });
     $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
     if (name === 'photos' && !loadedPhotos) { loadedPhotos = true; loadPhotos(true); }
@@ -246,7 +269,7 @@
   function renderOverview(stats, latest) {
     var hour = Number(parts().hour);
     $('greeting').textContent = (hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening') + ', RNB team';
-    $('profileEmail').textContent = settings.contact_email || 'Admin';
+    if (me.name) $('greeting').textContent = $('greeting').textContent.replace('RNB team', me.name.split(' ')[0]);
 
     // next event
     var next = events.filter(function (e) { return e.up; })[0];
@@ -1059,9 +1082,205 @@
       .then(function () { busy(btn, false); });
   });
 
+  // ---------- passwords ----------
+  $$('.pw-toggle').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var input = $(b.dataset.pw);
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      b.textContent = show ? 'Hide' : 'Show';
+      b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  });
+  // Rough strength bar: length and variety. The server makes the real check.
+  function strength(pw) {
+    var score = Math.min(pw.length, 20) / 20 * 70;
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score += 10;
+    if (/\d/.test(pw)) score += 10;
+    if (/[^A-Za-z0-9]/.test(pw)) score += 10;
+    if (pw.length < 10) score = Math.min(score, 30);
+    return Math.min(100, score);
+  }
+  $$('[data-meter]').forEach(function (m) {
+    var input = $(m.dataset.meter), bar = m.querySelector('span');
+    input.addEventListener('input', function () {
+      var v = strength(input.value);
+      bar.style.width = v + '%';
+      bar.style.background = v < 45 ? 'var(--red)' : v < 75 ? '#e0a100' : '#1f9d55';
+    });
+  });
+  $('forgotBtn').addEventListener('click', function () { $('forgotNote').hidden = false; });
+
+  $('setPwForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = this.querySelector('button[type=submit]');
+    if ($('setPwNew').value !== $('setPwConfirm').value) return say($('setPwMsg'), 'The two new passwords are not the same.', false);
+    busy(btn, true);
+    var current = $('setPwCurrentBox').hidden ? lastPassword : $('setPwCurrent').value;
+    call('POST', '/api/admin/account/password', { current_password: current, new_password: $('setPwNew').value, remember: $('loginRemember').checked })
+      .then(function () {
+        lastPassword = '';
+        ['setPwCurrent', 'setPwNew', 'setPwConfirm'].forEach(function (id) { $(id).value = ''; });
+        $('setPwMsg').hidden = true;
+        showApp();
+        toast('Your new password is saved.');
+      })
+      .catch(function (err) {
+        if (/current password/i.test(err.message)) { $('setPwCurrentBox').hidden = false; lastPassword = ''; }
+        say($('setPwMsg'), err.message, false);
+      })
+      .then(function () { busy(btn, false); });
+  });
+  $('setPwLogout').addEventListener('click', function () { lastPassword = ''; call('POST', '/api/admin/logout').then(showLogin, showLogin); });
+
+  // ---------- account ----------
+  function loadAccount() {
+    get('/api/admin/account').then(function (a) {
+      setMe(a);
+      $('accName').value = a.name || '';
+      $('accEmail').value = a.email;
+      $('pwEmail').value = a.email;
+      $('accPwBox').hidden = true;
+      var bits = [];
+      if (a.lastLoginAt) bits.push('Last login: ' + fmtDate(a.lastLoginAt) + ' at ' + fmtTime(a.lastLoginAt) + '.');
+      bits.push(a.passwordChangedAt ? 'Password last changed ' + fmtDate(a.passwordChangedAt) + '.' : '');
+      $('accountSeen').textContent = bits.join(' ');
+    }).catch(function (err) { toast(err.message); });
+  }
+  $('accEmail').addEventListener('input', function () {
+    $('accPwBox').hidden = $('accEmail').value.trim().toLowerCase() === me.email;
+  });
+  $('accountForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = this.querySelector('button[type=submit]');
+    busy(btn, true);
+    var oldEmail = me.email;
+    call('PUT', '/api/admin/account', { name: $('accName').value, email: $('accEmail').value, current_password: $('accPw').value })
+      .then(function (r) {
+        setMe(r);
+        $('accPw').value = '';
+        $('accPwBox').hidden = true;
+        $('pwEmail').value = r.email;
+        try { localStorage.setItem('rnbLoginEmail', r.email); } catch (e2) { /* ignore */ }
+        say($('accountMsg'), r.email !== oldEmail ? 'Saved. Log in with ' + r.email + ' from now on.' : 'Saved.', true);
+      })
+      .catch(function (err) { say($('accountMsg'), err.message, false); })
+      .then(function () { busy(btn, false); });
+  });
+  $('passwordForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = this.querySelector('button[type=submit]');
+    if ($('pwNew').value !== $('pwConfirm').value) return say($('passwordMsg'), 'The two new passwords are not the same.', false);
+    busy(btn, true);
+    call('POST', '/api/admin/account/password', { current_password: $('pwCurrent').value, new_password: $('pwNew').value })
+      .then(function () {
+        ['pwCurrent', 'pwNew', 'pwConfirm'].forEach(function (id) { $(id).value = ''; });
+        $$('[data-meter="pwNew"] span').forEach(function (b) { b.style.width = '0'; });
+        say($('passwordMsg'), 'Password changed. Other phones and computers have been logged out.', true);
+        loadAccount();
+      })
+      .catch(function (err) { say($('passwordMsg'), err.message, false); })
+      .then(function () { busy(btn, false); });
+  });
+  $('signOutAll').addEventListener('click', function () {
+    if (!confirm('Log out on every phone and computer, including this one?')) return;
+    call('POST', '/api/admin/account/sign-out-everywhere').then(showLogin, function (err) { toast(err.message); });
+  });
+
+  // ---------- website text ----------
+  var textFields = [], textPage = '';
+  function loadText() {
+    return get('/api/admin/content').then(function (d) {
+      textFields = d.fields;
+      if (!textPage) textPage = textFields[0].page;
+      renderText();
+    }).catch(function (err) { say($('textMsg'), err.message, false); });
+  }
+  function pagesOf() {
+    var out = [];
+    textFields.forEach(function (f) { if (out.indexOf(f.page) < 0) out.push(f.page); });
+    return out;
+  }
+  function currentValue(f) { return f.value !== '' ? f.value : f.default; }
+  function renderText() {
+    var bar = $('textPages');
+    bar.textContent = '';
+    pagesOf().forEach(function (p) {
+      var changed = textFields.filter(function (f) { return f.page === p && f.value !== ''; }).length;
+      var b = el('button', { type: 'button', 'aria-pressed': p === textPage ? 'true' : 'false' }, [p, changed ? el('span', { class: 'n', text: String(changed), title: changed + ' changed from the original' }) : null]);
+      b.addEventListener('click', function () {
+        if (textDirty() && !confirm('You have unsaved changes on this page. Leave them?')) return;
+        textPage = p; renderText();
+      });
+      bar.appendChild(b);
+    });
+    var box = $('textSections');
+    box.textContent = '';
+    var sections = [];
+    textFields.forEach(function (f) { if (f.page === textPage && sections.indexOf(f.section) < 0) sections.push(f.section); });
+    sections.forEach(function (sec) {
+      var card = el('div', { class: 'card' }, [el('div', { class: 'card-head' }, [el('h3', { text: sec })])]);
+      textFields.filter(function (f) { return f.page === textPage && f.section === sec; }).forEach(function (f) {
+        var id = 't_' + f.key;
+        var multi = f.type !== 'line';
+        var rows = f.type === 'list' ? Math.min(12, Math.max(3, f.default.split('\n').length + 1)) : f.type === 'text' ? 4 : 2;
+        var input = multi ? el('textarea', { id: id, rows: rows, maxlength: f.type === 'heading' ? 200 : 2000 }) : el('input', { type: 'text', id: id, maxlength: 200 });
+        input.value = currentValue(f);
+        input.dataset.key = f.key;
+        var reset = el('button', { type: 'button', class: 'reset', text: 'Original words', title: 'Put back: ' + f.default });
+        var wrap = el('div', { class: 'text-field' }, [
+          el('label', { for: id }, [f.label, reset]),
+          input,
+          f.type === 'list' ? el('p', { class: 'hint', text: f.hint || 'One per line.' }) : (f.hint ? el('p', { class: 'hint', text: f.hint }) : null)
+        ]);
+        function mark() {
+          var differs = input.value.trim() !== f.default.trim();
+          reset.hidden = !differs;
+          wrap.classList.toggle('changed', input.value !== currentValue(f));
+        }
+        reset.addEventListener('click', function () { input.value = f.default; mark(); input.focus(); });
+        input.addEventListener('input', mark);
+        mark();
+        card.appendChild(wrap);
+      });
+      box.appendChild(card);
+    });
+  }
+  function textChanges() {
+    var out = {};
+    $$('#textSections [data-key]').forEach(function (input) {
+      var f = textFields.filter(function (x) { return x.key === input.dataset.key; })[0];
+      if (f && input.value !== currentValue(f)) out[f.key] = input.value;
+    });
+    return out;
+  }
+  function textDirty() { return Object.keys(textChanges()).length > 0; }
+  $('textForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var changes = textChanges();
+    var n = Object.keys(changes).length;
+    if (!n) return say($('textMsg'), 'Nothing has changed yet.', true);
+    var btn = $('textSubmit');
+    busy(btn, true);
+    call('PUT', '/api/admin/content', changes).then(function () {
+      say($('textMsg'), (n === 1 ? '1 change' : n + ' changes') + ' saved. They are live on the website now.', true);
+      return loadText();
+    }).catch(function (err) { say($('textMsg'), err.message, false); })
+      .then(function () { busy(btn, false); });
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (!$('appView').hidden && !document.querySelector('[data-panel="text"]').hidden && textDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   // ---------- start ----------
+  try { $('loginEmail').value = localStorage.getItem('rnbLoginEmail') || ''; } catch (e) { /* ignore */ }
   var startTab = location.hash.slice(1);
-  if (['overview', 'events', 'photos', 'details'].indexOf(startTab) >= 0 && startTab !== 'overview') goTo(startTab);
   fetch('/api/admin/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); })
-    .then(function (s) { if (s.loggedIn) showApp(); else showLogin(); }, showLogin);
+    .then(function (s) {
+      if (!s.loggedIn) return showLogin();
+      setMe(s);
+      if (s.mustChange) return showSetPassword(false);
+      showApp();
+      if (['events', 'photos', 'details', 'text', 'account'].indexOf(startTab) >= 0) goTo(startTab);
+    }, showLogin);
 })();

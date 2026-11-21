@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <script src="/js/guard.js"></script><!-- no "view source" / "inspect" menu or shortcuts on computers and Android (not iPhone/iPad) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RnB Dancehall Lovers — Old Is the New Vibe</title>
-<meta name="description" content="RnB Dancehall Lovers: R&B and dancehall events in Harare, Zimbabwe. See upcoming events, get tickets and browse photos from our nights.">
-<meta property="og:title" content="RnB Dancehall Lovers — Old Is the New Vibe">
-<meta property="og:description" content="R&B and dancehall events in Harare, Zimbabwe.">
+<title>{{home_title}}</title>
+<meta name="description" content="{{home_description}}">
+<meta property="og:title" content="{{home_title}}">
+<meta property="og:description" content="{{home_description}}">
 <meta property="og:image" content="/img/p6.jpg">
 <link rel="icon" href="/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,11 +25,11 @@
     <div class="hero-grid">
       <div>
         <div class="hero-spacer" aria-hidden="true"></div>
-        <h1 class="display">OLD IS THE<br>NEW <span class="accent">VIBE</span></h1>
+        <h1 class="display">{{hero_title}}</h1>
         <p id="heroText">Our R&B and dancehall events transform every night into an unforgettable experience for artists, dancers, and fans.</p>
         <div class="hero-ctas">
-          <a class="btn btn-primary" href="#tickets" id="heroTickets">Get Tickets</a>
-          <a class="btn btn-outline" href="#upcoming">Upcoming Events</a>
+          <a class="btn btn-primary" href="#tickets" id="heroTickets">{{hero_btn1}}</a>
+          <a class="btn btn-outline" href="#upcoming">{{hero_btn2}}</a>
         </div>
       </div>
     </div>
@@ -39,27 +39,24 @@
 <main class="wrap">
 
   <!-- INTRO: OLD IS THE NEW VIBE / MORE THAN MUSIC (client layout, Nov 2026) -->
-  <section class="intro-cards" aria-label="About RnB Dancehall Lovers">
+  <section class="intro-cards" aria-label="About {{site_name}}">
     <div class="intro-card">
-      <div class="intro-eyebrow">RnB Dancehall Lovers</div>
-      <h2 class="intro-title">OLD IS THE NEW VIBE.</h2>
-      <p class="intro-sub">90s &amp; 00s RnB <span aria-hidden="true">•</span> Dancehall <span aria-hidden="true">•</span> Old School Classics</p>
+      <div class="intro-eyebrow">{{intro1_eyebrow}}</div>
+      <h2 class="intro-title">{{intro1_title}}</h2>
+      <p class="intro-sub">{{intro1_sub}}</p>
       <div class="intro-ctas">
-        <a class="btn btn-primary" href="#tickets">Get Tickets</a>
-        <a class="btn btn-outline" href="#upcoming">Upcoming Events</a>
+        <a class="btn btn-primary" href="#tickets">{{intro1_btn1}}</a>
+        <a class="btn btn-outline" href="#upcoming">{{intro1_btn2}}</a>
       </div>
     </div>
     <div class="intro-card intro-card-dark">
-      <div class="intro-eyebrow">Born in Zimbabwe</div>
-      <h2 class="intro-title">MORE THAN MUSIC.<br>IT'S A MOVEMENT.</h2>
-      <p class="intro-sub">Different ages. Different cultures. One love for music.</p>
+      <div class="intro-eyebrow">{{intro2_eyebrow}}</div>
+      <h2 class="intro-title">{{intro2_title}}</h2>
+      <p class="intro-sub">{{intro2_sub}}</p>
     </div>
   </section>
 
-  <div class="logos">
-    <span>R&amp;B</span><span>Dancehall</span><span>Slow Jams</span><span>Riddims</span>
-    <span>Throwbacks</span><span>Live DJs</span><span>Sound Systems</span><span>Harare</span>
-  </div>
+  <div class="logos">{{home_words}}</div>
 
   <!-- PHOTO ROW (auto-scrolling slideshow) -->
   <div class="photo-row">
@@ -97,10 +94,10 @@
   <section id="upcoming" class="upcoming">
     <div class="section-head">
       <div class="section-title" style="padding:0;">
-        <div class="display">UPCOMING</div>
-        <div class="display filled">EVENTS</div>
+        <div class="display">{{upcoming_title1}}</div>
+        <div class="display filled">{{upcoming_title2}}</div>
       </div>
-      <a class="view-all" href="/events#upcoming">View all events →</a>
+      <a class="view-all" href="/events#upcoming">{{upcoming_link}}</a>
     </div>
     <div id="upcomingList" class="event-grid" aria-live="polite"></div>
   </section>
@@ -109,14 +106,14 @@
   <section id="tickets" class="tickets">
     <div class="section-head">
       <div class="section-title" style="padding:0;">
-        <div class="display">TICKETS</div>
-        <div class="display filled">ON SALE</div>
+        <div class="display">{{tickets_title1}}</div>
+        <div class="display filled">{{tickets_title2}}</div>
       </div>
-      <p class="tickets-note">Secure your spot. You'll be taken to the official ticketing site to pay.</p>
+      <p class="tickets-note">{{tickets_note}}</p>
     </div>
     <div class="ticket-grid" id="ticketGrid">
       <a class="ticket-card" href="https://www.megaticket.africa/events/rnb-dancehall-lovers-1-year-anniversary" target="_blank" rel="noopener">
-        <div class="ticket-thumb" style="background-image:url('/img/p6.jpg')"><span class="ticket-chip">Tickets on sale</span></div>
+        <div class="ticket-thumb" style="background-image:url('/img/p6.jpg')"><span class="ticket-chip">{{ticket_chip}}</span></div>
         <div class="ticket-body">
           <div class="ticket-sub">Zimbabwe · Megaticket</div>
           <h3>1 Year Anniversary</h3>
@@ -124,7 +121,7 @@
         </div>
       </a>
       <a class="ticket-card" href="https://sahwigate.com/event/rb-dancehall-lovers-old-is-the-new-vibe" target="_blank" rel="noopener">
-        <div class="ticket-thumb" style="background-image:url('/img/p5.jpg')"><span class="ticket-chip">Tickets on sale</span></div>
+        <div class="ticket-thumb" style="background-image:url('/img/p5.jpg')"><span class="ticket-chip">{{ticket_chip}}</span></div>
         <div class="ticket-body">
           <div class="ticket-sub">South Africa · Sahwigate</div>
           <h3>Old Is The New Vibe</h3>
@@ -138,10 +135,10 @@
   <section id="experience" class="section-title">
     <div class="section-head">
       <div>
-        <div class="display">THE</div>
-        <div class="display filled">EXPERIENCE</div>
+        <div class="display">{{exp_title1}}</div>
+        <div class="display filled">{{exp_title2}}</div>
       </div>
-      <a class="view-all" href="/gallery?category=experience">View all →</a>
+      <a class="view-all" href="/gallery?category=experience">{{exp_link}}</a>
     </div>
 
     <div class="exp-row" id="expRow">
@@ -153,8 +150,8 @@
     <div class="promo">
       <div class="promo-photo ph p3" data-tag=""></div>
       <div class="promo-copy">
-        <div class="display">ANY VIBE,<br><span style="color:#141108">ANY NIGHT.</span></div>
-        <p>Unleash infinite possibilities. Whether it's R&amp;B slow jams or dancehall riddims, our lineups and sound are tailored to any crowd, any night. Let us find the perfect vibe to make your night unforgettable.</p>
+        <div class="display">{{promo_title}}</div>
+        <p>{{promo_text}}</p>
       </div>
     </div>
   </section>
@@ -162,76 +159,46 @@
   <!-- EVENT EXPERIENCES -->
   <section class="custom-exp">
     <div>
-      <h2 class="display">MERCHANDISE</h2>
-      <p>Rep the movement. Official RnB Dancehall Lovers gear, from caps and tees to cups and ice buckets.</p>
-      <a class="btn btn-outline" href="/gallery">See The Gallery →</a>
+      <h2 class="display">{{merch_title}}</h2>
+      <p>{{merch_text}}</p>
+      <a class="btn btn-outline" href="/gallery">{{merch_btn}}</a>
     </div>
-    <div class="pills pills-merch">
-      <div class="pill">Caps</div>
-      <div class="pill">Hats</div>
-      <div class="pill">T-Shirts</div>
-      <div class="pill">Jackets</div>
-      <div class="pill">Tracksuits</div>
-      <div class="pill">Waving Fingers</div>
-      <div class="pill">Cigars</div>
-      <div class="pill">Socks</div>
-      <div class="pill">Cups</div>
-      <div class="pill">Ice Buckets</div>
-      <div class="pill">Key Holders</div>
-    </div>
+    <div class="pills pills-merch">{{merch_items}}</div>
   </section>
 
   <!-- RECENT EVENTS -->
   <section id="cases">
     <div class="section-head" style="padding-top:60px;">
       <div class="section-title" style="padding:0;">
-        <div class="display">RECENT</div>
-        <div class="display filled">EVENTS</div>
+        <div class="display">{{recent_title1}}</div>
+        <div class="display filled">{{recent_title2}}</div>
       </div>
-      <a class="view-all" href="/events#past">Event history →</a>
+      <a class="view-all" href="/events#past">{{recent_link}}</a>
     </div>
     <!-- Shown until the client adds past events in the admin panel. -->
-    <div class="cases-grid" id="recentGrid">
-      <div class="case-card ph p4"><div class="meta">Crew Links<small>Bakerloo Bar</small></div></div>
-      <div class="case-card ph p5"><div class="meta">Packed Out<small>Old Is The New Vibe</small></div></div>
-      <div class="case-card ph p6"><div class="meta">Crowd Favorites<small>Palm Tree Terrace</small></div></div>
-      <div class="case-card ph p7"><div class="meta">Photo Wall<small>Step &amp; Repeat</small></div></div>
-      <div class="case-card ph p8"><div class="meta">On The Dancefloor<small>Live Set</small></div></div>
-      <div class="case-card ph p9"><div class="meta">Squad Goals<small>Matching Fits</small></div></div>
-      <div class="case-card ph p10"><div class="meta">Cognac Corner<small>Bakerloo Bar</small></div></div>
-      <div class="case-card ph p11"><div class="meta">Good Times<small>Old Is The New Vibe</small></div></div>
-    </div>
+    <div class="cases-grid" id="recentGrid">{{recent_cards}}</div>
   </section>
 
   <!-- STACKED HEADLINE BANNER -->
   <div class="stat-banner">
-    <div class="stat-line">HARARE <span class="arrow-pill">→ → → → →</span> LIVE</div>
-    <div class="stat-line">R&amp;B &amp; DANCEHALL <span class="outline">LOVERS</span> <span class="gradient-pill"></span></div>
-    <div class="stat-line"><span class="tape-pill"></span> UNFORGETTABLE NIGHTS</div>
-    <div class="stat-line outline">SINCE 2025</div>
+    <div class="stat-line">{{banner_1a}} <span class="arrow-pill">→ → → → →</span> {{banner_1b}}</div>
+    <div class="stat-line">{{banner_2a}} <span class="outline">{{banner_2b}}</span> <span class="gradient-pill"></span></div>
+    <div class="stat-line"><span class="tape-pill"></span> {{banner_3}}</div>
+    <div class="stat-line outline">{{banner_4}}</div>
     <div class="cta-pill-row">
-      <div class="cta-pill-track">
-        <span>VIBE &amp; CONNECT →</span><span>VIBE &amp; CONNECT →</span><span>VIBE &amp; CONNECT →</span><span>VIBE &amp; CONNECT →</span>
-        <span>VIBE &amp; CONNECT →</span><span>VIBE &amp; CONNECT →</span><span>VIBE &amp; CONNECT →</span><span>VIBE &amp; CONNECT →</span>
-      </div>
+      <div class="cta-pill-track">{{banner_scroll}}</div>
     </div>
   </div>
 
   <!-- JOIN STRIP -->
   <div class="join" data-float-group="join">
     <a class="join-panel ph p1" data-tag="" href="#tickets" aria-label="Join us: book your night (get tickets)">
-      <div class="ribbon" aria-hidden="true"><div class="ribbon-track">
-        <span>JOIN US →</span><span>BOOK YOUR NIGHT →</span><span>JOIN US →</span><span>BOOK YOUR NIGHT →</span>
-        <span>JOIN US →</span><span>BOOK YOUR NIGHT →</span><span>JOIN US →</span><span>BOOK YOUR NIGHT →</span>
-      </div></div>
-      <span class="join-cta">Get tickets →</span>
+      <div class="ribbon" aria-hidden="true"><div class="ribbon-track">{{join1_words}}</div></div>
+      <span class="join-cta">{{join1_btn}}</span>
     </a>
     <a class="join-panel right ph p13" data-tag="" href="/gallery" aria-label="Our events: see the photos">
-      <div class="ribbon" aria-hidden="true"><div class="ribbon-track">
-        <span>OUR EVENTS →</span><span>SEE THE PHOTOS →</span><span>OUR EVENTS →</span><span>SEE THE PHOTOS →</span>
-        <span>OUR EVENTS →</span><span>SEE THE PHOTOS →</span><span>OUR EVENTS →</span><span>SEE THE PHOTOS →</span>
-      </div></div>
-      <span class="join-cta">See the photos →</span>
+      <div class="ribbon" aria-hidden="true"><div class="ribbon-track">{{join2_words}}</div></div>
+      <span class="join-cta">{{join2_btn}}</span>
     </a>
   </div>
 

@@ -4,6 +4,8 @@ const path = require('path');
 const { Pool } = require('pg');
 const { processImage, recompress } = require('./images');
 const storage = require('./storage');
+const auth = require('./auth');
+const crypto = require('crypto');
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -62,6 +64,22 @@ const SCHEMA = `
 CREATE TABLE IF NOT EXISTS settings (
   key   text PRIMARY KEY,
   value text NOT NULL
+);
+
+-- Admin panel logins. session_version goes up when the password changes or
+-- someone chooses "sign out everywhere", which ends every older session.
+CREATE TABLE IF NOT EXISTS admins (
+  id              serial PRIMARY KEY,
+  email           text NOT NULL UNIQUE CHECK (email = lower(email) AND length(email) BETWEEN 3 AND 200),
+  name            text NOT NULL DEFAULT '' CHECK (length(name) <= 100),
+  password_hash   text NOT NULL,
+  must_change     boolean NOT NULL DEFAULT true,
+  session_version integer NOT NULL DEFAULT 1,
+  failed_logins   integer NOT NULL DEFAULT 0,
+  locked_until    timestamptz,
+  password_changed_at timestamptz,
+  last_login_at   timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -151,6 +169,7 @@ const SEED_PHOTOS = [
 
 async function migrate() {
   await pool.query(SCHEMA);
+  await setUpAdmin();
   for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
     await pool.query(
       'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
@@ -217,6 +236,41 @@ async function migrate() {
 
 // Saves a photo or video. With object storage set up, the file goes to the
 // bucket and the database keeps only its details.
+// First start: the admin account gets the site's contact email (or
+// ADMIN_EMAIL) and the old shared ADMIN_PASSWORD, and must pick its own
+// password at first login. ADMIN_RESET_PASSWORD (set on Render) resets a
+// forgotten password once; remove it again afterwards.
+async function setUpAdmin() {
+  const { rows } = await pool.query('SELECT count(*)::int AS n FROM admins');
+  if (rows[0].n === 0) {
+    const pw = process.env.ADMIN_PASSWORD || '';
+    if (pw.length < 10) throw new Error('No admin account yet: set ADMIN_PASSWORD (10+ characters) for the first login.');
+    const r = await pool.query("SELECT value FROM settings WHERE key = 'contact_email'");
+    const email = auth.normaliseEmail(process.env.ADMIN_EMAIL || (r.rows[0] && r.rows[0].value) || SETTING_DEFAULTS.contact_email);
+    await pool.query('INSERT INTO admins (email, password_hash, must_change) VALUES ($1, $2, true)',
+      [email, await auth.hashPassword(pw)]);
+    console.log(`[admin] created the admin login for ${email}; they will choose their own password at first login`);
+  }
+  const reset = process.env.ADMIN_RESET_PASSWORD || '';
+  if (reset) {
+    if (reset.length < 10) { console.warn('[admin] ADMIN_RESET_PASSWORD ignored: use 10+ characters'); return; }
+    const tag = crypto.createHash('sha256').update(reset).digest('hex');
+    const done = await pool.query("SELECT 1 FROM settings WHERE key = '_admin_reset' AND value = $1", [tag]);
+    if (done.rowCount) return; // this reset was already used
+    const email = auth.normaliseEmail(process.env.ADMIN_RESET_EMAIL || '');
+    const target = email
+      ? await pool.query('SELECT id, email FROM admins WHERE email = $1', [email])
+      : await pool.query('SELECT id, email FROM admins ORDER BY id LIMIT 1');
+    if (!target.rowCount) { console.warn(`[admin] ADMIN_RESET_PASSWORD: no admin ${email}`); return; }
+    await pool.query(
+      `UPDATE admins SET password_hash = $2, must_change = true, session_version = session_version + 1,
+              failed_logins = 0, locked_until = NULL WHERE id = $1`,
+      [target.rows[0].id, await auth.hashPassword(reset)]);
+    await pool.query("INSERT INTO settings (key, value) VALUES ('_admin_reset', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [tag]);
+    console.log(`[admin] password reset for ${target.rows[0].email}. Remove ADMIN_RESET_PASSWORD on Render now.`);
+  }
+}
+
 async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null }, db = pool) {
   const inBucket = storage.enabled;
   const videoState = img.mime.startsWith('video/') ? (img.videoState || 'pending') : null;

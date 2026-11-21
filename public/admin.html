@@ -20,12 +20,49 @@
   <div class="login-card">
     <img src="/img/logo.png" alt="RnB Dancehall Lovers" class="login-logo">
     <h1 class="display">Website admin</h1>
-    <p class="muted">Log in to update events, photos and contact details.</p>
+    <p class="muted">Log in to update your website.</p>
     <form id="loginForm">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" required>
       <label for="password">Password</label>
-      <input type="password" id="password" autocomplete="current-password" required>
+      <div class="pw-field">
+        <input type="password" id="password" autocomplete="current-password" required>
+        <button type="button" class="pw-toggle" data-pw="password" aria-label="Show password">Show</button>
+      </div>
+      <label class="check login-remember"><input type="checkbox" id="loginRemember"> Keep me logged in on this device for 30 days</label>
       <button class="btn btn-dark btn-block" type="submit">Log in</button>
       <div class="msg err" id="loginMsg" hidden></div>
+      <button type="button" class="link-btn" id="forgotBtn">Forgot your password?</button>
+      <p class="hint" id="forgotNote" hidden>For your safety, a password can't be reset from this page. Contact Siweni Innovative Solutions and they will give you a one-time password, then you choose a new one.</p>
+    </form>
+  </div>
+</div>
+
+<!-- ============ CHOOSE YOUR OWN PASSWORD (first login / after a reset) ============ -->
+<div class="login" id="setPwView" hidden>
+  <div class="login-bg" aria-hidden="true"></div>
+  <div class="login-card">
+    <img src="/img/logo.png" alt="RnB Dancehall Lovers" class="login-logo">
+    <h1 class="display">Choose your password</h1>
+    <p class="muted">You logged in with a temporary password. Choose your own now. Only you will know it.</p>
+    <form id="setPwForm">
+      <input type="email" autocomplete="username" id="setPwEmail" hidden>
+      <div id="setPwCurrentBox">
+        <label for="setPwCurrent">Temporary password</label>
+        <input type="password" id="setPwCurrent" autocomplete="current-password">
+      </div>
+      <label for="setPwNew">New password</label>
+      <div class="pw-field">
+        <input type="password" id="setPwNew" autocomplete="new-password" required minlength="10">
+        <button type="button" class="pw-toggle" data-pw="setPwNew" aria-label="Show password">Show</button>
+      </div>
+      <div class="pw-meter" data-meter="setPwNew"><span></span></div>
+      <p class="hint">At least 10 characters. A short sentence is easy to remember and hard to guess, e.g. <i>dancehall every friday 2026</i>.</p>
+      <label for="setPwConfirm">Type it again</label>
+      <input type="password" id="setPwConfirm" autocomplete="new-password" required>
+      <button class="btn btn-dark btn-block" type="submit">Save my password</button>
+      <div class="msg err" id="setPwMsg" hidden></div>
+      <button type="button" class="link-btn" id="setPwLogout">Log out</button>
     </form>
   </div>
 </div>
@@ -43,7 +80,8 @@
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
         <button role="tab" data-tab="events" aria-selected="false">Events</button>
         <button role="tab" data-tab="photos" aria-selected="false">Photos</button>
-        <button role="tab" data-tab="details" aria-selected="false">Website details</button>
+        <button role="tab" data-tab="details" aria-selected="false" title="Website details: pictures, contact, tickets">Details</button>
+        <button role="tab" data-tab="text" aria-selected="false" title="Website text: every word on your website">Text</button>
       </nav>
 
       <div class="top-actions">
@@ -64,6 +102,7 @@
           <span class="who"><b>RnB Dancehall Lovers</b><small id="profileEmail">Admin</small></span>
           <svg viewBox="0 0 24 24" class="chev"><path d="m6 9 6 6 6-6"/></svg>
           <div class="menu" id="profileMenu" hidden>
+            <button type="button" data-goto="account">Account &amp; password</button>
             <a href="/" target="_blank" rel="noopener">View website</a>
             <button type="button" data-action="welcome-video">Watch the welcome video</button>
             <button type="button" id="logoutBtn">Log out</button>
@@ -364,6 +403,69 @@
           </div>
         </div>
       </form>
+    </section>
+
+    <!-- ===== WEBSITE TEXT ===== -->
+    <section data-panel="text" hidden>
+      <form id="textForm">
+        <div class="page-head row">
+          <div>
+            <h1>Website text</h1>
+            <p class="muted">Every title, sentence, button and list on your website. Change the words, then press Save changes. Empty a box to go back to the original words.</p>
+          </div>
+          <button class="btn btn-dark" type="submit" id="textSubmit">Save changes</button>
+        </div>
+        <div class="msg" id="textMsg" hidden style="margin:0 0 16px;"></div>
+        <div class="text-pages" id="textPages" role="group" aria-label="Choose a page"></div>
+        <div id="textSections" class="text-sections"></div>
+      </form>
+    </section>
+
+    <!-- ===== ACCOUNT ===== -->
+    <section data-panel="account" hidden>
+      <div class="page-head">
+        <h1>Account &amp; password</h1>
+        <p class="muted" id="accountSeen"></p>
+      </div>
+      <div class="account-grid">
+        <form class="card" id="accountForm">
+          <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><h3>Your login</h3></div>
+          <label for="accName">Your name <small>shown at the top of the admin panel</small></label>
+          <input type="text" id="accName" maxlength="100" autocomplete="name">
+          <label for="accEmail">Email you log in with</label>
+          <input type="email" id="accEmail" autocomplete="username" required>
+          <div id="accPwBox" hidden>
+            <label for="accPw">Your password <small>needed to change the email</small></label>
+            <input type="password" id="accPw" autocomplete="current-password">
+          </div>
+          <button class="btn btn-dark" type="submit" style="margin-top:18px;">Save</button>
+          <div class="msg" id="accountMsg" hidden></div>
+        </form>
+
+        <form class="card" id="passwordForm">
+          <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><h3>Change password</h3></div>
+          <input type="email" autocomplete="username" id="pwEmail" hidden>
+          <label for="pwCurrent">Current password</label>
+          <input type="password" id="pwCurrent" autocomplete="current-password" required>
+          <label for="pwNew">New password</label>
+          <div class="pw-field">
+            <input type="password" id="pwNew" autocomplete="new-password" required minlength="10">
+            <button type="button" class="pw-toggle" data-pw="pwNew" aria-label="Show password">Show</button>
+          </div>
+          <div class="pw-meter" data-meter="pwNew"><span></span></div>
+          <p class="hint">At least 10 characters. You stay logged in here; every other phone or computer is logged out.</p>
+          <label for="pwConfirm">Type the new password again</label>
+          <input type="password" id="pwConfirm" autocomplete="new-password" required>
+          <button class="btn btn-dark" type="submit" style="margin-top:18px;">Change password</button>
+          <div class="msg" id="passwordMsg" hidden></div>
+        </form>
+
+        <div class="card">
+          <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/></svg></span><h3>Lost a phone?</h3></div>
+          <p class="hint">Log out on every phone and computer at once, including this one. You'll need your password to log in again.</p>
+          <button class="btn btn-light" type="button" id="signOutAll" style="margin-top:14px;">Log out everywhere</button>
+        </div>
+      </div>
     </section>
   </div>
 

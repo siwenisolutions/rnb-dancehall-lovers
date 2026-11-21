@@ -471,3 +471,33 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .login-bg video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
 .login-bg::after{content:''; position:absolute; inset:0; background:radial-gradient(ellipse at center, rgba(20,18,16,.35) 0%, rgba(20,18,16,.78) 100%);}
 .login-card{position:relative; z-index:1; box-shadow:0 30px 80px rgba(0,0,0,.45);}
+
+/* ---------- login extras, password fields ---------- */
+.pw-field{position:relative;}
+.pw-field input{padding-right:70px;}
+.pw-toggle{position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:var(--soft); border-radius:999px; padding:6px 12px; font:inherit; font-size:12px; font-weight:700; cursor:pointer;}
+.login-remember{margin:16px 0 4px; font-weight:500; font-size:13px;}
+.link-btn{display:block; margin:14px auto 0; border:0; background:none; font:inherit; font-size:13px; font-weight:600; color:var(--muted); text-decoration:underline; cursor:pointer;}
+.login-card .hint{text-align:center;}
+#setPwView .login-card{max-width:460px;}
+#setPwView .login-card h1{font-size:32px;}
+.pw-meter{height:6px; border-radius:99px; background:var(--soft); margin-top:8px; overflow:hidden;}
+.pw-meter span{display:block; height:100%; width:0; border-radius:99px; background:var(--red); transition:width .2s, background .2s;}
+
+/* ---------- account ---------- */
+.account-grid{display:grid; grid-template-columns:1fr 1fr 0.8fr; gap:18px; align-items:start;}
+@media (max-width:1080px){ .account-grid{grid-template-columns:1fr 1fr;} }
+@media (max-width:720px){ .account-grid{grid-template-columns:1fr;} }
+
+/* ---------- website text ---------- */
+.text-pages{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 18px;}
+.text-pages button{border:1px solid var(--line); background:var(--card); border-radius:999px; padding:9px 16px; font:inherit; font-size:14px; font-weight:700; cursor:pointer;}
+.text-pages button[aria-pressed="true"]{background:var(--ink, #141210); color:#fff; border-color:transparent;}
+.text-pages button .n{display:inline-block; min-width:20px; margin-left:6px; padding:1px 6px; border-radius:99px; background:var(--purple); color:#fff; font-size:11px;}
+.text-sections{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px; align-items:start;}
+@media (max-width:900px){ .text-sections{grid-template-columns:1fr;} }
+.text-field{position:relative;}
+.text-field label{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+.text-field .reset{border:0; background:none; font:inherit; font-size:12px; font-weight:700; color:var(--purple); cursor:pointer; white-space:nowrap;}
+.text-field.changed input,.text-field.changed textarea{border-color:var(--purple);}
+.text-field .hint{margin-top:6px;}

@@ -20,7 +20,9 @@ Photos from a phone are fine; they are resized automatically.
 - `db.js`: Postgres schema (created on startup) plus first-run seeding of the original photos.
 - Photos (WebP, a large version and a thumbnail) and videos are stored in Neon Object Storage, bucket `rnb-media` on the project's main branch (5 GB on the free plan), and served from `/media/:id`. Postgres keeps only their details. Without the `AWS_*` settings, files are kept in Postgres as before (1 GB limit). On start-up, files still in Postgres are moved to the bucket.
 - Videos are compressed in the background after upload (`jobs.js`, `video.js`): at most 1920 px on the long side, 30 fps, H.264 CRF 23, AAC 128k. The original shows until the smaller copy is ready; a video that is not at least 10% smaller, or fails twice, is kept as uploaded.
-- Admin login is a single password (`ADMIN_PASSWORD`) with a signed, HttpOnly session cookie.
+- Admin login is email + password (`admins` table, scrypt hashes, `auth.js`). On first start the account is created with the site's contact email (or `ADMIN_EMAIL`) and `ADMIN_PASSWORD` as a temporary password; the admin must choose their own password at first login. Changing the password, or "Log out everywhere", ends all other sessions. 5 wrong passwords lock the login for 15 minutes.
+- Forgotten password: set `ADMIN_RESET_PASSWORD` on Render (10+ characters). On the next start it becomes a one-time temporary password for that account (or the one in `ADMIN_RESET_EMAIL`); the admin logs in with it and must choose a new one. Remove the variable afterwards; the same value is never applied twice.
+- Every fixed word on the public pages is editable in the admin panel (Text tab). Fields are defined in `content.js`; pages use `{{key}}` placeholders that the server fills before sending a page. Saved words live in `settings` as `c:<key>`.
 
 Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:id`, `/gallery`.
 
@@ -29,7 +31,9 @@ Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:i
 | Name | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (Neon project `rnb-dancehall-lovers`) |
-| `ADMIN_PASSWORD` | Admin panel password, 10+ characters |
+| `ADMIN_PASSWORD` | Temporary password for the very first login only (10+ characters). Not used once the account exists |
+| `ADMIN_EMAIL` | Optional: login email for that first account (default: the site's contact email) |
+| `ADMIN_RESET_PASSWORD` / `ADMIN_RESET_EMAIL` | Optional: one-time password reset, see above. Remove after use |
 | `SESSION_SECRET` | Random string, 32+ characters, used to sign login cookies |
 | `CANONICAL_HOST` | Set to `rnbdancehalllovers.co.zw` once the domain works: every other address (www, onrender.com) redirects there |
 | `AWS_ENDPOINT_URL_S3` | Object Storage endpoint of the Neon branch, `https://br-raspy-mode-b95p644d.storage.c-7.eu-central-1.aws.neon.tech` |

@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <script src="/js/guard.js"></script><!-- no "view source" / "inspect" menu or shortcuts on computers and Android (not iPhone/iPad) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gallery — RnB Dancehall Lovers</title>
-<meta name="description" content="Photos from RnB Dancehall Lovers events in Harare, Zimbabwe.">
+<title>Gallery — {{site_name}}</title>
+<meta name="description" content="Photos from {{site_name}} events in Harare, Zimbabwe.">
 <link rel="icon" href="/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,14 +17,14 @@
 
 <main class="wrap">
   <section class="page-head section-title" style="padding-top:140px;">
-    <a class="back-link" href="/">← Back to home</a>
-    <div class="display">PHOTO</div>
-    <div class="display filled">GALLERY</div>
+    <a class="back-link" href="/">{{back_home}}</a>
+    <div class="display">{{gallery_title1}}</div>
+    <div class="display filled">{{gallery_title2}}</div>
     <div class="tabs" role="group" aria-label="Filter photos">
-      <button type="button" data-cat="" aria-pressed="true">All photos</button>
-      <button type="button" data-cat="experience" aria-pressed="false">The Experience</button>
-      <button type="button" data-cat="event" aria-pressed="false">Event photos</button>
-      <button type="button" data-cat="gallery" aria-pressed="false">Highlights</button>
+      <button type="button" data-cat="" aria-pressed="true">{{gallery_tab_all}}</button>
+      <button type="button" data-cat="experience" aria-pressed="false">{{gallery_tab_experience}}</button>
+      <button type="button" data-cat="event" aria-pressed="false">{{gallery_tab_event}}</button>
+      <button type="button" data-cat="gallery" aria-pressed="false">{{gallery_tab_highlights}}</button>
     </div>
   </section>
 
@@ -57,7 +57,7 @@
       items = items.concat(data.photos);
       for (var i = start; i < items.length; i++) grid.appendChild(R.galleryItem(items, i));
       status.hidden = items.length > 0;
-      status.textContent = 'No photos here yet.';
+      status.textContent = R.t('gallery_empty');
       more.hidden = !data.more;
     }).catch(function () {
       status.hidden = false;
