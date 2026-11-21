@@ -64,7 +64,7 @@ async function compressOne(m) {
       await fs.promises.writeFile(inPath, r.rows[0].data);
     }
     const before = (await fs.promises.stat(inPath)).size;
-    await compressVideo(inPath, outPath);
+    await compressVideo(inPath, outPath, m.slot === 'hero' ? 'header' : 'normal');
     let out = await fs.promises.readFile(outPath);
     const secs = Math.round((Date.now() - t0) / 1000);
     if (out.length > before * (1 - MIN_SAVING)) {

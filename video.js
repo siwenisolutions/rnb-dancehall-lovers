@@ -9,29 +9,37 @@ const MAX_SIDE = 1920;
 const CRF = Number(process.env.VIDEO_CRF || 23);
 const TIMEOUT_MS = 45 * 60 * 1000; // the free server is slow; long clips take a while
 
-function compressArgs(input, output) {
-  const w = `if(gte(iw,ih),min(${MAX_SIDE},iw),-2)`;
-  const h = `if(gte(iw,ih),-2,trunc(min(${MAX_SIDE},ih)/2)*2)`;
+// The header video plays muted behind a dark overlay, so it can be smaller:
+// 720p, a little more compression and no sound track.
+const PROFILES = {
+  normal: { maxSide: MAX_SIDE, crf: CRF, audio: true },
+  header: { maxSide: 1280, crf: Number(process.env.HEADER_VIDEO_CRF || 28), audio: false },
+};
+
+function compressArgs(input, output, profile = 'normal') {
+  const p = PROFILES[profile] || PROFILES.normal;
+  const w = `if(gte(iw,ih),min(${p.maxSide},iw),-2)`;
+  const h = `if(gte(iw,ih),-2,trunc(min(${p.maxSide},ih)/2)*2)`;
   return [
     '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
     '-threads', '1', '-i', input,
-    '-map', '0:v:0', '-map', '0:a:0?',
+    '-map', '0:v:0', ...(p.audio ? ['-map', '0:a:0?'] : []),
     '-vf', `scale=w='${w}':h='${h}'`,
     '-fpsmax', '30',
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(CRF),
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(p.crf),
     '-pix_fmt', 'yuv420p', '-threads', '1',
     // Smaller look-ahead keeps memory low on the 512 MB server.
     '-x264-params', 'rc-lookahead=10:threads=1',
-    '-c:a', 'aac', '-b:a', '128k',
+    ...(p.audio ? ['-c:a', 'aac', '-b:a', '128k'] : ['-an']),
     '-movflags', '+faststart',
     output,
   ];
 }
 
-function compressVideo(input, output) {
+function compressVideo(input, output, profile = 'normal') {
   return new Promise((resolve, reject) => {
     if (!ffmpegPath) return reject(new Error('No video converter on this server.'));
-    const p = spawn(ffmpegPath, compressArgs(input, output), { stdio: ['ignore', 'ignore', 'pipe'] });
+    const p = spawn(ffmpegPath, compressArgs(input, output, profile), { stdio: ['ignore', 'ignore', 'pipe'] });
     let err = '';
     p.stderr.on('data', (d) => { if (err.length < 4000) err += d; });
     const timer = setTimeout(() => p.kill('SIGKILL'), TIMEOUT_MS);
