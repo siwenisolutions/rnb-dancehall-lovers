@@ -1,4 +1,4 @@
-# RNB Dancehall Lovers website
+# RnB Dancehall Lovers website
 
 R&B and dancehall events, Harare, Zimbabwe. Live at **rnbdancehalllovers.co.zw**.
 

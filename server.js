@@ -714,7 +714,7 @@ function keepAwake() {
 if (require.main === module) {
   migrate()
     .then(() => app.listen(PORT, () => {
-      console.log(`RNB Dancehall Lovers running on port ${PORT}`);
+      console.log(`RnB Dancehall Lovers running on port ${PORT}`);
       compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message));
       keepAwake();
     }))

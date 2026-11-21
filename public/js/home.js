@@ -95,7 +95,7 @@
     var cards = [1, 2].map(function (n) {
       var url = R.safeLink(s['ticket' + n + '_url']);
       if (!url) return null;
-      var title = s['ticket' + n + '_title'] || 'RNB Dancehall Lovers';
+      var title = s['ticket' + n + '_title'] || 'RnB Dancehall Lovers';
       var host = '';
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
       var thumb = el('div', { class: 'ticket-thumb ticket-thumb-' + n }, [el('span', { class: 'ticket-chip', text: 'Tickets on sale' })]);

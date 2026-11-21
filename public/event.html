@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <script src="/js/guard.js"></script><!-- no "view source" / "inspect" menu or shortcuts on computers and Android (not iPhone/iPad) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Event — RNB Dancehall Lovers</title>
+<title>Event — RnB Dancehall Lovers</title>
 <link rel="icon" href="/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,7 +37,7 @@
 
   R.api('/api/events/' + encodeURIComponent(id)).then(function (data) {
     var ev = data.event;
-    document.title = ev.title + ' — RNB Dancehall Lovers';
+    document.title = ev.title + ' — RnB Dancehall Lovers';
     var ticket = R.safeLink(ev.ticket_url);
     var poster = ev.cover_media_id
       ? el('div', { class: 'poster ph media', style: "background-image:url('" + R.mediaUrl(ev.cover_media_id) + "')", role: 'img', 'aria-label': ev.title + ' poster' })

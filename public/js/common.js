@@ -76,7 +76,7 @@
     var burger = el('button', { class: 'burger', id: 'burgerBtn', 'aria-label': 'Toggle menu', 'aria-expanded': 'false' },
       [el('span'), el('span'), el('span')]);
     header.appendChild(el('div', { class: 'nav' }, [
-      el('a', { class: 'logo', href: '/' }, [el('img', { src: '/img/logo.png', alt: 'RNB Dancehall Lovers', width: '60', height: '49' })]),
+      el('a', { class: 'logo', href: '/' }, [el('img', { src: '/img/logo.png', alt: 'RnB Dancehall Lovers', width: '60', height: '49' })]),
       nav,
       el('div', { class: 'nav-cta' }),
       burger
@@ -150,9 +150,9 @@
     footer.appendChild(el('div', { class: 'wrap' }, [
       el('div', { class: 'footer-grid' }, [
         el('div', { class: 'footer-col footer-brand' }, [
-          el('div', { class: 'logo' }, [el('img', { src: '/img/logo.png', alt: 'RNB Dancehall Lovers', style: 'width:60px;' })]),
+          el('div', { class: 'logo' }, [el('img', { src: '/img/logo.png', alt: 'RnB Dancehall Lovers', style: 'width:60px;' })]),
           el('div', { class: 'footer-socials' }, socials),
-          el('p', { text: 'RNB Dancehall Lovers' + (s.address ? ' · ' + s.address : '') })
+          el('p', { text: 'RnB Dancehall Lovers' + (s.address ? ' · ' + s.address : '') })
         ]),
         el('div', { class: 'footer-col' }, [
           el('h4', { text: 'Events' }),
@@ -168,7 +168,7 @@
         el('div', { class: 'footer-col' }, contact)
       ]),
       el('div', { class: 'footer-bottom' }, [
-        el('span', { text: '© ' + new Date().getFullYear() + ' RNB Dancehall Lovers · Harare, Zimbabwe' })
+        el('span', { text: '© ' + new Date().getFullYear() + ' RnB Dancehall Lovers · Harare, Zimbabwe' })
       ])
     ]));
   }
@@ -219,7 +219,7 @@
     lbIndex = (i + lbItems.length) % lbItems.length;
     var p = lbItems[lbIndex];
     lbImg.src = mediaUrl(p.id);
-    lbImg.alt = p.caption || 'RNB Dancehall Lovers photo';
+    lbImg.alt = p.caption || 'RnB Dancehall Lovers photo';
     lbCap.textContent = [p.caption, p.event_title].filter(Boolean).join(' · ');
   }
   function openLightbox(items, i) {

@@ -1,4 +1,4 @@
-/* RNB Dancehall Lovers: no "view source" or "inspect" shortcuts.
+/* RnB Dancehall Lovers: no "view source" or "inspect" shortcuts.
    On laptops, desktops (Windows, Mac, Linux, ChromeOS) and Android, the usual ways into the page's code are switched off:
    the right-click / long-press menu ("View page source", "Inspect") and the keyboard shortcuts for viewing the source,
    the developer tools and saving the page. iPhones and iPads are left alone: they have no way to view a page's source.
