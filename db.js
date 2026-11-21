@@ -90,6 +90,27 @@ CREATE TABLE IF NOT EXISTS admins (
 -- their own email and password by then (that clears it).
 ALTER TABLE admins ADD COLUMN IF NOT EXISTS expires_at timestamptz;
 
+-- Visitor counts (no cookies, nothing personal kept). A visitor is a daily
+-- scrambled code made from their address and browser, so the same person on
+-- the same day counts once; the code can't be turned back into the address.
+CREATE TABLE IF NOT EXISTS visit_views (
+  day   date NOT NULL,
+  path  text NOT NULL,
+  views integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, path)
+);
+CREATE TABLE IF NOT EXISTS visit_visitors (
+  day     date NOT NULL,
+  visitor text NOT NULL,
+  PRIMARY KEY (day, visitor)
+);
+CREATE TABLE IF NOT EXISTS visit_sources (
+  day    date NOT NULL,
+  source text NOT NULL,
+  visits integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, source)
+);
+
 CREATE TABLE IF NOT EXISTS events (
   id          serial PRIMARY KEY,
   title       text NOT NULL CHECK (length(title) BETWEEN 1 AND 200),

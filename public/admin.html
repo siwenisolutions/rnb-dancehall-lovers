@@ -186,6 +186,25 @@
         </div>
       </div>
 
+      <!-- Visitors -->
+      <div class="card visits-card">
+        <div class="card-row">
+          <div><h2>Visitors</h2><p class="muted" id="visitsNote">People who opened your website. Counted without cookies; you, logged in here, aren't counted.</p></div>
+          <span class="chip live-chip" id="vNow" title="Visitors in the last 5 minutes">● 0 on the site now</span>
+        </div>
+        <div class="visit-stats">
+          <div><small>Today</small><b id="vToday">0</b><span id="vTodayViews">0 page views</span></div>
+          <div><small>Yesterday</small><b id="vYesterday">0</b><span id="vYesterdayViews">0 page views</span></div>
+          <div><small>Last 7 days</small><b id="v7">0</b><span id="v7Views">0 page views</span></div>
+          <div><small>Last 30 days</small><b id="v30">0</b><span id="v30Views">0 page views</span></div>
+        </div>
+        <div class="visit-chart" id="visitChart" aria-label="Visitors per day, last 30 days"></div>
+        <div class="visit-lists">
+          <div><h3>Most viewed pages</h3><ol id="visitPages" class="visit-list"></ol></div>
+          <div><h3>Where visitors came from</h3><ol id="visitSources" class="visit-list"></ol></div>
+        </div>
+      </div>
+
       <div class="grid-bottom">
         <div class="col-left">
           <div class="card">

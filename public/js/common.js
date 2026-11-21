@@ -13,6 +13,13 @@
     ticket2_label: '', ticket2_url: ''
   };
 
+  // Count this page view (no cookies; see visits.js on the server).
+  try {
+    var hit = JSON.stringify({ p: location.pathname, r: document.referrer });
+    if (navigator.sendBeacon) navigator.sendBeacon('/api/hit', hit);
+    else fetch('/api/hit', { method: 'POST', body: hit, keepalive: true });
+  } catch (e) { /* counting is optional */ }
+
   // Website words set in the admin panel (Website text). The server puts them
   // in the page as JSON; t(key) returns one.
   var TEXT = {};
@@ -49,7 +56,7 @@
   }
 
   function mediaUrl(id, thumb) {
-    return '/media/' + encodeURIComponent(id) + (thumb ? '?size=thumb' : '');
+    return '/media/' + encodeURIComponent(id) + '.webp' + (thumb ? '?size=thumb' : '');
   }
 
   function fmt(iso, opts) {

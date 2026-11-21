@@ -251,7 +251,41 @@
   var events = [];
   var settings = {};
 
+  // ---------- visitors ----------
+  var PAGE_NAMES = { '/': 'Home page', '/events': 'Events', '/gallery': 'Gallery', other: 'Other pages' };
+  function n(x) { return Number(x || 0).toLocaleString('en-GB'); }
+  function loadVisits() {
+    get('/api/admin/visits').then(function (v) {
+      $('vNow').textContent = '● ' + n(v.now) + ' on the site now';
+      [['vToday', 'vTodayViews', v.today], ['vYesterday', 'vYesterdayViews', v.yesterday], ['v7', 'v7Views', v.last7], ['v30', 'v30Views', v.last30]].forEach(function (r) {
+        $(r[0]).textContent = n(r[2].visitors);
+        $(r[1]).textContent = n(r[2].views) + ' page views';
+      });
+      var max = Math.max.apply(null, v.daily.map(function (d) { return d.visitors; }).concat([1]));
+      var chart = $('visitChart');
+      chart.textContent = '';
+      v.daily.forEach(function (d, i) {
+        var label = fmtDate(d.day);
+        var bar = el('div', { class: 'bar' + (i === v.daily.length - 1 ? ' today' : ''), style: 'height:' + Math.max(1.5, d.visitors / max * 100) + '%', title: label + ': ' + n(d.visitors) + ' visitors, ' + n(d.views) + ' page views' });
+        if (i % 5 === 4 || i === v.daily.length - 1) bar.appendChild(el('i', { text: i === v.daily.length - 1 ? 'Today' : label.replace(/\s\d{4}$/, '') }));
+        chart.appendChild(bar);
+      });
+      function list(box, rows, name, key) {
+        box.textContent = '';
+        if (!rows.length) { box.appendChild(el('li', null, [el('span', { class: 'muted', text: 'No visits yet' })])); return; }
+        rows.forEach(function (r) { box.appendChild(el('li', null, [el('span', { text: name(r) }), el('b', { text: n(r[key]) })])); });
+      }
+      var titles = {};
+      events.forEach(function (e) { titles['/events/' + e.id] = e.title; });
+      list($('visitPages'), v.pages, function (r) { return PAGE_NAMES[r.path] || titles[r.path] || r.path; }, 'views');
+      list($('visitSources'), v.sources, function (r) { return r.source; }, 'visits');
+      if (v.total && v.total.since) $('visitsNote').textContent = 'People who opened your website since ' + fmtDate(v.total.since) + '. Counted without cookies; you, logged in here, aren\'t counted.';
+    }).catch(function () { /* the card stays as it is */ });
+  }
+  setInterval(function () { if (!$('appView').hidden && !document.querySelector('[data-panel="overview"]').hidden) loadVisits(); }, 60000);
+
   function loadAll() {
+    loadVisits();
     return Promise.all([
       get('/api/events'),
       get('/api/admin/stats'),

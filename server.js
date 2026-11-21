@@ -9,6 +9,7 @@ const storage = require('./storage');
 const jobs = require('./jobs');
 const { compressPendingVideos } = jobs;
 const drive = require('./drive');
+const visits = require('./visits');
 const { processImage, detectVideo } = require('./images');
 const { importPost } = require('./social');
 const auth = require('./auth');
@@ -323,6 +324,15 @@ function cachedApi(req, res, next) {
 }
 app.use(['/api/home', '/api/settings', '/api/events', '/api/photos'], cachedApi);
 
+// A page view, sent by the visitor's browser (see common.js). Admins are not counted.
+app.post('/api/hit', express.text({ type: '*/*', limit: '2kb' }), (req, res) => {
+  res.status(204).end();
+  if (readCookie(req, COOKIE)) return;
+  let body = {};
+  try { body = JSON.parse(req.body || '{}'); } catch { return; }
+  visits.record({ ip: clientIp(req), ua: req.get('user-agent') || '', path: body.p, ref: body.r, host: req.hostname });
+});
+
 app.get('/api/home', wrap(async (req, res) => {
   const [settings, upcoming, past, slots] = await Promise.all([
     getSettings(),
@@ -466,8 +476,9 @@ app.get('/api/photos', wrap(async (req, res) => {
 }));
 
 // Photos are immutable once uploaded (edits create new ids), so cache hard.
-app.get('/media/:id', wrap(async (req, res) => {
-  const id = parseId(req.params.id);
+// Photo links end in .webp so Cloudflare caches them without any extra setup.
+app.get(/^\/media\/(\d+)(?:\.(?:webp|jpg|png|mp4|webm))?$/, wrap(async (req, res) => {
+  const id = parseId(req.params[0]);
   let meta = mediaMeta.get(id);
   if (!meta) {
     const head = await pool.query('SELECT mime, in_bucket, COALESCE(bytes, octet_length(data)) AS size FROM media WHERE id = $1', [id]);
@@ -741,6 +752,11 @@ admin.put('/content', wrap(async (req, res) => {
     contentCache = null;
   }
   res.json({ ok: true, saved: updates.length });
+}));
+
+// Visitor numbers for the admin overview page.
+admin.get('/visits', wrap(async (req, res) => {
+  res.json(await visits.summary());
 }));
 
 // Numbers for the admin overview page.
@@ -1172,7 +1188,7 @@ function sendPage(res, file, status = 200) {
         if (video) {
           return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="${videoUrl(video.id)}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
         }
-        return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}')"></div></div>` : '';
+        return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}.webp')"></div></div>` : '';
       }).then((html) => { heroCache = { html, exp: Date.now() + API_TTL }; return html; }).catch(() => '');
   Promise.all([savedContent().catch(() => ({})), heroMedia]).then(([saved, hero]) => {
     const json = JSON.stringify(content.clientText(saved)).replace(/</g, '\\u003c');
@@ -1275,6 +1291,7 @@ if (require.main === module) {
         .then(() => startVideoCompression())
         .then(() => jobs.resumeDriveImports()).catch((err) => console.error('[drive] resume failed:', err.message));
       jobs.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
+      visits.start();
       // Look for new photos in linked Google Drive folders every 6 hours.
       const sync = () => jobs.syncDriveFolders().catch((err) => console.warn('[drive] sync failed:', err.message));
       setTimeout(sync, 3 * 60 * 1000).unref();

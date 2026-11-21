@@ -531,3 +531,25 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .drive-box b{font-size:14px;}
 .drive-box p{font-size:13px; color:var(--muted); margin:4px 0 10px; line-height:1.5;}
 .drive-box .btn-row{display:flex; gap:8px; flex-wrap:wrap;}
+
+/* ---------- visitors ---------- */
+.visits-card{margin-top:18px;}
+.visits-card h2{font-size:20px;}
+.live-chip{background:#e8f8ef; color:#1f7a45; font-weight:700; white-space:nowrap;}
+.visit-stats{display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:16px;}
+.visit-stats > div{background:var(--soft); border-radius:16px; padding:14px 16px;}
+.visit-stats small{display:block; color:var(--muted); font-size:12px; font-weight:600;}
+.visit-stats b{display:block; font-size:28px; line-height:1.15; margin-top:4px;}
+.visit-stats span{font-size:12px; color:var(--muted);}
+.visit-chart{display:flex; align-items:flex-end; gap:4px; height:140px; margin-top:20px; padding-bottom:22px; position:relative;}
+.visit-chart .bar{flex:1; background:var(--purple); border-radius:6px 6px 2px 2px; min-height:2px; position:relative; opacity:.85;}
+.visit-chart .bar:hover{opacity:1;}
+.visit-chart .bar.today{background:#141210;}
+.visit-chart .bar i{position:absolute; bottom:-20px; left:50%; transform:translateX(-50%); font-style:normal; font-size:10px; color:var(--muted); white-space:nowrap;}
+.visit-lists{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:16px;}
+.visit-lists h3{font-size:14px; margin-bottom:8px;}
+.visit-list{list-style:none; padding:0; margin:0;}
+.visit-list li{display:flex; justify-content:space-between; gap:10px; font-size:14px; padding:7px 0; border-bottom:1px solid var(--line);}
+.visit-list li span:first-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.visit-list li b{font-variant-numeric:tabular-nums;}
+@media (max-width:760px){ .visit-stats{grid-template-columns:1fr 1fr;} .visit-lists{grid-template-columns:1fr;} .visit-chart .bar i{display:none;} }
