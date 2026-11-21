@@ -52,10 +52,26 @@ app.use((req, res, next) => {
   next();
 });
 
+// Cloudflare (free plan) in front of the site: set BEHIND_CLOUDFLARE=yes on
+// Render once the domain's DNS is on Cloudflare with the orange cloud on.
+// - Visitors' real addresses come from Cloudflare's CF-Connecting-IP header
+//   (only trusted when this is on, so nobody can fake it before then).
+// - Cloudflare's free plan may not be used to deliver video, so the header
+//   video is then loaded straight from Render's own address instead.
+const BEHIND_CLOUDFLARE = process.env.BEHIND_CLOUDFLARE === 'yes';
+const VIDEO_BASE = BEHIND_CLOUDFLARE
+  ? (process.env.VIDEO_BASE_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '') : '';
+const videoUrl = (id) => `${VIDEO_BASE}/media/${id}`;
+function clientIp(req) {
+  return (BEHIND_CLOUDFLARE && req.get('cf-connecting-ip')) || req.ip;
+}
+
 // Old onrender.com address and www. both forward to the main domain once it is set.
+// (Except photos/videos when VIDEO_BASE points at the onrender.com address.)
 const CANONICAL_HOST = process.env.CANONICAL_HOST || '';
 app.use((req, res, next) => {
-  if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz' && req.path !== '/ping') {
+  if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz' && req.path !== '/ping'
+      && !(VIDEO_BASE && req.path.startsWith('/media/'))) {
     return res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
   }
   next();
@@ -317,7 +333,7 @@ app.get('/api/home', wrap(async (req, res) => {
     getSlots(),
   ]);
   const tickets = await ticketsOnSale(settings);
-  res.json({ settings, upcoming: upcoming.rows, past: past.rows, slots, tickets });
+  res.json({ settings, upcoming: upcoming.rows, past: past.rows, slots, tickets, video_base: VIDEO_BASE });
 }));
 
 // Photos (or a header video) for each picture spot on the website, in slideshow order.
@@ -568,7 +584,7 @@ async function streamFromBucket(req, res, id, mime, size) {
 // ---------- admin API ----------
 
 app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, res) => {
-  if (tooManyAttempts(req.ip)) throw httpError(429, 'Too many attempts. Try again in 15 minutes.');
+  if (tooManyAttempts(clientIp(req))) throw httpError(429, 'Too many attempts. Try again in 15 minutes.');
   const body = req.body || {};
   const email = auth.normaliseEmail(body.email);
   const password = typeof body.password === 'string' ? body.password : '';
@@ -582,7 +598,7 @@ app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, r
     throw httpError(401, 'This temporary login has expired. Ask Siweni Innovative Solutions for a new one.');
   }
   if (!a || !ok) {
-    recordFailure(req.ip);
+    recordFailure(clientIp(req));
     if (a) {
       await pool.query(
         `UPDATE admins SET failed_logins = failed_logins + 1,
@@ -591,7 +607,7 @@ app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, r
     }
     throw httpError(401, 'Wrong email or password.');
   }
-  failedLogins.delete(req.ip);
+  failedLogins.delete(clientIp(req));
   await pool.query('UPDATE admins SET failed_logins = 0, locked_until = NULL, last_login_at = now() WHERE id = $1', [a.id]);
   const sess = makeSession(a, body.remember === true);
   setSessionCookie(res, sess.value, sess.maxAge);
@@ -1154,7 +1170,7 @@ function sendPage(res, file, status = 200) {
       .then(({ rows }) => {
         const video = rows.find((r) => r.mime.startsWith('video/'));
         if (video) {
-          return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="/media/${video.id}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
+          return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="${videoUrl(video.id)}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
         }
         return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}')"></div></div>` : '';
       }).then((html) => { heroCache = { html, exp: Date.now() + API_TTL }; return html; }).catch(() => '');

@@ -44,6 +44,7 @@ Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:i
 | `MEDIA_LIMIT_MB` | Storage cap shown in the admin panel when the bucket is used. Default `5120` (5 GB) |
 | `NODE_ENV` | `production` on Render (makes cookies HTTPS-only) |
 | `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render doesn't put it to sleep. Set to `off` after moving to a paid plan |
+| `BEHIND_CLOUDFLARE` | Set to `yes` only after the domain runs through Cloudflare (orange cloud). Uses Cloudflare's visitor address for login lockouts and loads the header video straight from Render (Cloudflare's free plan may not deliver video) |
 | `KEEP_AWAKE_HOURS` | When to stay awake, in Zimbabwe time. Default `6-24` (free hours are shared with other free services in the workspace); `0-24` = always |
 
 ## Run locally
@@ -68,3 +69,27 @@ certificate automatically once DNS has updated (minutes to a few hours). Then se
 ## Google Drive
 
 Admin → Events → **Add from Google Drive**: paste the link to a folder shared as "Anyone with the link" (`drive.js`, `jobs.js`). The admin can make one event per folder inside it (dates in folder names are read), one new event, or add the photos to an existing event. Photos (including folders inside, two levels deep) are copied into the website in the background, compressed like uploads, so the site never depends on Drive. Each event stays linked to its folder: new photos are copied every 6 hours, or straight away with "Check for new photos now" in the event's photos. Photos the admin deletes are never copied again (`drive_removed`).
+
+
+## Cloudflare (free plan) in front of the site
+
+Cloudflare caches photos and page files at its edge, so a busy night costs Render
+and the database far less, and it absorbs bot and attack traffic.
+
+1. Cloudflare dashboard: **Add a domain** → `rnbdancehalllovers.co.zw` → **Free** plan.
+2. **DNS → Records**. Check every record from the current DNS host was copied, especially
+   **MX and TXT records for email**. Then make sure these two exist, both **Proxied** (orange):
+   - `CNAME  @    rnb-dancehall-lovers-pvic.onrender.com`
+   - `CNAME  www  rnb-dancehall-lovers-pvic.onrender.com`
+3. **SSL/TLS → Overview**: encryption mode **Full** (as Render's Cloudflare guide says).
+   **SSL/TLS → Edge Certificates**: turn on **Always Use HTTPS**.
+4. **Caching → Cache Rules → Create rule** "Photos":
+   when *URI Path starts with* `/media/` → **Eligible for cache**, Edge TTL *use cache-control
+   header if present*. (Photo URLs have no file extension, so Cloudflare skips them otherwise.)
+   Pages and `/api/` are not cached, so admin changes still show straight away.
+5. At the domain registrar (the .co.zw company the domain was bought from), replace the two
+   nameservers with the two Cloudflare shows. Wait until Cloudflare says the domain is **Active**.
+6. Render → the service → **Environment**: add `BEHIND_CLOUDFLARE` = `yes` and save (it redeploys).
+7. Render → **Settings → Custom Domains**: both domains should still show *Certificate issued*.
+   If Render can't renew a certificate later, switch the two records to *DNS only* (grey) for a
+   few minutes, click **Verify**, then switch back to orange.

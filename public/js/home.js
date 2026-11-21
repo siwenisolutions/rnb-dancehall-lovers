@@ -23,7 +23,7 @@
     var wrap = el('div', { class: 'slides', 'aria-hidden': 'true' });
     var video = opts.video && items.filter(function (i) { return /^video\//.test(i.mime || ''); })[0];
     if (video) {
-      var v = el('video', { class: 'slide on', src: R.mediaUrl(video.id), autoplay: true, loop: true, playsinline: true, preload: 'auto' });
+      var v = el('video', { class: 'slide on', src: (opts.videoBase || '') + '/media/' + video.id, autoplay: true, loop: true, playsinline: true, preload: 'auto' });
       v.muted = true;
       wrap.appendChild(v);
       box.insertBefore(wrap, box.firstChild);
@@ -144,7 +144,7 @@
       return { url: tk.url, label: (tk.kind === 'card' && tk.label) || R.t('ticket_btn') || 'Get Tickets' };
     });
     R.renderFooter(s);
-    slideshow(document.querySelector('.hero'), slots.hero, { video: true });
+    slideshow(document.querySelector('.hero'), slots.hero, { video: true, videoBase: data.video_base });
     renderTickets(data.tickets, slots);
     renderUpcoming(data.upcoming || [], s);
     renderExperience(slots, s);
