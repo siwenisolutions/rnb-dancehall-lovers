@@ -505,7 +505,7 @@
         </div>
         <div id="txInputBox"></div>
         <p class="hint" id="txHint"></p>
-        <button type="button" class="tx-link" id="txReset">↺ Put back the original words</button>
+        <button type="button" class="tx-link" id="txReset"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg> Put back the original words</button>
         <div class="msg" id="txMsg" hidden></div>
         <div class="tx-sheet-actions">
           <button type="button" class="btn btn-ghost" data-close>Cancel</button>
@@ -519,7 +519,7 @@
       <div class="page-head row">
         <div>
           <h1>Merch shop</h1>
-          <p class="muted">Orders come in here. People pay with EcoCash, OneMoney or InnBucks and you deliver within 14 days. <a href="/shop" target="_blank" rel="noopener" style="text-decoration:underline">Open the shop ↗</a></p>
+          <p class="muted">Orders come in here. People pay with EcoCash or InnBucks and you deliver within 14 days. <a href="/shop" target="_blank" rel="noopener" style="text-decoration:underline">Open the shop ↗</a></p>
         </div>
       </div>
 
@@ -570,8 +570,8 @@
         <div class="card-head"><h3>Payments</h3></div>
         <p class="hint" id="payState"></p>
         <label class="check"><input type="checkbox" id="payOpen"> The shop is open</label>
-        <p class="shop-label-admin">Online payments with Paynow (EcoCash, OneMoney, InnBucks)</p>
-        <p class="hint">Sign in to <a href="https://www.paynow.co.zw" target="_blank" rel="noopener" style="text-decoration:underline">paynow.co.zw</a> → Receive Payment Links → 3rd Party Shopping Cart or Link Profile → Create (choose US$). Copy the Integration ID and Integration Key here. Ask Paynow to switch on EcoCash, OneMoney and InnBucks for it.</p>
+        <p class="shop-label-admin">Online payments with Paynow (EcoCash, InnBucks)</p>
+        <p class="hint">Sign in to <a href="https://www.paynow.co.zw" target="_blank" rel="noopener" style="text-decoration:underline">paynow.co.zw</a> → Receive Payment Links → 3rd Party Shopping Cart or Link Profile → Create (choose US$). Copy the Integration ID and Integration Key here. Ask Paynow to switch on EcoCash and InnBucks for it.</p>
         <label for="payId">Integration ID</label>
         <input type="text" id="payId" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345">
         <label for="payKey">Integration key</label>
@@ -581,7 +581,6 @@
         <p class="shop-label-admin">Ways to pay</p>
         <div class="pay-methods">
           <label class="check"><input type="checkbox" value="ecocash" name="payMethod"> EcoCash</label>
-          <label class="check"><input type="checkbox" value="onemoney" name="payMethod"> OneMoney</label>
           <label class="check"><input type="checkbox" value="innbucks" name="payMethod"> InnBucks</label>
         </div>
         <p class="shop-label-admin">Until Paynow is set up</p>

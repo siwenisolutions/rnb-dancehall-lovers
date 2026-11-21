@@ -9,6 +9,22 @@
   var bag = [];
   var pollTimer = null;
 
+  // Line icons (fixed markup, never from the admin panel).
+  var ICONS = {
+    truck: '<path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3.5V16h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    alert: '<path d="M12 7v6"/><path d="M12 16.5v.5"/>'
+  };
+  function icon(name) {
+    var s = document.createElement('span');
+    s.className = 'ic ic-' + name;
+    s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[name] + '</svg>';
+    return s;
+  }
+  function deliveryNote(extra) {
+    return el('p', { class: 'shop-note' }, [icon('truck'), tx('shop_delivery', 'Delivery within 14 days') + (extra || '')]);
+  }
   function money(c) { var v = c / 100; return '$' + (v % 1 ? v.toFixed(2) : String(v)); }
   function photo(id, thumb) { return R.mediaUrl(id, thumb); }
   function tx(key, fallback) { return t(key) || fallback; }
@@ -121,7 +137,7 @@
       ]),
       msg,
       add,
-      el('p', { class: 'shop-note', text: '🚚 ' + tx('shop_delivery', 'Delivery within 14 days') })
+      deliveryNote()
     ]);
   }
 
@@ -156,10 +172,10 @@
       ]));
     });
     open([
-      note ? el('p', { class: 'shop-ok', text: '✓ ' + note }) : null,
+      note ? el('p', { class: 'shop-ok' }, [icon('check'), note]) : null,
       list,
       el('div', { class: 'bag-total' }, [el('span', { text: 'Total' }), el('b', { text: money(bagTotal()) })]),
-      el('p', { class: 'shop-note', text: '🚚 ' + tx('shop_delivery', 'Delivery within 14 days') }),
+      deliveryNote(),
       el('button', { class: 'btn btn-primary btn-block', type: 'button', text: tx('shop_checkout', 'Checkout'), onclick: showCheckout }),
       el('button', { class: 'btn btn-outline btn-block', type: 'button', text: 'Keep shopping', onclick: close })
     ], tx('shop_bag', 'Your bag'));
@@ -205,7 +221,7 @@
     var btn = el('button', { class: 'btn btn-primary btn-block', type: 'submit', text: (shop.online ? tx('shop_pay', 'Pay') + ' ' : 'Place order · ') + money(bagTotal()) });
     form.appendChild(msg);
     form.appendChild(btn);
-    form.appendChild(el('p', { class: 'shop-note', text: '🚚 ' + tx('shop_delivery', 'Delivery within 14 days') }));
+    form.appendChild(deliveryNote());
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var data = {};
@@ -244,13 +260,13 @@
     var nodes;
     if (o.status === 'paid' || o.status === 'sent' || o.status === 'delivered') {
       bag = []; saveBag();
-      nodes = [el('div', { class: 'order-big ok', text: '✓' }), el('p', { class: 'shop-desc', text: tx('shop_thanks', 'Thank you! Your order is paid. We’ll deliver within 14 days.') }), ref, summary(o),
+      nodes = [el('div', { class: 'order-big ok' }, [icon('check')]), el('p', { class: 'shop-desc', text: tx('shop_thanks', 'Thank you! Your order is paid. We’ll deliver within 14 days.') }), ref, summary(o),
         el('button', { class: 'btn btn-outline btn-block', type: 'button', text: 'Back to the shop', onclick: function () { close(); history.replaceState(null, '', '/shop'); } })];
       open(nodes, 'Payment received');
       return;
     }
     if (o.status === 'failed' || o.status === 'cancelled') {
-      nodes = [el('div', { class: 'order-big bad', text: '!' }),
+      nodes = [el('div', { class: 'order-big bad' }, [icon('alert')]),
         el('p', { class: 'shop-desc', text: (o.error ? o.error + '. ' : '') + 'The payment didn’t go through, so nothing was taken. Your bag is still saved.' }), ref,
         el('button', { class: 'btn btn-primary btn-block', type: 'button', text: 'Try again', onclick: showCheckout })];
       open(nodes, 'Payment not completed');
@@ -258,9 +274,9 @@
     }
     if (o.pay_method === 'manual') {
       bag = []; saveBag();
-      nodes = [el('div', { class: 'order-big ok', text: '✓' }), el('p', { class: 'shop-desc', text: 'Your order is in. To finish, pay ' + money(o.total_cents) + ' as shown below and use ' + o.ref + ' as the reference.' }),
+      nodes = [el('div', { class: 'order-big ok' }, [icon('check')]), el('p', { class: 'shop-desc', text: 'Your order is in. To finish, pay ' + money(o.total_cents) + ' as shown below and use ' + o.ref + ' as the reference.' }),
         o.manual ? el('div', { class: 'order-manual', text: o.manual }) : null, ref, summary(o),
-        el('p', { class: 'shop-note', text: '🚚 ' + tx('shop_delivery', 'Delivery within 14 days') + ' after payment.' })];
+        deliveryNote(' after payment.')];
       open(nodes, 'Order received');
       return;
     }

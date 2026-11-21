@@ -420,7 +420,7 @@ footer{padding:80px 0 40px; margin-top:90px; border-top:1px solid var(--line);}
 .footer-buttons{display:flex; flex-direction:column; gap:10px;}
 .footer-buttons .btn{justify-content:center;}
 .footer-buttons .btn-ticket{display:flex; align-items:center; margin-bottom:0; justify-content:flex-start; gap:12px; text-align:left; padding-top:10px; padding-bottom:10px; line-height:1.25;}
-.btn-ticket .flag{font-size:22px; line-height:1;}
+.btn-ticket .flag{flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:#141210; color:#fff; font-size:11px; font-weight:800; letter-spacing:.04em; line-height:1;}
 .btn-ticket .bt-txt{display:flex; flex-direction:column; flex:1; min-width:0;}
 .btn-ticket .bt-txt b{font-weight:700;}
 .btn-ticket .bt-txt small{font-size:12px; font-weight:500; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -670,7 +670,8 @@ video.slide{width:100%; height:100%; object-fit:cover;}
 
 /* ---------- merch shop ---------- */
 .shop-perks{display:flex; flex-wrap:wrap; gap:8px; margin-top:18px;}
-.shop-perks span{background:var(--bg-soft); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:13px; font-weight:700;}
+.shop-perks span svg, .shop-note .ic svg, .shop-ok .ic svg, .order-big .ic svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; display:block;}
+.shop-perks span{display:inline-flex; align-items:center; gap:8px; background:var(--bg-soft); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:13px; font-weight:700;}
 .shop-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:18px; padding:40px 0 20px;}
 @media (max-width:640px){ .shop-grid{grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px;} }
 .shop-grid .empty-state, .shop-grid .status-msg{grid-column:1/-1;}
@@ -712,6 +713,9 @@ video.slide{width:100%; height:100%; object-fit:cover;}
 .shop-sheet .btn-block{display:flex; width:100%; justify-content:center; margin-top:12px;}
 .shop-msg{color:#c0392b; font-weight:700; margin-top:12px;}
 .shop-ok{background:#e9ffd6; color:#1d4a00; font-weight:700; border-radius:12px; padding:10px 12px; margin-bottom:12px;}
+.ic{display:inline-flex; vertical-align:-3px; margin-right:6px;}
+.order-big .ic{margin:0;} .order-big .ic svg{width:32px; height:32px; stroke-width:2.4;}
+.shop-ok{display:flex; align-items:center;}
 .shop-note{font-size:13px; color:var(--muted); margin-top:12px; text-align:center;}
 .bag-lines{display:flex; flex-direction:column; gap:10px; margin:6px 0 4px;}
 .bag-line{display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:10px;}
@@ -735,3 +739,4 @@ video.slide{width:100%; height:100%; object-fit:cover;}
 .order-manual{white-space:pre-line; background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:14px; font-weight:700; line-height:1.6;}
 .order-spin{width:46px; height:46px; margin:4px auto 16px; border-radius:50%; border:4px solid var(--line); border-top-color:var(--purple); animation:spin 1s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
+.bag-txt .shop-qty{align-self:flex-start;}

@@ -565,6 +565,8 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .tx-sheet .msg{margin-top:10px;}
 .tx-sheet-actions{display:flex; align-items:center; gap:8px; margin-top:16px; flex-wrap:wrap;}
 .tx-sheet-actions .btn{flex:1; justify-content:center;}
+.tx-link svg{width:14px; height:14px; vertical-align:-2px;}
+.tx-row .pen svg{width:16px; height:16px;}
 .tx-link{border:0; background:none; padding:0; margin-top:10px; font:inherit; font-size:13px; font-weight:700; color:var(--purple); cursor:pointer;}
 .text-field .hint{margin-top:6px;}
 

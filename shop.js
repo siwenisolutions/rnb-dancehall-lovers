@@ -1,10 +1,10 @@
 'use strict';
 // Merchandise shop: products (with photos and sizes), orders, and payment
-// through Paynow (EcoCash, OneMoney, InnBucks). Delivery within 14 days.
+// through Paynow (EcoCash, InnBucks). Delivery within 14 days.
 //
 // Payment:
 // - With Paynow set up (Admin → Shop → Payments), the customer's phone gets
-//   the EcoCash/OneMoney PIN prompt, or InnBucks gives a code to approve in
+//   the EcoCash PIN prompt, or InnBucks gives a code to approve in
 //   the InnBucks app. Paynow tells us when it's paid (resulturl), and the
 //   order page also asks Paynow while the customer waits.
 // - Without Paynow, the order is saved and the customer sees the shop's own
@@ -15,7 +15,7 @@ const crypto = require('crypto');
 const express = require('express');
 
 const PAYNOW_INIT = process.env.PAYNOW_INIT_URL || 'https://www.paynow.co.zw/interface/remotetransaction';
-const METHODS = { ecocash: 'EcoCash', onemoney: 'OneMoney', innbucks: 'InnBucks' };
+const METHODS = { ecocash: 'EcoCash', innbucks: 'InnBucks' };
 const STATUSES = ['pending', 'paid', 'failed', 'cancelled', 'sent', 'delivered'];
 const MAX_LINES = 10;
 const MAX_QTY = 20;
@@ -29,7 +29,7 @@ module.exports = function shop(app, admin, d) {
     const { rows } = await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [SETTINGS.map((k) => `_${k}`)]);
     const s = {};
     for (const r of rows) s[r.key.slice(1)] = r.value;
-    const methods = (s.shop_methods || 'ecocash,onemoney,innbucks').split(',').filter((m) => METHODS[m]);
+    const methods = (s.shop_methods || 'ecocash,innbucks').split(',').filter((m) => METHODS[m]);
     return {
       paynowId: s.shop_paynow_id || process.env.PAYNOW_INTEGRATION_ID || '',
       paynowKey: s.shop_paynow_key || process.env.PAYNOW_INTEGRATION_KEY || '',

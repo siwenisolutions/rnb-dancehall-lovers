@@ -13,6 +13,9 @@
 const NAMES = ['RnB Dancehall Lovers', 'R&B Dancehall Lovers', 'RNB Dancehall Lovers', "R'n'B Dancehall Lovers", 'Dancehall Lovers', 'RnB Dancehall Lovers Zimbabwe'];
 
 module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMING }) {
+  const EMOJI = /(?:[\u2600-\u27BF\u2B00-\u2BFF\u2300-\u23FF\uFE0F\u200D\u20E3]|\p{Extended_Pictographic}|\p{Regional_Indicator})/gu;
+  const plain = (v) => String(v || '').replace(EMOJI, '').replace(/[ \t]{2,}/g, ' ').replace(/^[ \t]+|[ \t]+$/gm, '').replace(/^\s*[*•\-–]+\s*|\s*[*]+\s*$/g, '').trim();
+  const tidy = (e) => ({ ...e, title: plain(e.title), venue: plain(e.venue), description: plain(e.description) });
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // JSON inside <script>: "<" can't end the script early.
   const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
@@ -74,18 +77,19 @@ module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMI
     const card = (e) => `<article class="event-card"><a href="/events/${e.id}">${e.cover_media_id ? `<img src="/media/${e.cover_media_id}.webp?size=thumb" alt="${esc(e.title)}" loading="lazy" style="width:100%;aspect-ratio:4/5;object-fit:cover;display:block">` : ''}</a><div class="body"><h3><a href="/events/${e.id}">${esc(e.title)}</a></h3><div class="when">${esc(fmt(e.starts_at))}</div>${e.venue ? `<div class="when">${esc(e.venue)}</div>` : ''}</div></article>`;
     if (file === 'index.html' || file === 'events.html') {
       const { rows } = await pool.query(`SELECT ${eventColumns} FROM events e WHERE ${UPCOMING} ORDER BY e.starts_at LIMIT 10`);
-      rows.forEach((e) => graph.push(eventLd(e, siteName)));
-      out.lists = { upcomingList: rows.map(card).join('') };
+      const list = rows.map(tidy);
+      list.forEach((e) => graph.push(eventLd(e, siteName)));
+      out.lists = { upcomingList: list.map(card).join('') };
       if (file === 'events.html') {
         const past = await pool.query(`SELECT ${eventColumns} FROM events e WHERE NOT (${UPCOMING}) ORDER BY e.starts_at DESC LIMIT 30`);
-        out.lists.pastList = past.rows.map(card).join('');
+        out.lists.pastList = past.rows.map(tidy).map(card).join('');
       }
     }
     if (file === 'event.html') {
       const id = parseInt((/^\/events\/(\d+)/.exec(req.path) || [])[1], 10);
       if (id) {
         const { rows } = await pool.query(`SELECT ${eventColumns} FROM events e WHERE e.id = $1`, [id]);
-        const e = rows[0];
+        const e = rows[0] && tidy(rows[0]);
         if (e) {
           graph.push(eventLd(e, siteName));
           const when = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Harare', weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(e.starts_at));

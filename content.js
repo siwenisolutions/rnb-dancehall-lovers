@@ -126,7 +126,7 @@ const FIELDS = [
   { key: 'shop_title', page: 'Shop page', section: 'Browser tab and sharing', label: 'Title in the browser tab', type: 'line', def: 'Merch Shop — RnB Dancehall Lovers' },
   { key: 'shop_title1', page: 'Shop page', section: 'Top of the page', label: 'Title, first line (outlined)', type: 'line', def: 'MERCH' },
   { key: 'shop_title2', page: 'Shop page', section: 'Top of the page', label: 'Title, second line', type: 'line', def: 'SHOP' },
-  { key: 'shop_intro', page: 'Shop page', section: 'Top of the page', label: 'Text under the title', type: 'text', def: 'Rep the movement. Pick your item and size, pay with EcoCash, OneMoney or InnBucks, and we deliver to your door.' },
+  { key: 'shop_intro', page: 'Shop page', section: 'Top of the page', label: 'Text under the title', type: 'text', def: 'Rep the movement. Pick your item and size, pay with EcoCash or InnBucks, and we deliver to your door.' },
   { key: 'shop_delivery', page: 'Shop page', section: 'Top of the page', label: 'Delivery promise', type: 'line', def: 'Delivery within 14 days', client: true },
   { key: 'shop_add', page: 'Shop page', section: 'Items and checkout', label: 'Add to bag button', type: 'line', def: 'Add to bag', client: true },
   { key: 'shop_bag', page: 'Shop page', section: 'Items and checkout', label: 'Bag title', type: 'line', def: 'Your bag', client: true },

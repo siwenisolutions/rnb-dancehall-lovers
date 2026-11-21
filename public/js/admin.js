@@ -1609,7 +1609,7 @@
       el('span', { class: 'txt' }, [el('b', { text: f.label }), el('span', { text: txValue(f).replace(/\n/g, ' / ') })]),
       changed ? el('span', { class: 'tag changed', text: 'Changed' }) : null,
       onScreen === false ? el('span', { class: 'tag', text: 'Not showing now' }) : null,
-      el('span', { class: 'pen', 'aria-hidden': 'true', text: '✎' })
+      (function () { var p = el('span', { class: 'pen', 'aria-hidden': 'true' }); p.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>'; return p; })()
     ]);
     b.addEventListener('click', function () { txOpen(f.key); });
     return b;
@@ -1723,7 +1723,7 @@
       var tf = c.fields.filter(function (f) { return /_title$/.test(f.key); })[0];
       var df = c.fields.filter(function (f) { return /_description$/.test(f.key); })[0];
       var title = txValue(tf || { value: '', default: '' });
-      var desc = df ? txValue(df) : 'Official merchandise: caps, tees, jackets, cups and more. Pay with EcoCash, OneMoney or InnBucks.';
+      var desc = df ? txValue(df) : 'Official merchandise: caps, tees, jackets, cups and more. Pay with EcoCash or InnBucks.';
       var site = txValue(txField('site_name') || { value: '', default: '' });
       g.textContent = '';
       g.appendChild(el('div', { class: 'site' }, [el('img', { src: '/img/logo.png', alt: '' }), el('div', null, [el('span', { text: site }), el('small', { text: location.host + ' ›' })])]));
@@ -2056,7 +2056,7 @@
     $$('[name=payMethod]').forEach(function (c) { c.checked = st.methods.indexOf(c.value) >= 0; });
     $('payClear').hidden = !st.online;
     $('payState').textContent = st.online
-      ? '✓ Online payments are on. Customers pay with ' + st.methods.join(', ').replace('ecocash', 'EcoCash').replace('onemoney', 'OneMoney').replace('innbucks', 'InnBucks') + ' and orders turn "Paid" by themselves.'
+      ? 'Online payments are on. Customers pay with ' + st.methods.join(' or ').replace('ecocash', 'EcoCash').replace('innbucks', 'InnBucks') + ' and orders turn "Paid" by themselves.'
       : 'Online payments are off. Orders are saved and customers see your own payment instructions below; mark orders paid by hand.';
   }
   $('payForm').addEventListener('submit', function (e) {

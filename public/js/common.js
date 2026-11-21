@@ -57,11 +57,27 @@
     return node;
   }
 
+  // Emojis (often pasted from Instagram captions) are left out of event and
+  // photo text on the website; the admin panel keeps the words as typed.
+  var EMOJI = /(?:[\u2600-\u27BF\u2B00-\u2BFF\u2300-\u23FF\uFE0F\u200D\u20E3]|\uD83C[\uDDE6-\uDDFF]|[\uD83C-\uD83E][\uDC00-\uDFFF])/g;
+  var PLAIN_KEYS = { title: 1, venue: 1, description: 1, caption: 1, event_title: 1, name: 1 };
+  function plain(v) {
+    return String(v).replace(EMOJI, '').replace(/[ \t]{2,}/g, ' ').replace(/^[ \t]+|[ \t]+$/gm, '').replace(/^\s*[*•\-–]+\s*|\s*[*]+\s*$/g, '').trim();
+  }
+  function cleanData(o) {
+    if (Array.isArray(o)) return o.map(cleanData);
+    if (o && typeof o === 'object') {
+      Object.keys(o).forEach(function (k) {
+        o[k] = PLAIN_KEYS[k] && typeof o[k] === 'string' ? plain(o[k]) : cleanData(o[k]);
+      });
+    }
+    return o;
+  }
   function api(path) {
     return fetch(path, { headers: { Accept: 'application/json' } }).then(function (r) {
       if (!r.ok) throw new Error('Request failed: ' + r.status);
       return r.json();
-    });
+    }).then(cleanData);
   }
 
   function mediaUrl(id, thumb) {

@@ -296,12 +296,12 @@ const TICKETS_MAX = 4;
 // Where a ticket is for, worked out from the event's words, so the footer can
 // say "Zimbabwe" or "South Africa" next to each ticket button.
 const PLACES = [
-  ['Zimbabwe', '🇿🇼', ['Harare', 'Bulawayo', 'Gweru', 'Mutare', 'Masvingo', 'Victoria Falls', 'Kwekwe', 'Kadoma', 'Chitungwiza', 'Marondera', 'Chinhoyi']],
-  ['South Africa', '🇿🇦', ['Johannesburg', 'Joburg', 'Jozi', 'JHB', 'Sandton', 'Pretoria', 'Cape Town', 'Durban', 'Soweto', 'Midrand', 'Centurion', 'Randburg', 'Rosebank', 'Gauteng', 'Polokwane']],
-  ['Botswana', '🇧🇼', ['Gaborone', 'Francistown']],
-  ['Zambia', '🇿🇲', ['Lusaka', 'Livingstone']],
-  ['Mozambique', '🇲🇿', ['Maputo']],
-  ['United Kingdom', '🇬🇧', ['London', 'Manchester', 'Birmingham', 'Leeds']],
+  ['Zimbabwe', 'ZW', ['Harare', 'Bulawayo', 'Gweru', 'Mutare', 'Masvingo', 'Victoria Falls', 'Kwekwe', 'Kadoma', 'Chitungwiza', 'Marondera', 'Chinhoyi']],
+  ['South Africa', 'ZA', ['Johannesburg', 'Joburg', 'Jozi', 'JHB', 'Sandton', 'Pretoria', 'Cape Town', 'Durban', 'Soweto', 'Midrand', 'Centurion', 'Randburg', 'Rosebank', 'Gauteng', 'Polokwane']],
+  ['Botswana', 'BW', ['Gaborone', 'Francistown']],
+  ['Zambia', 'ZM', ['Lusaka', 'Livingstone']],
+  ['Mozambique', 'MZ', ['Maputo']],
+  ['United Kingdom', 'GB', ['London', 'Manchester', 'Birmingham', 'Leeds']],
 ];
 const CITY_NAMES = { JHB: 'Johannesburg', Joburg: 'Johannesburg', Jozi: 'Johannesburg' };
 function placeOf(...texts) {
