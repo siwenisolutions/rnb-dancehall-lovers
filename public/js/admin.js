@@ -143,6 +143,7 @@
     $('setPwView').hidden = true;
     $('appView').hidden = false;
     loadAll();
+    checkOrders();
     if (!welcomeHidden()) openWelcome();
   }
 
@@ -233,6 +234,7 @@
     closeMenu();
     if (name === 'text') loadText();
     if (name === 'events') loadMegaticket();
+    if (name === 'shop') loadShop();
     if (name === 'account') loadAccount();
     $$('[data-tab]').forEach(function (t) { t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'); });
     $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
@@ -1718,8 +1720,10 @@
     c.el.appendChild(el('p', { class: 'tx-mock-label', text: 'When the link is shared on WhatsApp' }));
     c.el.appendChild(share);
     c.mock = function () {
-      var title = txValue(txField('home_title') || { value: '', default: '' });
-      var desc = txValue(txField('home_description') || { value: '', default: '' });
+      var tf = c.fields.filter(function (f) { return /_title$/.test(f.key); })[0];
+      var df = c.fields.filter(function (f) { return /_description$/.test(f.key); })[0];
+      var title = txValue(tf || { value: '', default: '' });
+      var desc = df ? txValue(df) : 'Official merchandise: caps, tees, jackets, cups and more. Pay with EcoCash, OneMoney or InnBucks.';
       var site = txValue(txField('site_name') || { value: '', default: '' });
       g.textContent = '';
       g.appendChild(el('div', { class: 'site' }, [el('img', { src: '/img/logo.png', alt: '' }), el('div', null, [el('span', { text: site }), el('small', { text: location.host + ' ›' })])]));
@@ -1800,7 +1804,7 @@
     var v = txInput().value;
     if (f.type === 'line') v = v.replace(/\s*\n\s*/g, ' ');
     txShowEverywhere(f, v.trim() === '' ? f.default : v);
-    if (f.key === 'home_title' || f.key === 'home_description' || f.key === 'site_name') {
+    if (/_title$|_description$/.test(f.key) || f.key === 'site_name') {
       var keep = f.value; f.value = v; tx.cards.forEach(function (c) { if (c.mock) c.mock(); }); f.value = keep;
     }
     txMarkReset();
@@ -1888,6 +1892,188 @@
       .then(function () { busy(btn, false); });
   });
 
+  // ---------- merch shop ----------
+  var shopState = { products: [], orders: [], settings: {}, filter: 'todo', open: {} };
+  function dollars(c) { var v = c / 100; return '$' + (v % 1 ? v.toFixed(2) : String(v)); }
+  var ORDER_WORDS = { pending: 'Waiting for payment', paid: 'Paid · to send', sent: 'Sent', delivered: 'Delivered', failed: 'Payment failed', cancelled: 'Cancelled' };
+  function loadShop() {
+    return Promise.all([get('/api/admin/shop'), get('/api/admin/shop/orders')]).then(function (r) {
+      shopState.products = r[0].products;
+      shopState.settings = r[0].settings;
+      shopState.orders = r[1].orders;
+      renderOrders(); renderProducts(); renderPaySettings(); shopBadge();
+    }).catch(function (err) { toast(err.message); });
+  }
+  function shopBadge() {
+    var n = shopState.orders.filter(function (o) { return o.status === 'paid'; }).length;
+    $('shopBadge').hidden = !n;
+    $('shopBadge').textContent = String(n);
+  }
+  // The badge on the tab: paid orders waiting to be sent.
+  function checkOrders() { get('/api/admin/shop/orders').then(function (r) { shopState.orders = r.orders; shopBadge(); if (!document.querySelector('[data-panel="shop"]').hidden) renderOrders(); }).catch(function () {}); }
+  setInterval(function () { if (!$('appView').hidden) checkOrders(); }, 60000);
+
+  segment('orderSeg', function (v) { shopState.filter = v; renderOrders(); });
+  function renderOrders() {
+    var f = shopState.filter;
+    var list = shopState.orders.filter(function (o) {
+      if (f === 'todo') return o.status === 'paid';
+      if (f === 'pending') return o.status === 'pending';
+      if (f === 'done') return ['sent', 'delivered', 'cancelled', 'failed'].indexOf(o.status) >= 0;
+      return true;
+    });
+    var box = $('orderList');
+    box.textContent = '';
+    if (!list.length) {
+      box.appendChild(el('p', { class: 'empty', text: f === 'todo' ? 'No paid orders waiting to be sent.' : 'No orders here yet.' }));
+      return;
+    }
+    list.forEach(function (o) {
+      var row = el('div', { class: 'order-row' });
+      var head = el('button', { type: 'button', 'aria-expanded': shopState.open[o.id] ? 'true' : 'false' }, [
+        !o.seen && o.status === 'paid' ? el('span', { class: 'o-new', title: 'New' }) : null,
+        el('span', { class: 'o-main' }, [
+          el('b', { text: o.name + ' · ' + o.ref }),
+          el('small', { text: fmtDate(o.created_at) + ' ' + fmtTime(o.created_at) + ' · ' + o.items.reduce(function (n, i) { return n + i.qty; }, 0) + ' item(s) · ' + (o.city || '') })
+        ]),
+        el('span', { class: 'o-total', text: dollars(o.total_cents) }),
+        el('span', { class: 'o-status ' + o.status, text: ORDER_WORDS[o.status] || o.status })
+      ]);
+      head.addEventListener('click', function () { shopState.open[o.id] = !shopState.open[o.id]; renderOrders(); });
+      row.appendChild(head);
+      if (shopState.open[o.id]) {
+        var tel = o.phone.replace(/^0/, '263');
+        var actions = [];
+        function act(label, status, cls, ask) {
+          actions.push(el('button', { class: 'btn btn-sm ' + (cls || 'btn-light'), type: 'button', text: label, onclick: function () {
+            if (ask && !confirm(ask)) return;
+            call('PUT', '/api/admin/shop/orders/' + o.id, { status: status }).then(function () { toast('Order ' + o.ref + ': ' + (ORDER_WORDS[status] || status)); loadShop(); })
+              .catch(function (err) { toast(err.message); });
+          } }));
+        }
+        if (o.status === 'pending' || o.status === 'failed') act('Mark as paid', 'paid', 'btn-green', 'Mark ' + o.ref + ' as paid? Only do this once the money is in your account.');
+        if (o.status === 'paid') act('Mark as sent', 'sent', 'btn-dark');
+        if (o.status === 'sent') act('Mark as delivered', 'delivered', 'btn-dark');
+        if (o.status !== 'cancelled' && o.status !== 'delivered') act('Cancel order', 'cancelled', 'btn-ghost', 'Cancel order ' + o.ref + '? If it was paid, refund the customer yourself.');
+        row.appendChild(el('div', { class: 'o-detail' }, [
+          el('div', { class: 'o-items' }, o.items.map(function (i) {
+            return el('div', { text: i.qty + ' × ' + i.name + (i.size ? ' (size ' + i.size + ')' : '') + ' — ' + dollars(i.price_cents * i.qty) });
+          }).concat([el('b', { text: 'Total ' + dollars(o.total_cents) })])),
+          el('div', null, [el('b', { text: 'Deliver to: ' }), o.address + ', ' + o.city]),
+          el('div', null, [el('b', { text: 'Phone: ' }), el('a', { href: 'tel:' + o.phone, text: o.phone, style: 'text-decoration:underline' }), ' · ',
+            el('a', { href: 'https://wa.me/' + tel, target: '_blank', rel: 'noopener', text: 'WhatsApp', style: 'text-decoration:underline' })]),
+          o.email ? el('div', null, [el('b', { text: 'Email: ' }), o.email]) : null,
+          o.note ? el('div', null, [el('b', { text: 'Note: ' }), o.note]) : null,
+          el('div', { class: 'muted' }, ['Paid with ' + (o.pay_method === 'manual' ? 'own instructions' : (o.pay_method || '')) + (o.pay_phone ? ' from ' + o.pay_phone : '') + (o.paynow_ref ? ' · Paynow ref ' + o.paynow_ref : '') + (o.error ? ' · ' + o.error : '')]),
+          el('div', { class: 'btn-row', style: 'margin-top:4px' }, actions)
+        ]));
+      }
+      box.appendChild(row);
+    });
+    if (shopState.orders.some(function (o) { return !o.seen; })) call('POST', '/api/admin/shop/orders/seen').catch(function () {});
+  }
+
+  // items
+  function resetProductForm() {
+    $('productForm').reset();
+    $('pfId').value = '';
+    $('pfActive').checked = true;
+    $('productFormTitle').textContent = 'Add an item';
+    $('pfSubmit').textContent = 'Add item';
+    $('pfCancel').hidden = true;
+    $('pfFilesName').textContent = 'Choose photos';
+    $('pfPhotos').textContent = '';
+    $('pfMsg').hidden = true;
+  }
+  $('pfCancel').addEventListener('click', resetProductForm);
+  $('pfFiles').addEventListener('change', function () { $('pfFilesName').textContent = this.files.length ? plural(this.files.length, 'photo') + ' chosen' : 'Choose photos'; });
+  function editProduct(p) {
+    resetProductForm();
+    $('pfId').value = p.id;
+    $('pfName').value = p.name;
+    $('pfPrice').value = (p.price_cents / 100).toFixed(2).replace(/\.00$/, '');
+    $('pfSizes').value = p.sizes.join(', ');
+    $('pfDesc').value = p.description;
+    $('pfActive').checked = p.active;
+    $('productFormTitle').textContent = 'Edit item';
+    $('pfSubmit').textContent = 'Save item';
+    $('pfCancel').hidden = false;
+    p.photo_ids.forEach(function (mid) {
+      $('pfPhotos').appendChild(el('span', { class: 'pf-photo', style: "background-image:url('" + media(mid, true) + "')" }, [
+        el('button', { type: 'button', 'aria-label': 'Remove photo', text: '×', onclick: function (e) {
+          var tile = e.currentTarget.parentNode;
+          if (!confirm('Remove this photo?')) return;
+          call('DELETE', '/api/admin/shop/products/' + p.id + '/photos/' + mid).then(function () { tile.remove(); loadShop(); }).catch(function (err) { toast(err.message); });
+        } })
+      ]));
+    });
+    $('productForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  $('productForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var id = $('pfId').value, btn = $('pfSubmit');
+    var body = { name: $('pfName').value, price: $('pfPrice').value, sizes: $('pfSizes').value, description: $('pfDesc').value, active: $('pfActive').checked };
+    var files = $('pfFiles').files;
+    busy(btn, true);
+    (id ? call('PUT', '/api/admin/shop/products/' + id, body).then(function () { return id; })
+      : call('POST', '/api/admin/shop/products', body).then(function (r) { return r.id; }))
+      .then(function (pid) {
+        if (!files.length) return;
+        btn.textContent = 'Uploading photos…';
+        var fd = new FormData();
+        Array.prototype.forEach.call(files, function (f) { fd.append('photos', f); });
+        return call('POST', '/api/admin/shop/products/' + pid + '/photos', fd);
+      })
+      .then(function () { busy(btn, false); toast(id ? 'Item saved' : 'Item added to the shop'); resetProductForm(); loadShop(); })
+      .catch(function (err) { busy(btn, false); say($('pfMsg'), err.message, false); loadShop(); });
+  });
+  function renderProducts() {
+    var box = $('productList');
+    box.textContent = '';
+    if (!shopState.products.length) { box.appendChild(el('p', { class: 'empty', text: 'No items yet. Add your caps, tees and cups on the left.' })); return; }
+    shopState.products.forEach(function (p) {
+      box.appendChild(el('div', { class: 'p-row' + (p.active ? '' : ' off') }, [
+        el('span', { class: 'p-img', style: p.photo_ids.length ? "background-image:url('" + media(p.photo_ids[0], true) + "')" : '' }),
+        el('span', { class: 'p-txt' }, [el('b', { text: p.name }), el('small', { text: dollars(p.price_cents) + (p.sizes.length ? ' · ' + p.sizes.join(', ') : '') + (p.active ? '' : ' · hidden') })]),
+        el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Edit', onclick: function () { editProduct(p); } }),
+        el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Delete', onclick: function () {
+          if (!confirm('Delete ' + p.name + ' from the shop? Past orders keep their details.')) return;
+          call('DELETE', '/api/admin/shop/products/' + p.id).then(function () { toast('Item deleted'); loadShop(); }).catch(function (err) { toast(err.message); });
+        } })
+      ]));
+    });
+  }
+
+  // payments
+  function renderPaySettings() {
+    var st = shopState.settings;
+    $('payOpen').checked = st.open;
+    $('payId').value = st.paynow_id || '';
+    $('payKey').value = '';
+    $('payKey').placeholder = st.paynow_key_set ? 'Saved. Paste a new key to change it' : 'Paste the key';
+    $('payEmail').value = st.paynow_email || '';
+    $('payManual').value = st.manual || '';
+    $$('[name=payMethod]').forEach(function (c) { c.checked = st.methods.indexOf(c.value) >= 0; });
+    $('payClear').hidden = !st.online;
+    $('payState').textContent = st.online
+      ? '✓ Online payments are on. Customers pay with ' + st.methods.join(', ').replace('ecocash', 'EcoCash').replace('onemoney', 'OneMoney').replace('innbucks', 'InnBucks') + ' and orders turn "Paid" by themselves.'
+      : 'Online payments are off. Orders are saved and customers see your own payment instructions below; mark orders paid by hand.';
+  }
+  $('payForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('paySave');
+    var body = { open: $('payOpen').checked, paynow_id: $('payId').value.trim(), paynow_email: $('payEmail').value.trim(), manual: $('payManual').value,
+      methods: $$('[name=payMethod]').filter(function (c) { return c.checked; }).map(function (c) { return c.value; }) };
+    if ($('payKey').value.trim()) body.paynow_key = $('payKey').value.trim();
+    busy(btn, true);
+    call('PUT', '/api/admin/shop/settings', body).then(function () { say($('payMsg'), 'Saved.', true); return loadShop(); })
+      .catch(function (err) { say($('payMsg'), err.message, false); }).then(function () { busy(btn, false); });
+  });
+  $('payClear').addEventListener('click', function () {
+    if (!confirm('Remove the Paynow details? Online payments stop until you add them again.')) return;
+    call('PUT', '/api/admin/shop/settings', { clear_paynow: true }).then(loadShop).catch(function (err) { toast(err.message); });
+  });
+
   // ---------- start ----------
   try { $('loginEmail').value = localStorage.getItem('rnbLoginEmail') || ''; } catch (e) { /* ignore */ }
   var startTab = location.hash.slice(1);
@@ -1897,6 +2083,6 @@
       setMe(s);
       if (s.mustChange) return showSetPassword(false);
       showApp();
-      if (['events', 'photos', 'details', 'text', 'account'].indexOf(startTab) >= 0) goTo(startTab);
+      if (['events', 'photos', 'details', 'text', 'shop', 'account'].indexOf(startTab) >= 0) goTo(startTab);
     }, showLogin);
 })();

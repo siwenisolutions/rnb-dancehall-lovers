@@ -30,6 +30,8 @@ const SETTING_DEFAULTS = {
   facebook_url: '',
   tiktok_url: '',
   whatsapp_url: 'https://whatsapp.com/channel/0029Vb6xj0D47Xe6bVFhv92q',
+  // Google Search Console's HTML-tag verification code (Details → Google).
+  google_verification: '',
   youtube_url: '',
   // Ticket cards on the home page (also used for the footer buttons).
   ticket1_title: '1 Year Anniversary',
@@ -176,6 +178,46 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS tables_url text NOT NULL DEFAULT '';
 -- Events found on Megaticket (see megaticket.js). A slug once seen is never
 -- added again, so an event the admin deleted stays deleted.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS megaticket_slug text;
+-- Merchandise shop (shop.js). Prices in US cents. sizes: one per line,
+-- empty for one-size items.
+CREATE TABLE IF NOT EXISTS products (
+  id          serial PRIMARY KEY,
+  name        text NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
+  description text NOT NULL DEFAULT '',
+  price_cents integer NOT NULL CHECK (price_cents > 0 AND price_cents < 100000000),
+  sizes       text NOT NULL DEFAULT '',
+  active      boolean NOT NULL DEFAULT true,
+  sort        integer NOT NULL DEFAULT 0,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE media ADD COLUMN IF NOT EXISTS product_id integer REFERENCES products(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS media_product_idx ON media (product_id) WHERE product_id IS NOT NULL;
+-- status: pending (waiting for payment), paid, failed, cancelled, sent, delivered
+CREATE TABLE IF NOT EXISTS orders (
+  id           serial PRIMARY KEY,
+  ref          text NOT NULL UNIQUE,
+  name         text NOT NULL,
+  phone        text NOT NULL,
+  email        text NOT NULL DEFAULT '',
+  city         text NOT NULL DEFAULT '',
+  address      text NOT NULL DEFAULT '',
+  note         text NOT NULL DEFAULT '',
+  items        jsonb NOT NULL,
+  total_cents  integer NOT NULL,
+  pay_method   text NOT NULL,
+  pay_phone    text NOT NULL DEFAULT '',
+  status       text NOT NULL DEFAULT 'pending',
+  paynow_poll_url text,
+  paynow_ref   text,
+  auth_code    text,
+  auth_expires text,
+  error        text,
+  seen         boolean NOT NULL DEFAULT false,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  paid_at      timestamptz,
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS orders_created_idx ON orders (created_at DESC);
 CREATE TABLE IF NOT EXISTS megaticket_seen (
   slug       text PRIMARY KEY,
   event_id   integer,
@@ -212,11 +254,11 @@ CREATE INDEX IF NOT EXISTS media_video_state_idx ON media (video_state) WHERE vi
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conname = 'media_category_check' AND pg_get_constraintdef(oid) LIKE '%flyer%'
+    WHERE conname = 'media_category_check' AND pg_get_constraintdef(oid) LIKE '%product%'
   ) THEN
     ALTER TABLE media DROP CONSTRAINT IF EXISTS media_category_check;
     ALTER TABLE media ADD CONSTRAINT media_category_check
-      CHECK (category IN ('experience', 'gallery', 'event', 'site', 'flyer'));
+      CHECK (category IN ('experience', 'gallery', 'event', 'site', 'flyer', 'product'));
   END IF;
 END $$;
 
@@ -384,16 +426,16 @@ async function setUpAdmin() {
   }
 }
 
-async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null, source = null }, db = pool) {
+async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null, source = null, productId = null }, db = pool) {
   const inBucket = storage.enabled;
   const videoState = img.mime.startsWith('video/') ? (img.videoState || 'pending') : null;
   const { rows } = await db.query(
     `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb, slot, created_at,
-                        in_bucket, bytes, thumb_bytes, video_state, source)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12, $13, $14, $15) RETURNING id`,
+                        in_bucket, bytes, thumb_bytes, video_state, source, product_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12, $13, $14, $15, $16) RETURNING id`,
     [category, eventId, caption, img.mime, img.width, img.height,
       inBucket ? null : img.data, inBucket ? null : img.thumb, slot, createdAt,
-      inBucket, img.data.length, img.thumb.length, videoState, source]
+      inBucket, img.data.length, img.thumb.length, videoState, source, productId]
   );
   const id = rows[0].id;
   if (inBucket) await storage.putMedia(id, img);

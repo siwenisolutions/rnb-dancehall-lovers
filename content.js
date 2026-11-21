@@ -19,18 +19,20 @@ const FIELDS = [
   { key: 'nav_upcoming', page: 'Every page', section: 'Menu', label: 'Menu: upcoming', type: 'line', def: 'Upcoming', client: true },
   { key: 'nav_events', page: 'Every page', section: 'Menu', label: 'Menu: events', type: 'line', def: 'Events', client: true },
   { key: 'nav_gallery', page: 'Every page', section: 'Menu', label: 'Menu: gallery', type: 'line', def: 'Gallery', client: true },
+  { key: 'nav_shop', page: 'Every page', section: 'Menu', label: 'Menu: shop', type: 'line', def: 'Shop', client: true },
   { key: 'nav_experiences', page: 'Every page', section: 'Menu', label: 'Menu: experiences', type: 'line', def: 'Experiences', client: true },
   { key: 'footer_events', page: 'Every page', section: 'Footer', label: 'Footer: events heading', type: 'line', def: 'Events', client: true },
   { key: 'footer_upcoming', page: 'Every page', section: 'Footer', label: 'Footer: upcoming events link', type: 'line', def: 'Upcoming Events', client: true },
   { key: 'footer_past', page: 'Every page', section: 'Footer', label: 'Footer: past events link', type: 'line', def: 'Past Events', client: true },
   { key: 'footer_gallery', page: 'Every page', section: 'Footer', label: 'Footer: gallery link', type: 'line', def: 'Photo Gallery', client: true },
+  { key: 'footer_shop', page: 'Every page', section: 'Footer', label: 'Footer: shop link', type: 'line', def: 'Merch Shop', client: true },
   { key: 'footer_experience', page: 'Every page', section: 'Footer', label: 'Footer: experience link', type: 'line', def: 'The Experience', client: true },
   { key: 'footer_visit', page: 'Every page', section: 'Footer', label: 'Footer: address heading', type: 'line', def: 'Visit', client: true },
   { key: 'footer_contact', page: 'Every page', section: 'Footer', label: 'Footer: contact heading', type: 'line', def: 'Contact', client: true },
   { key: 'footer_place', page: 'Every page', section: 'Footer', label: 'Footer: city after the © line', type: 'line', def: 'Harare, Zimbabwe', client: true },
 
   // ---------- home page ----------
-  { key: 'home_title', page: 'Home page', section: 'Browser tab and sharing', label: 'Title in the browser tab', type: 'line', def: 'RnB Dancehall Lovers — Old Is the New Vibe' },
+  { key: 'home_title', page: 'Home page', section: 'Browser tab and sharing', label: 'Title in the browser tab', type: 'line', def: 'RnB Dancehall Lovers | R&B & Dancehall Events in Zimbabwe' },
   { key: 'home_description', page: 'Home page', section: 'Browser tab and sharing', label: 'Description for Google and shared links', type: 'text', def: 'RnB Dancehall Lovers: R&B and dancehall events in Harare, Zimbabwe. See upcoming events, get tickets and browse photos from our nights.' },
 
   { key: 'hero_title', page: 'Home page', section: 'Header', label: 'Big title', type: 'heading', def: 'OLD IS THE\nNEW *VIBE*', hint: 'A new line starts a new line on the page. Put *stars* around words to make them purple.' },
@@ -68,7 +70,7 @@ const FIELDS = [
 
   { key: 'merch_title', page: 'Home page', section: 'Merchandise', label: 'Title', type: 'heading', def: 'MERCHANDISE' },
   { key: 'merch_text', page: 'Home page', section: 'Merchandise', label: 'Text', type: 'text', def: 'Rep the movement. Official RnB Dancehall Lovers gear, from caps and tees to cups and ice buckets.' },
-  { key: 'merch_btn', page: 'Home page', section: 'Merchandise', label: 'Button', type: 'line', def: 'See The Gallery →' },
+  { key: 'merch_btn', page: 'Home page', section: 'Merchandise', label: 'Button', type: 'line', def: 'Shop the merch →' },
   { key: 'merch_items', page: 'Home page', section: 'Merchandise', label: 'Items', type: 'list', def: 'Caps\nHats\nT-Shirts\nJackets\nTracksuits\nWaving Fingers\nCigars\nSocks\nCups\nIce Buckets\nKey Holders' },
 
   { key: 'recent_title1', page: 'Home page', section: 'Recent events', label: 'Title, first line (outlined)', type: 'line', def: 'RECENT' },
@@ -120,6 +122,19 @@ const FIELDS = [
   { key: 'photo_share', page: 'Gallery page', section: 'Photos', label: 'Photo viewer: share button', type: 'line', def: 'Share', client: true },
   { key: 'gallery_empty', page: 'Gallery page', section: 'Photos', label: 'When a tab has no photos', type: 'line', def: 'No photos here yet.', client: true },
 
+  // ---------- shop ----------
+  { key: 'shop_title', page: 'Shop page', section: 'Browser tab and sharing', label: 'Title in the browser tab', type: 'line', def: 'Merch Shop — RnB Dancehall Lovers' },
+  { key: 'shop_title1', page: 'Shop page', section: 'Top of the page', label: 'Title, first line (outlined)', type: 'line', def: 'MERCH' },
+  { key: 'shop_title2', page: 'Shop page', section: 'Top of the page', label: 'Title, second line', type: 'line', def: 'SHOP' },
+  { key: 'shop_intro', page: 'Shop page', section: 'Top of the page', label: 'Text under the title', type: 'text', def: 'Rep the movement. Pick your item and size, pay with EcoCash, OneMoney or InnBucks, and we deliver to your door.' },
+  { key: 'shop_delivery', page: 'Shop page', section: 'Top of the page', label: 'Delivery promise', type: 'line', def: 'Delivery within 14 days', client: true },
+  { key: 'shop_add', page: 'Shop page', section: 'Items and checkout', label: 'Add to bag button', type: 'line', def: 'Add to bag', client: true },
+  { key: 'shop_bag', page: 'Shop page', section: 'Items and checkout', label: 'Bag title', type: 'line', def: 'Your bag', client: true },
+  { key: 'shop_checkout', page: 'Shop page', section: 'Items and checkout', label: 'Checkout button and title', type: 'line', def: 'Checkout', client: true },
+  { key: 'shop_pay', page: 'Shop page', section: 'Items and checkout', label: 'Pay button', type: 'line', def: 'Pay', client: true },
+  { key: 'shop_thanks', page: 'Shop page', section: 'Items and checkout', label: 'Message once paid', type: 'text', def: 'Thank you! Your order is paid. We\u2019ll deliver within 14 days and call you on the number you gave us.', client: true },
+  { key: 'shop_empty', page: 'Shop page', section: 'Items and checkout', label: 'When there are no items', type: 'line', def: 'New merch is on the way. Check back soon.', client: true },
+
   // ---------- 404 ----------
   { key: 'notfound_title', page: '"Page not found" page', section: 'Whole page', label: 'Title', type: 'heading', def: 'LOST THE RIDDIM?' },
   { key: 'notfound_text', page: '"Page not found" page', section: 'Whole page', label: 'Text', type: 'text', def: "That page doesn't exist. Head back to the home page or check out our events." },
@@ -149,6 +164,9 @@ const SECTIONS = [
   { page: 'Events page', section: 'One event', url: '/events/:event', show: 'main' },
   { page: 'Gallery page', section: 'Top of the page', url: '/gallery', show: '.page-head' },
   { page: 'Gallery page', section: 'Photos', url: '/gallery', show: '#grid, #status' },
+  { page: 'Shop page', section: 'Browser tab and sharing', url: null, show: null },
+  { page: 'Shop page', section: 'Top of the page', url: '/shop', show: '.page-head' },
+  { page: 'Shop page', section: 'Items and checkout', url: '/shop', show: '#shopGrid' },
   { page: '"Page not found" page', section: 'Whole page', url: '/rnb-page-that-is-not-there', show: 'main' },
 ];
 

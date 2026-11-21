@@ -91,7 +91,7 @@
   function renderHeader() {
     var header = document.querySelector('header[data-site]');
     if (!header) return;
-    var links = [['/#tickets', t('nav_tickets')], ['/#upcoming', t('nav_upcoming')], ['/events', t('nav_events')], ['/gallery', t('nav_gallery')], ['/#experience', t('nav_experiences')]];
+    var links = [['/#tickets', t('nav_tickets')], ['/#upcoming', t('nav_upcoming')], ['/events', t('nav_events')], ['/gallery', t('nav_gallery')], ['/shop', t('nav_shop')], ['/#experience', t('nav_experiences')]];
     var nav = el('nav', { class: 'nav-links', id: 'navLinks' }, links.map(function (l) {
       return el('a', { href: l[0], text: l[1] });
     }));
@@ -224,6 +224,7 @@
           el('a', { href: '/events#upcoming', text: t('footer_upcoming') }),
           el('a', { href: '/events#past', text: t('footer_past') }),
           el('a', { href: '/gallery', text: t('footer_gallery') }),
+          el('a', { href: '/shop', text: t('footer_shop') }),
           el('a', { href: '/gallery?category=experience', text: t('footer_experience') })
         ]),
         el('div', { class: 'footer-col' }, [

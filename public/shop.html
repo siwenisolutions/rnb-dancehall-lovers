@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="/js/guard.js"></script><!-- no "view source" / "inspect" menu or shortcuts on computers and Android (not iPhone/iPad) -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{shop_title}}</title>
+<meta name="description" content="Official {{site_name}} merchandise: caps, tees, jackets, cups and more. Pay with EcoCash, OneMoney or InnBucks. Delivery in Zimbabwe within 14 days.">
+<link rel="icon" href="/img/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="subpage">
+<header data-site class="is-scrolled"></header>
+
+<main class="wrap">
+  <section class="page-head section-title" style="padding-top:140px;">
+    <a class="back-link" href="/">{{back_home}}</a>
+    <div class="display">{{shop_title1}}</div>
+    <div class="display filled">{{shop_title2}}</div>
+    <p>{{shop_intro}}</p>
+    <div class="shop-perks">
+      <span>🚚 {{shop_delivery}}</span>
+      <span>📱 EcoCash · OneMoney · InnBucks</span>
+    </div>
+  </section>
+
+  <section class="shop-grid" id="shopGrid" aria-live="polite"><p class="status-msg">Loading the shop…</p></section>
+</main>
+
+<!-- Bag button (shows once something is in the bag) -->
+<button class="bag-fab" id="bagFab" type="button" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+  <span id="bagFabText">Bag</span>
+</button>
+
+<!-- One item / bag / checkout / order status, in a sheet -->
+<div class="shop-sheet" id="sheet" hidden>
+  <div class="shop-sheet-bg" data-close></div>
+  <div class="shop-sheet-box" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <button class="shop-x" type="button" data-close aria-label="Close">×</button>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<footer data-site></footer>
+
+<script src="/js/common.js"></script>
+<script src="/js/shop.js"></script>
+</body>
+</html>

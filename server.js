@@ -71,6 +71,8 @@ function clientIp(req) {
 // Old onrender.com address and www. both forward to the main domain once it is set.
 // (Except photos/videos when VIDEO_BASE points at the onrender.com address.)
 const CANONICAL_HOST = process.env.CANONICAL_HOST || '';
+// The site's public address, for links Google and Paynow use.
+const SITE_URL = (process.env.SITE_URL || `https://${CANONICAL_HOST || 'rnbdancehalllovers.co.zw'}`).replace(/\/+$/, '');
 app.use((req, res, next) => {
   if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz' && req.path !== '/ping'
       && !(VIDEO_BASE && req.path.startsWith('/media/'))) {
@@ -268,6 +270,19 @@ async function getSettings() {
   return out;
 }
 
+// Google finding the site: robots.txt, sitemap.xml and page tags (seo.js).
+const seo = require('./seo')({ pool, siteUrl: () => SITE_URL, getSettings, eventColumns, UPCOMING });
+const seoCache = new Map();
+app.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(seo.robots()));
+app.get('/sitemap.xml', wrap(async (req, res) => {
+  res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(await seo.sitemap());
+}));
+// The onrender.com address shows the same pages: keep it out of Google.
+app.use((req, res, next) => {
+  if (/\.onrender\.com$/i.test(req.hostname)) res.set('X-Robots-Tag', 'noindex');
+  next();
+});
+
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
@@ -335,6 +350,7 @@ const mediaMeta = new Map();
 let heroCache = null;
 function clearPublicCache() {
   apiCache.clear();
+  if (typeof seoCache !== 'undefined') seoCache.clear();
   mediaMeta.clear();
   heroCache = null;
 }
@@ -353,7 +369,7 @@ function cachedApi(req, res, next) {
   };
   next();
 }
-app.use(['/api/home', '/api/settings', '/api/events', '/api/photos'], cachedApi);
+app.use(['/api/home', '/api/settings', '/api/events', '/api/photos', '/api/shop'], cachedApi);
 
 // A page view, sent by the visitor's browser (see common.js). Admins are not counted.
 app.post('/api/hit', express.text({ type: '*/*', limit: '2kb' }), (req, res) => {
@@ -488,10 +504,10 @@ app.get('/api/photos', wrap(async (req, res) => {
   const params = [limit + 1, offset];
   // Gallery: every photo on the site (videos are not shown in the gallery).
   const filters = {
-    '': "m.mime LIKE 'image/%' AND m.category <> 'flyer'",
+    '': "m.mime LIKE 'image/%' AND m.category NOT IN ('flyer', 'product')",
     event: "m.category = 'event'",
     experience: "m.category = 'site' AND m.slot IN ('exp1', 'exp2', 'exp3')",
-    gallery: "m.mime LIKE 'image/%' AND m.category NOT IN ('event', 'flyer') AND (m.slot IS NULL OR m.slot NOT IN ('exp1', 'exp2', 'exp3'))",
+    gallery: "m.mime LIKE 'image/%' AND m.category NOT IN ('event', 'flyer', 'product') AND (m.slot IS NULL OR m.slot NOT IN ('exp1', 'exp2', 'exp3'))",
   };
   if (!(category in filters)) throw httpError(400, 'Unknown category.');
   const where = `WHERE ${filters[category]}`;
@@ -852,7 +868,7 @@ admin.get('/stats', wrap(async (req, res) => {
 // Names used in error messages, matching the labels in the admin panel.
 const SETTING_LABELS = {
   hero_text: 'Home page tagline', about_text: 'About us', contact_email: 'Email', phone: 'Phone', address: 'Address',
-  instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', whatsapp_url: 'WhatsApp channel', youtube_url: 'YouTube',
+  instagram_url: 'Instagram', facebook_url: 'Facebook', tiktok_url: 'TikTok', whatsapp_url: 'WhatsApp channel', google_verification: 'Google verification code', youtube_url: 'YouTube',
   ticket1_title: 'Ticket card 1 event name', ticket1_subtitle: 'Ticket card 1 where', ticket1_label: 'Ticket card 1 button text', ticket1_url: 'Ticket card 1 ticket website',
   exp1_label: 'Experience card 1 word', exp2_label: 'Experience card 2 word', exp3_label: 'Experience card 3 word',
   ticket1_date: 'Ticket card 1 event date', ticket2_date: 'Ticket card 2 event date',
@@ -869,6 +885,13 @@ admin.put('/settings', wrap(async (req, res) => {
     else if (key.endsWith('_date')) {
       const v = String(body[key] || '').trim();
       if (v && !(/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)))) throw httpError(400, `${label}: please pick a date.`);
+      updates[key] = v;
+    }
+    else if (key === 'google_verification') {
+      // Accepts the code or the whole <meta name="google-site-verification" content="…"> tag.
+      const raw = String(body[key] || '').trim();
+      const v = (/content=["']([^"']+)["']/i.exec(raw) || [null, raw])[1].trim();
+      if (v && !/^[A-Za-z0-9_-]{10,100}$/.test(v)) throw httpError(400, 'Google verification: paste the code (or the whole meta tag) from Google Search Console.');
       updates[key] = v;
     }
     else if (key === 'contact_email') updates[key] = cleanEmail(body[key]);
@@ -1066,6 +1089,12 @@ admin.delete('/events/:id', wrap(async (req, res) => {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 20 },
+});
+
+// Merchandise shop and its payments (shop.js).
+require('./shop')(app, admin, {
+  pool, insertMedia, forgetMediaFiles, processImage, assertRoomFor: (n) => assertRoomFor(n), httpError, wrap, cleanText, parseId,
+  upload, clientIp, clearPublicCache, siteUrl: () => SITE_URL,
 });
 
 // Upload one or more photos. category=event requires event_id.
@@ -1296,11 +1325,34 @@ function sendPage(res, file, status = 200) {
         }
         return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}.webp')"></div></div>` : '';
       }).then((html) => { heroCache = { html, exp: Date.now() + API_TTL }; return html; }).catch(() => '');
-  Promise.all([savedContent().catch(() => ({})), heroMedia]).then(([saved, hero]) => {
+  const req = res.req;
+  const seoKey = `${file}|${req.path}`;
+  const seoHead = edit ? Promise.resolve(null)
+    : seoCache.has(seoKey) && seoCache.get(seoKey).exp > Date.now() ? Promise.resolve(seoCache.get(seoKey).head)
+    : savedContent().then((saved) => seo.head(file, req, saved)).then((head) => {
+      if (seoCache.size > 300) seoCache.clear();
+      seoCache.set(seoKey, { head, exp: Date.now() + API_TTL });
+      return head;
+    }).catch((err) => { console.warn('[seo]', err.message); return null; });
+  Promise.all([savedContent().catch(() => ({})), heroMedia, seoHead]).then(([saved, hero, head]) => {
     const json = JSON.stringify(content.clientText(saved)).replace(/</g, '\\u003c');
     let out = content.fillPage(html, saved, { edit })
       .replace('<section class="hero"><!--HERO_MEDIA-->', hero ? `<section class="hero has-slides">${hero}` : '<section class="hero">')
       .replace('<script src="/js/common.js', `<script id="rnb-text" type="application/json">${json}</script>\n${edit ? '<script>window.RNB_EDIT = true;</script>\n' : ''}<script src="/js/common.js`);
+    if (head) {
+      const e = seo.esc;
+      let extra = head.tags.join('\n');
+      if (head.title) {
+        out = out.replace(/<title>[^<]*<\/title>/, `<title>${e(head.title)}</title>`);
+        extra += `\n<meta property="og:title" content="${e(head.title)}">`;
+      }
+      if (head.description) {
+        out = out.replace(/<meta name="description"[^>]*>\n?/, '');
+        extra += `\n<meta name="description" content="${e(head.description)}">\n<meta property="og:description" content="${e(head.description)}">`;
+      }
+      if (head.image) extra += `\n<meta property="og:image" content="${e(head.image)}">\n<meta name="twitter:card" content="summary_large_image">`;
+      out = out.replace('</head>', `${extra}\n</head>`);
+    }
     if (edit) {
       out = out.replace('</body>', `<script src="/js/edit-mode.js?v=${assetVersion('/js/edit-mode.js')}"></script>\n</body>`)
         .replace('<head>', '<head>\n<meta name="robots" content="noindex">');
@@ -1311,7 +1363,7 @@ function sendPage(res, file, status = 200) {
 
 const PAGES = {
   '/': 'index.html', '/index.html': 'index.html',
-  '/admin': 'admin.html', '/events': 'events.html', '/gallery': 'gallery.html',
+  '/admin': 'admin.html', '/events': 'events.html', '/gallery': 'gallery.html', '/shop': 'shop.html',
   '/events.html': 'events.html', '/gallery.html': 'gallery.html', '/admin.html': 'admin.html', '/event.html': 'event.html',
 };
 for (const [route, file] of Object.entries(PAGES)) app.get(route, (req, res) => sendPage(res, file));

@@ -87,6 +87,7 @@
         <button role="tab" data-tab="photos" aria-selected="false">Photos</button>
         <button role="tab" data-tab="details" aria-selected="false" title="Website details: pictures, contact, tickets">Details</button>
         <button role="tab" data-tab="text" aria-selected="false" title="Website text: every word on your website">Text</button>
+        <button role="tab" data-tab="shop" aria-selected="false" title="Merch shop: orders, items and payments">Shop <span class="tab-n" id="shopBadge" hidden></span></button>
       </nav>
 
       <div class="top-actions">
@@ -412,6 +413,13 @@
             <label for="s_whatsapp_url">WhatsApp channel</label><input type="text" inputmode="url" id="s_whatsapp_url" name="whatsapp_url" placeholder="e.g. whatsapp.com/channel/...">
             <label for="s_youtube_url">YouTube</label><input type="text" inputmode="url" id="s_youtube_url" name="youtube_url" placeholder="e.g. youtube.com/@yourchannel">
           </div>
+
+          <div class="card">
+            <div class="card-head"><span class="card-ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><h3>Google</h3></div>
+            <p class="hint">To show up on Google: open <a href="https://search.google.com/search-console" target="_blank" rel="noopener" style="text-decoration:underline">Google Search Console</a>, add <b>https://rnbdancehalllovers.co.zw/</b> as a "URL prefix" property and choose "HTML tag". Paste the tag (or just its code) here and save, then press Verify in Google. After that, add the sitemap: <b>sitemap.xml</b>.</p>
+            <label for="s_google_verification">Google verification code</label>
+            <input type="text" id="s_google_verification" name="google_verification" autocomplete="off" placeholder='Paste the meta tag from Google'>
+          </div>
         </div>
 
         <div class="section-head-admin">
@@ -505,6 +513,87 @@
         </div>
       </form>
     </div>
+
+    <!-- ===== SHOP ===== -->
+    <section data-panel="shop" hidden>
+      <div class="page-head row">
+        <div>
+          <h1>Merch shop</h1>
+          <p class="muted">Orders come in here. People pay with EcoCash, OneMoney or InnBucks and you deliver within 14 days. <a href="/shop" target="_blank" rel="noopener" style="text-decoration:underline">Open the shop ↗</a></p>
+        </div>
+      </div>
+
+      <div class="card shop-card-admin">
+        <div class="card-row wrap">
+          <h3>Orders</h3>
+          <div class="seg seg-sm" role="radiogroup" id="orderSeg">
+            <button type="button" role="radio" aria-checked="true" data-val="todo">To send</button>
+            <button type="button" role="radio" aria-checked="false" data-val="pending">Waiting for payment</button>
+            <button type="button" role="radio" aria-checked="false" data-val="done">Done</button>
+            <button type="button" role="radio" aria-checked="false" data-val="">All</button>
+          </div>
+        </div>
+        <div id="orderList" class="order-list"></div>
+      </div>
+
+      <div class="photos-layout">
+        <form class="card upload-card" id="productForm">
+          <div class="card-row">
+            <h3 id="productFormTitle">Add an item</h3>
+            <button class="btn btn-ghost btn-sm" type="button" id="pfCancel" hidden>Cancel</button>
+          </div>
+          <input type="hidden" id="pfId">
+          <label for="pfName">Item name</label>
+          <input type="text" id="pfName" maxlength="120" required placeholder="e.g. RnB Lovers Cap">
+          <label for="pfPrice">Price (US$)</label>
+          <input type="text" id="pfPrice" inputmode="decimal" required placeholder="e.g. 25">
+          <label for="pfSizes">Sizes <small>(optional)</small></label>
+          <input type="text" id="pfSizes" placeholder="e.g. S, M, L, XL">
+          <p class="hint">Separate sizes with commas. Leave empty for one-size items like cups and caps.</p>
+          <label for="pfDesc">About the item <small>(optional)</small></label>
+          <textarea id="pfDesc" rows="3" maxlength="2000" placeholder="Material, colours, fit…"></textarea>
+          <label>Photos</label>
+          <div class="pf-photos" id="pfPhotos"></div>
+          <label class="drop" for="pfFiles"><b id="pfFilesName">Choose photos</b><small>Up to 10. The first one shows in the shop.</small><input type="file" id="pfFiles" accept="image/*" multiple></label>
+          <label class="check"><input type="checkbox" id="pfActive" checked> Show in the shop</label>
+          <button class="btn btn-dark btn-block" type="submit" id="pfSubmit">Add item</button>
+          <div class="msg" id="pfMsg" hidden></div>
+        </form>
+
+        <div class="card">
+          <div class="card-row"><h3>Items</h3></div>
+          <div id="productList" class="product-list"></div>
+        </div>
+      </div>
+
+      <form class="card" id="payForm" style="margin-top:18px">
+        <div class="card-head"><h3>Payments</h3></div>
+        <p class="hint" id="payState"></p>
+        <label class="check"><input type="checkbox" id="payOpen"> The shop is open</label>
+        <p class="shop-label-admin">Online payments with Paynow (EcoCash, OneMoney, InnBucks)</p>
+        <p class="hint">Sign in to <a href="https://www.paynow.co.zw" target="_blank" rel="noopener" style="text-decoration:underline">paynow.co.zw</a> → Receive Payment Links → 3rd Party Shopping Cart or Link Profile → Create (choose US$). Copy the Integration ID and Integration Key here. Ask Paynow to switch on EcoCash, OneMoney and InnBucks for it.</p>
+        <label for="payId">Integration ID</label>
+        <input type="text" id="payId" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345">
+        <label for="payKey">Integration key</label>
+        <input type="password" id="payKey" autocomplete="off" placeholder="Paste the key">
+        <label for="payEmail">Email of your Paynow account</label>
+        <input type="email" id="payEmail" autocomplete="off" placeholder="e.g. payments@rnbdancehalllovers.co.zw">
+        <p class="shop-label-admin">Ways to pay</p>
+        <div class="pay-methods">
+          <label class="check"><input type="checkbox" value="ecocash" name="payMethod"> EcoCash</label>
+          <label class="check"><input type="checkbox" value="onemoney" name="payMethod"> OneMoney</label>
+          <label class="check"><input type="checkbox" value="innbucks" name="payMethod"> InnBucks</label>
+        </div>
+        <p class="shop-label-admin">Until Paynow is set up</p>
+        <label for="payManual">How to pay (shown after someone orders)</label>
+        <textarea id="payManual" rows="3" maxlength="1000" placeholder="e.g. Send the total to EcoCash 0771 674 200 (RnB Dancehall Lovers) and WhatsApp us the order number."></textarea>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn btn-dark" type="submit" id="paySave">Save payments</button>
+          <button class="btn btn-ghost" type="button" id="payClear" hidden>Remove Paynow</button>
+        </div>
+        <div class="msg" id="payMsg" hidden></div>
+      </form>
+    </section>
 
     <!-- ===== ACCOUNT ===== -->
     <section data-panel="account" hidden>
