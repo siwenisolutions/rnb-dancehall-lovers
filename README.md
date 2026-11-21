@@ -18,7 +18,8 @@ Photos from a phone are fine; they are resized automatically.
 
 - `server.js`: Express app that serves the pages in `public/`, a JSON API, and the admin API.
 - `db.js`: Postgres schema (created on startup) plus first-run seeding of the original photos.
-- Photos are stored in Postgres as WebP (a large version and a thumbnail) and served from `/media/:id`.
+- Photos (WebP, a large version and a thumbnail) and videos are stored in Neon Object Storage, bucket `rnb-media` on the project's main branch (5 GB on the free plan), and served from `/media/:id`. Postgres keeps only their details. Without the `AWS_*` settings, files are kept in Postgres as before (1 GB limit). On start-up, files still in Postgres are moved to the bucket.
+- Videos are compressed in the background after upload (`jobs.js`, `video.js`): at most 1920 px on the long side, 30 fps, H.264 CRF 23, AAC 128k. The original shows until the smaller copy is ready; a video that is not at least 10% smaller, or fails twice, is kept as uploaded.
 - Admin login is a single password (`ADMIN_PASSWORD`) with a signed, HttpOnly session cookie.
 
 Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:id`, `/gallery`.
@@ -31,6 +32,11 @@ Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:i
 | `ADMIN_PASSWORD` | Admin panel password, 10+ characters |
 | `SESSION_SECRET` | Random string, 32+ characters, used to sign login cookies |
 | `CANONICAL_HOST` | Set to `rnbdancehalllovers.co.zw` once the domain works: every other address (www, onrender.com) redirects there |
+| `AWS_ENDPOINT_URL_S3` | Object Storage endpoint of the Neon branch, `https://br-raspy-mode-b95p644d.storage.c-7.eu-central-1.aws.neon.tech` |
+| `AWS_REGION` | `eu-central-1` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Neon storage credential `rnb-website-render` (scopes `storage:read`, `storage:write`) |
+| `MEDIA_BUCKET` | `rnb-media` |
+| `MEDIA_LIMIT_MB` | Storage cap shown in the admin panel when the bucket is used. Default `5120` (5 GB) |
 | `NODE_ENV` | `production` on Render (makes cookies HTTPS-only) |
 | `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render doesn't put it to sleep. Set to `off` after moving to a paid plan |
 | `KEEP_AWAKE_HOURS` | When to stay awake, in Zimbabwe time. Default `6-24` (free hours are shared with other free services in the workspace); `0-24` = always |

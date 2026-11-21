@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const { pool, migrate, insertMedia, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
+const { pool, migrate, insertMedia, forgetMediaFiles, moveMediaToBucket, sweepOrphanFiles, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
+const storage = require('./storage');
+const { compressPendingVideos } = require('./jobs');
 const { processImage, detectVideo } = require('./images');
 const { importPost } = require('./social');
 
@@ -20,11 +22,15 @@ const EDITABLE_SETTINGS = Object.keys(SETTING_DEFAULTS).filter((k) => !k.endsWit
 const CATEGORIES = ['event'];
 // Event times are entered and shown in Zimbabwe time (CAT, UTC+2, no DST).
 const ZW_OFFSET = '+02:00';
-// Storage cap of the Neon project (its branch limit is 1 GiB on the current plan).
-// The gauge measures the database's real size against this.
-const STORAGE_LIMIT_BYTES = Number(process.env.STORAGE_LIMIT_MB || 1024) * 1024 * 1024;
-// Real size of everything stored: all databases on the branch, as Neon counts it.
-const STORAGE_USED_SQL = '(SELECT sum(pg_database_size(datname)) FROM pg_database WHERE NOT datistemplate)';
+// Storage cap shown to the client. With Neon Object Storage, photos and videos
+// have 5 GB (free plan) and the gauge counts their real file sizes. Without it,
+// files sit in the database, whose limit is 1 GiB, and the gauge measures that.
+const STORAGE_LIMIT_BYTES = storage.enabled
+  ? Number(process.env.MEDIA_LIMIT_MB || 5120) * 1024 * 1024
+  : Number(process.env.STORAGE_LIMIT_MB || 1024) * 1024 * 1024;
+const STORAGE_USED_SQL = storage.enabled
+  ? '(SELECT COALESCE(sum(COALESCE(bytes, 0) + COALESCE(thumb_bytes, 0)), 0) FROM media)'
+  : '(SELECT sum(pg_database_size(datname)) FROM pg_database WHERE NOT datistemplate)';
 
 if (ADMIN_PASSWORD.length < 10 || SESSION_SECRET.length < 32) {
   throw new Error('ADMIN_PASSWORD (10+ chars) and SESSION_SECRET (32+ chars) must be set');
@@ -295,11 +301,13 @@ app.get('/api/photos', wrap(async (req, res) => {
 // Photos are immutable once uploaded (edits create new ids), so cache hard.
 app.get('/media/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
-  const head = await pool.query('SELECT mime, octet_length(data) AS size FROM media WHERE id = $1', [id]);
+  const head = await pool.query('SELECT mime, in_bucket, COALESCE(bytes, octet_length(data)) AS size FROM media WHERE id = $1', [id]);
   if (head.rowCount === 0) throw httpError(404, 'Photo not found.');
-  const { mime } = head.rows[0];
+  const { mime, in_bucket: inBucket } = head.rows[0];
   const size = Number(head.rows[0].size);
   res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes' });
+
+  if (inBucket) return sendFromBucket(req, res, id, mime, size);
 
   if (mime.startsWith('video/')) {
     // Videos are sent in pieces so they start playing quickly and can be skipped through.
@@ -323,6 +331,36 @@ app.get('/media/:id', wrap(async (req, res) => {
   const { rows } = await pool.query(`SELECT ${col} AS bytes FROM media WHERE id = $1`, [id]);
   res.set('Content-Type', mime).send(rows[0].bytes);
 }));
+
+// Streams a photo or video (or the requested piece of a video) from object storage.
+async function sendFromBucket(req, res, id, mime, size) {
+  const thumb = !mime.startsWith('video/') && req.query.size === 'thumb';
+  let range;
+  let status = 200;
+  if (mime.startsWith('video/')) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.get('Range') || '');
+    if (m) {
+      let start, end;
+      if (m[1] === '' && m[2] !== '') { start = Math.max(0, size - Number(m[2])); end = size - 1; }
+      else { start = Number(m[1]); end = m[2] ? Math.min(Number(m[2]), size - 1) : Math.min(size - 1, start + 2 * 1024 * 1024 - 1); }
+      if (start >= size || start > end) return res.status(416).set('Content-Range', `bytes */${size}`).end();
+      range = `bytes=${start}-${end}`;
+      status = 206;
+    }
+  }
+  let file;
+  try {
+    file = await storage.getMedia(id, { thumb, range });
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || (err.$metadata && err.$metadata.httpStatusCode === 404)) throw httpError(404, 'Photo not found.');
+    throw err;
+  }
+  res.status(status).set({ 'Content-Type': mime, 'Content-Length': String(file.length) });
+  if (status === 206) res.set('Content-Range', file.contentRange);
+  file.body.on('error', () => res.destroy());
+  req.on('close', () => { if (!res.writableEnded && file.body.destroy) file.body.destroy(); });
+  file.body.pipe(res);
+}
 
 // ---------- admin API ----------
 
@@ -362,8 +400,9 @@ admin.get('/stats', wrap(async (req, res) => {
       (SELECT count(*)::int FROM media WHERE category = 'site' AND mime LIKE 'image/%') AS site_photos,
       (SELECT count(*)::int FROM media WHERE category = 'event') AS event_photos,
       (SELECT count(*)::int FROM media WHERE mime LIKE 'image/%' AND created_at > now() - interval '30 days') AS photos_30d,
-      (SELECT COALESCE(avg(octet_length(data) + octet_length(thumb)), 400000)::bigint FROM media WHERE mime LIKE 'image/%') AS avg_photo_bytes,
-      ${STORAGE_USED_SQL}::bigint AS db_bytes`);
+      (SELECT COALESCE(avg(COALESCE(bytes, 0) + COALESCE(thumb_bytes, 0)), 400000)::bigint FROM media WHERE mime LIKE 'image/%') AS avg_photo_bytes,
+      ${STORAGE_USED_SQL}::bigint AS db_bytes,
+      (SELECT count(*)::int FROM media WHERE video_state = 'pending') AS videos_compressing`);
   const s = rows[0];
   const used = Number(s.db_bytes);
   res.json({
@@ -458,6 +497,8 @@ admin.delete('/events/:id', wrap(async (req, res) => {
   const r = await pool.query('DELETE FROM events WHERE id = $1', [id]);
   if (r.rowCount === 0) throw httpError(404, 'Event not found.');
   res.json({ ok: true });
+  // Their files in object storage are cleared once the upload grace time has passed.
+  setTimeout(() => sweepOrphanFiles().catch((err) => console.warn('[storage] sweep failed:', err.message)), 16 * 60 * 1000).unref();
 }));
 
 const upload = multer({
@@ -551,7 +592,8 @@ admin.post('/slots/:slot', uploadMedia.array('files', SLOT_MAX), wrap(async (req
   for (const file of files) prepared.push(await prepareUpload(file, def.video));
   const ids = [];
   for (const img of prepared) ids.push(await insertMedia({ category: 'site', caption: '', eventId: null, img, slot }));
-  res.status(201).json({ ids });
+  res.status(201).json({ ids, compressing: prepared.some((img) => img.mime.startsWith('video/')) });
+  startVideoCompression();
 }));
 
 // Replace a photo with a new one, keeping its place (section, event, order, cover).
@@ -571,7 +613,9 @@ admin.post('/photos/:id/replace', uploadMedia.single('file'), wrap(async (req, r
     await client.query('UPDATE events SET cover_media_id = $1 WHERE cover_media_id = $2', [newId, id]);
     await client.query('DELETE FROM media WHERE id = $1', [id]);
     await client.query('COMMIT');
-    res.status(201).json({ id: newId });
+    forgetMediaFiles(id);
+    res.status(201).json({ id: newId, compressing: img.mime.startsWith('video/') });
+    startVideoCompression();
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -603,6 +647,7 @@ admin.delete('/photos/:id', wrap(async (req, res) => {
   const id = parseId(req.params.id);
   const r = await pool.query('DELETE FROM media WHERE id = $1', [id]);
   if (r.rowCount === 0) throw httpError(404, 'Photo not found.');
+  forgetMediaFiles(id);
   res.json({ ok: true });
 }));
 
@@ -711,11 +756,20 @@ function keepAwake() {
   console.log(`[keep-awake] pinging ${url} every ${minutes} min, ${start}:00-${end}:00 Zimbabwe time`);
 }
 
+function startVideoCompression() {
+  compressPendingVideos().catch((err) => console.error('[video] queue stopped:', err.message));
+}
+
 if (require.main === module) {
   migrate()
     .then(() => app.listen(PORT, () => {
       console.log(`RnB Dancehall Lovers running on port ${PORT}`);
-      compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message));
+      // Background work, one after the other: shrink old photos, move files
+      // to object storage, tidy leftovers, then compress any waiting videos.
+      compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message))
+        .then(() => moveMediaToBucket()).catch((err) => console.error('[storage] move failed:', err.message))
+        .then(() => sweepOrphanFiles()).catch((err) => console.warn('[storage] sweep failed:', err.message))
+        .then(() => startVideoCompression());
       keepAwake();
     }))
     .catch((err) => {

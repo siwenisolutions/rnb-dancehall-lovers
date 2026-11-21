@@ -633,8 +633,8 @@
       var fd = new FormData();
       fd.append('file', file);
       if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
-      call('POST', '/api/admin/photos/' + id + '/replace', fd).then(function () {
-        toast('Photo replaced');
+      call('POST', '/api/admin/photos/' + id + '/replace', fd).then(function (r) {
+        toast(r && r.compressing ? 'Video replaced. It is being made smaller in the background.' : 'Photo replaced');
         after();
       }).catch(function (err) {
         alert(err.message);
@@ -737,7 +737,7 @@
         files.forEach(function (f) { fd.append('files', f); });
         addLabel.textContent = 'Uploading…';
         call('POST', '/api/admin/slots/' + slot.key, fd).then(function (r) {
-          toast(plural(r.ids.length, 'photo') + ' added to ' + slot.label);
+          toast(r.compressing ? 'Video added. It is being made smaller in the background, the website keeps working.' : plural(r.ids.length, 'photo') + ' added to ' + slot.label);
           afterSlotChange();
         }).catch(function (err) { alert(err.message); addLabel.textContent = '+ Add photo'; input.value = ''; });
       });
@@ -882,7 +882,7 @@
         plural(stats.photos, 'photo') + (stats.videos ? ' and ' + plural(stats.videos, 'video') : '') + ' on your site.' +
         (pct > 90 ? ' Almost full: delete old photos or ask Siweni to add more space.' : '')
       ]));
-      box.appendChild(el('p', { class: 'storage-live' }, [el('span', { class: 'live-dot' }), 'Live from your database · checked ' + new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date())]));
+      box.appendChild(el('p', { class: 'storage-live' }, [el('span', { class: 'live-dot' }), 'Live from your storage · checked ' + new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date())]));
     });
   }
   function refreshStats() { get('/api/admin/stats').then(function (st) { renderStorage(st); }).catch(function () {}); }

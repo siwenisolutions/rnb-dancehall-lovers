@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 const { processImage, recompress } = require('./images');
+const storage = require('./storage');
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -95,6 +96,21 @@ ALTER TABLE media ADD COLUMN IF NOT EXISTS slot text;
 CREATE INDEX IF NOT EXISTS media_slot_idx ON media (slot, created_at);
 -- Store files uncompressed so videos can be streamed in pieces.
 ALTER TABLE media ALTER COLUMN data SET STORAGE EXTERNAL;
+
+-- Files can live in object storage instead of the database (in_bucket).
+-- bytes/thumb_bytes are the file sizes wherever the files are.
+-- video_state: 'pending' (waiting to be compressed), 'done', 'failed'.
+ALTER TABLE media ADD COLUMN IF NOT EXISTS in_bucket boolean NOT NULL DEFAULT false;
+ALTER TABLE media ADD COLUMN IF NOT EXISTS bytes bigint;
+ALTER TABLE media ADD COLUMN IF NOT EXISTS thumb_bytes bigint;
+ALTER TABLE media ADD COLUMN IF NOT EXISTS video_state text;
+ALTER TABLE media ADD COLUMN IF NOT EXISTS video_attempts integer NOT NULL DEFAULT 0;
+ALTER TABLE media ALTER COLUMN data DROP NOT NULL;
+ALTER TABLE media ALTER COLUMN thumb DROP NOT NULL;
+UPDATE media SET bytes = octet_length(data), thumb_bytes = octet_length(thumb)
+  WHERE bytes IS NULL AND data IS NOT NULL;
+UPDATE media SET video_state = 'pending' WHERE mime LIKE 'video/%' AND video_state IS NULL;
+CREATE INDEX IF NOT EXISTS media_video_state_idx ON media (video_state) WHERE video_state = 'pending';
 
 DO $$ BEGIN
   IF NOT EXISTS (
@@ -199,13 +215,74 @@ async function migrate() {
   }
 }
 
+// Saves a photo or video. With object storage set up, the file goes to the
+// bucket and the database keeps only its details.
 async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null }, db = pool) {
+  const inBucket = storage.enabled;
+  const videoState = img.mime.startsWith('video/') ? (img.videoState || 'pending') : null;
   const { rows } = await db.query(
-    `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb, slot, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now())) RETURNING id`,
-    [category, eventId, caption, img.mime, img.width, img.height, img.data, img.thumb, slot, createdAt]
+    `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb, slot, created_at,
+                        in_bucket, bytes, thumb_bytes, video_state)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12, $13, $14) RETURNING id`,
+    [category, eventId, caption, img.mime, img.width, img.height,
+      inBucket ? null : img.data, inBucket ? null : img.thumb, slot, createdAt,
+      inBucket, img.data.length, img.thumb.length, videoState]
   );
-  return rows[0].id;
+  const id = rows[0].id;
+  if (inBucket) await storage.putMedia(id, img);
+  return id;
+}
+
+// Removes a file from object storage after its row is gone (never throws).
+function forgetMediaFiles(id) {
+  if (!storage.enabled) return;
+  storage.deleteMedia(id).catch((err) => console.warn(`[storage] could not delete media ${id}:`, err.message));
+}
+
+// One-time (and resumable) move of files from the database to object storage.
+async function moveMediaToBucket() {
+  if (!storage.enabled) return;
+  const { rows } = await pool.query('SELECT id FROM media WHERE NOT in_bucket ORDER BY id');
+  if (!rows.length) return;
+  let moved = 0, bytes = 0;
+  for (const { id } of rows) {
+    try {
+      const r = await pool.query('SELECT mime, data, thumb FROM media WHERE id = $1 AND NOT in_bucket', [id]);
+      if (!r.rowCount) continue;
+      const { mime, data, thumb } = r.rows[0];
+      await storage.putMedia(id, { mime, data, thumb: thumb || Buffer.alloc(0) });
+      const u = await pool.query(
+        'UPDATE media SET in_bucket = true, data = NULL, thumb = NULL, bytes = $2, thumb_bytes = $3 WHERE id = $1 AND NOT in_bucket',
+        [id, data.length, thumb ? thumb.length : 0]);
+      if (!u.rowCount) forgetMediaFiles(id); // deleted while it was being copied
+      else { moved += 1; bytes += data.length + (thumb ? thumb.length : 0); }
+    } catch (err) {
+      console.error(`[storage] media ${id} not moved yet:`, err.message);
+    }
+  }
+  console.log(`[storage] moved ${moved} of ${rows.length} files (${(bytes / 1048576).toFixed(1)} MB) to object storage`);
+  if (moved) {
+    // Give the freed database space back.
+    await pool.query('VACUUM FULL media').catch((err) => console.warn('[storage] vacuum skipped:', err.message));
+  }
+}
+
+// Deletes files in object storage whose photo or video no longer exists
+// (for example after an event and its photos were deleted). Files younger
+// than 15 minutes are left alone, as their upload may still be finishing.
+async function sweepOrphanFiles() {
+  if (!storage.enabled) return;
+  const listed = await storage.listMedia();
+  if (!listed.size) return;
+  const { rows } = await pool.query('SELECT id FROM media WHERE in_bucket');
+  const live = new Set(rows.map((r) => r.id));
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  const keys = [];
+  for (const [id, e] of listed) if (!live.has(id) && e.newest < cutoff) keys.push(...e.keys);
+  if (keys.length) {
+    await storage.deleteKeys(keys);
+    console.log(`[storage] removed ${keys.length} leftover files`);
+  }
 }
 
 // One-time pass that shrinks photos stored before the current compression
@@ -213,17 +290,17 @@ async function insertMedia({ category, caption, eventId, img, slot = null, creat
 async function compressStoredPhotos() {
   const done = await pool.query("SELECT 1 FROM settings WHERE key = '_media_compressed_v2'");
   if (done.rowCount) return;
-  const { rows } = await pool.query("SELECT id FROM media WHERE mime LIKE 'image/%' ORDER BY id");
+  const { rows } = await pool.query("SELECT id FROM media WHERE mime LIKE 'image/%' AND data IS NOT NULL ORDER BY id");
   let saved = 0, changed = 0;
   for (const { id } of rows) {
     try {
-      const r = await pool.query('SELECT data, thumb FROM media WHERE id = $1', [id]);
+      const r = await pool.query('SELECT data, thumb FROM media WHERE id = $1 AND data IS NOT NULL', [id]);
       if (!r.rowCount) continue;
       const { data, thumb } = r.rows[0];
       const out = await recompress(data, thumb);
       if (!out) continue;
-      await pool.query('UPDATE media SET data = $1, thumb = $2, width = $3, height = $4 WHERE id = $5',
-        [out.data, out.thumb, out.width, out.height, id]);
+      await pool.query('UPDATE media SET data = $1, thumb = $2, width = $3, height = $4, bytes = $6, thumb_bytes = $7 WHERE id = $5',
+        [out.data, out.thumb, out.width, out.height, id, out.data.length, out.thumb.length]);
       saved += data.length + thumb.length - out.data.length - out.thumb.length;
       changed += 1;
     } catch (err) {
@@ -234,4 +311,4 @@ async function compressStoredPhotos() {
   console.log(`[compress] ${changed} of ${rows.length} photos smaller, saved ${(saved / 1048576).toFixed(1)} MB`);
 }
 
-module.exports = { pool, migrate, insertMedia, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX };
+module.exports = { pool, migrate, insertMedia, forgetMediaFiles, moveMediaToBucket, sweepOrphanFiles, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX };
