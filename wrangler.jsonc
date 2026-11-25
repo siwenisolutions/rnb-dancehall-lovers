@@ -19,8 +19,10 @@
     "not_found_handling": "none"
   },
   "images": { "binding": "IMAGES" },
+  // No id: Cloudflare creates this KV namespace in the Worker's own account
+  // on the first deploy (automatic provisioning) and keeps it linked after.
   "kv_namespaces": [
-    { "binding": "FLAGS", "id": "531bd5222ed24f57b5c4ae58569c09fe" }
+    { "binding": "FLAGS" }
   ],
   // Every 5 minutes: Drive import steps (only when there is work, see jobs.js),
   // Megaticket at 10:00 and 19:00 UTC, tidy-up every 6 hours (worker.js).
