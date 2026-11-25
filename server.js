@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
+const { findDuplicateEvent } = require('./duplicates');
 const { pool, insertMedia, forgetMediaFiles, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
 const storage = require('./storage');
 const jobs = require('./jobs');
@@ -779,6 +780,17 @@ function eventFromBody(body) {
 
 admin.post('/events', wrap(async (req, res) => {
   const e = eventFromBody(req.body || {});
+  // Probably the same night as an event that already exists: ask first (the admin
+  // can update that event instead, or confirm with force: true).
+  if (!(req.body || {}).force) {
+    const dup = await findDuplicateEvent(pool, { title: e.title, venue: e.venue, startsAt: e.startsAt });
+    if (dup) {
+      throw Object.assign(httpError(409, `"${dup.title}" is already on the website for that day.`), {
+        code: 'duplicate_event',
+        duplicate: { id: dup.id, title: dup.title, venue: dup.venue, starts_at: dup.starts_at },
+      });
+    }
+  }
   const { rows } = await pool.query(
     `INSERT INTO events (title, venue, starts_at, description, ticket_url, tables_url)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
@@ -847,9 +859,12 @@ admin.post('/drive/import', wrap(async (req, res) => {
       const date = String(item.date || '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw httpError(400, `Pick a date for "${String(item.title || item.name || 'an event').slice(0, 60)}".`);
       const e = eventFromBody({ title: item.title, venue: item.venue, starts_at: `${date}T${/^\d{2}:\d{2}$/.test(item.time || '') ? item.time : '20:00'}`, description: '', ticket_url: '' });
-      const { rows } = await client.query('INSERT INTO events (title, venue, starts_at) VALUES ($1, $2, $3) RETURNING id', [e.title, e.venue, e.startsAt]);
-      await linkFolder(rows[0].id, cleanFolderId(item.folder_id), item.resource_key, cleanText(item.name, 200, 'Folder'), client);
-      created.push(rows[0].id);
+      // An event for that night already exists: put the photos there instead of making a copy.
+      const dup = await findDuplicateEvent(client, { title: e.title, venue: e.venue, startsAt: e.startsAt });
+      const eventId = dup ? dup.id
+        : (await client.query('INSERT INTO events (title, venue, starts_at) VALUES ($1, $2, $3) RETURNING id', [e.title, e.venue, e.startsAt])).rows[0].id;
+      await linkFolder(eventId, cleanFolderId(item.folder_id), item.resource_key, cleanText(item.name, 200, 'Folder'), client);
+      created.push(eventId);
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -1237,6 +1252,7 @@ app.use((err, req, res, next) => {
     message = 'Something went wrong on our side. Please try again.';
   }
   if (req.path.startsWith('/api/') || req.path.startsWith('/media/')) {
+    if (err.code === 'duplicate_event') return res.status(status).json({ error: message, code: err.code, duplicate: err.duplicate });
     return res.status(status).json(err.code === 'must_change' ? { error: message, code: err.code } : { error: message });
   }
   sendPage(res, '404.html', status);

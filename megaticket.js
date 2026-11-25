@@ -1,4 +1,5 @@
 'use strict';
+const { findDuplicateEvent } = require('./duplicates');
 // Finds RnB Dancehall Lovers events on Megaticket and adds the new ones to
 // the website, so nobody has to type them in. Megaticket has no organiser
 // page or API, so this reads its public events list and each event's page
@@ -186,6 +187,18 @@ async function run(reason) {
       // Not a Dancehall Lovers event, or already over: remember and skip.
       if (!ev || ev.startsAt < new Date(Date.now() - 12 * 3600 * 1000)) {
         await pool.query('INSERT INTO megaticket_seen (slug) VALUES ($1) ON CONFLICT DO NOTHING', [slug]);
+        continue;
+      }
+      // Already on the website (typed in by the admin): link it instead of adding a copy.
+      const dup = await findDuplicateEvent(pool, { title: ev.title, venue: ev.venue, startsAt: ev.startsAt });
+      if (dup) {
+        await pool.query(
+          `UPDATE events SET megaticket_slug = COALESCE(megaticket_slug, $2),
+                  ticket_url = CASE WHEN ticket_url = '' THEN $3 ELSE ticket_url END,
+                  venue = CASE WHEN venue = '' THEN $4 ELSE venue END
+            WHERE id = $1`, [dup.id, slug, ev.url || '', ev.venue || '']);
+        await pool.query('INSERT INTO megaticket_seen (slug, event_id) VALUES ($1, $2) ON CONFLICT (slug) DO UPDATE SET event_id = EXCLUDED.event_id', [slug, dup.id]);
+        result.updated.push(dup.title);
         continue;
       }
       const { rows } = await pool.query(

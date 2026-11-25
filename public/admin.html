@@ -523,6 +523,8 @@
         </div>
       </div>
 
+      <!-- Orders and payment settings side by side (stacked on narrow screens) -->
+      <div class="shop-top">
       <div class="card shop-card-admin">
         <div class="card-row wrap">
           <h3>Orders</h3>
@@ -534,6 +536,34 @@
           </div>
         </div>
         <div id="orderList" class="order-list"></div>
+      </div>
+
+      <form class="card" id="payForm">
+        <div class="card-head"><h3>Payments</h3></div>
+        <p class="hint" id="payState"></p>
+        <label class="check"><input type="checkbox" id="payOpen"> The shop is open</label>
+        <p class="shop-label-admin">Online payments with Paynow (EcoCash, InnBucks)</p>
+        <p class="hint">Sign in to <a href="https://www.paynow.co.zw" target="_blank" rel="noopener" style="text-decoration:underline">paynow.co.zw</a> → Receive Payment Links → 3rd Party Shopping Cart or Link Profile → Create (choose US$). Copy the Integration ID and Integration Key here. Ask Paynow to switch on EcoCash and InnBucks for it.</p>
+        <label for="payId">Integration ID</label>
+        <input type="text" id="payId" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345">
+        <label for="payKey">Integration key</label>
+        <input type="password" id="payKey" autocomplete="off" placeholder="Paste the key">
+        <label for="payEmail">Email of your Paynow account</label>
+        <input type="email" id="payEmail" autocomplete="off" placeholder="e.g. payments@rnbdancehalllovers.co.zw">
+        <p class="shop-label-admin">Ways to pay</p>
+        <div class="pay-methods">
+          <label class="check"><input type="checkbox" value="ecocash" name="payMethod"> EcoCash</label>
+          <label class="check"><input type="checkbox" value="innbucks" name="payMethod"> InnBucks</label>
+        </div>
+        <p class="shop-label-admin">Until Paynow is set up</p>
+        <label for="payManual">How to pay (shown after someone orders)</label>
+        <textarea id="payManual" rows="3" maxlength="1000" placeholder="e.g. Send the total to EcoCash 0771 674 200 (RnB Dancehall Lovers) and WhatsApp us the order number."></textarea>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn btn-dark" type="submit" id="paySave">Save payments</button>
+          <button class="btn btn-ghost" type="button" id="payClear" hidden>Remove Paynow</button>
+        </div>
+        <div class="msg" id="payMsg" hidden></div>
+      </form>
       </div>
 
       <div class="photos-layout">
@@ -566,32 +596,6 @@
         </div>
       </div>
 
-      <form class="card" id="payForm" style="margin-top:18px">
-        <div class="card-head"><h3>Payments</h3></div>
-        <p class="hint" id="payState"></p>
-        <label class="check"><input type="checkbox" id="payOpen"> The shop is open</label>
-        <p class="shop-label-admin">Online payments with Paynow (EcoCash, InnBucks)</p>
-        <p class="hint">Sign in to <a href="https://www.paynow.co.zw" target="_blank" rel="noopener" style="text-decoration:underline">paynow.co.zw</a> → Receive Payment Links → 3rd Party Shopping Cart or Link Profile → Create (choose US$). Copy the Integration ID and Integration Key here. Ask Paynow to switch on EcoCash and InnBucks for it.</p>
-        <label for="payId">Integration ID</label>
-        <input type="text" id="payId" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345">
-        <label for="payKey">Integration key</label>
-        <input type="password" id="payKey" autocomplete="off" placeholder="Paste the key">
-        <label for="payEmail">Email of your Paynow account</label>
-        <input type="email" id="payEmail" autocomplete="off" placeholder="e.g. payments@rnbdancehalllovers.co.zw">
-        <p class="shop-label-admin">Ways to pay</p>
-        <div class="pay-methods">
-          <label class="check"><input type="checkbox" value="ecocash" name="payMethod"> EcoCash</label>
-          <label class="check"><input type="checkbox" value="innbucks" name="payMethod"> InnBucks</label>
-        </div>
-        <p class="shop-label-admin">Until Paynow is set up</p>
-        <label for="payManual">How to pay (shown after someone orders)</label>
-        <textarea id="payManual" rows="3" maxlength="1000" placeholder="e.g. Send the total to EcoCash 0771 674 200 (RnB Dancehall Lovers) and WhatsApp us the order number."></textarea>
-        <div class="btn-row" style="margin-top:14px">
-          <button class="btn btn-dark" type="submit" id="paySave">Save payments</button>
-          <button class="btn btn-ghost" type="button" id="payClear" hidden>Remove Paynow</button>
-        </div>
-        <div class="msg" id="payMsg" hidden></div>
-      </form>
     </section>
 
     <!-- ===== ACCOUNT ===== -->

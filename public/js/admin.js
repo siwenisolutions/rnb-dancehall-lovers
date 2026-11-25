@@ -101,7 +101,7 @@
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (r.status === 401 && url !== '/api/admin/login') showLogin();
         if (r.status === 403 && data.code === 'must_change') showSetPassword(false);
-        if (!r.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+        if (!r.ok) throw Object.assign(new Error(data.error || 'Something went wrong. Please try again.'), { status: r.status, data: data });
         return data;
       });
     }, function () { throw new Error('No connection. Check your internet and try again.'); });
@@ -692,8 +692,20 @@
     var removeNow = Object.assign({}, flyerRemove);
     var poster = $('evPoster').files[0];
     busy(btn, true);
+    var updatedExisting = false;
     var save = id ? call('PUT', '/api/admin/events/' + id, body).then(function () { return id; })
-      : call('POST', '/api/admin/events', body).then(function (r) { return r.id; });
+      : call('POST', '/api/admin/events', body).then(function (r) { return r.id; }, function (err) {
+        // Probably the same night as an event already on the website: ask before making a copy.
+        if (!(err.status === 409 && err.data && err.data.duplicate)) throw err;
+        return askDuplicate(err.data.duplicate, body).then(function (choice) {
+          if (choice === 'update') {
+            updatedExisting = true;
+            return call('PUT', '/api/admin/events/' + err.data.duplicate.id, body).then(function () { return err.data.duplicate.id; });
+          }
+          if (choice === 'create') return call('POST', '/api/admin/events', Object.assign({}, body, { force: true })).then(function (r) { return r.id; });
+          throw Object.assign(new Error('Nothing was saved.'), { cancelled: true });
+        });
+      });
     save.then(function (eventId) {
       if (!poster) return eventId;
       btn.textContent = 'Uploading poster…';
@@ -719,14 +731,53 @@
     }).then(function () {
       busy(btn, false);
       resetEventForm();
-      toast(id ? 'Event updated' : 'Event added. It is live on the website.');
+      toast(id || updatedExisting ? 'Event updated' : 'Event added. It is live on the website.');
       return loadAll();
     }).catch(function (err) {
       busy(btn, false);
+      if (err.cancelled) return; // the admin chose to go back and check
       say($('evMsg'), err.message, false);
       loadAll();
     });
   });
+
+  // "This event may already exist" — update the existing one, add a new one anyway, or go back.
+  function askDuplicate(dup, typed) {
+    return new Promise(function (resolve) {
+      var last = document.activeElement;
+      var wrap = el('div', { class: 'dup-backdrop', role: 'presentation' });
+      function done(choice) {
+        document.removeEventListener('keydown', onKey);
+        wrap.remove();
+        if (last && last.focus) last.focus();
+        resolve(choice);
+      }
+      function onKey(e) { if (e.key === 'Escape') done('cancel'); }
+      var update = el('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'Update the existing event' });
+      var create = el('button', { class: 'btn btn-ghost btn-block', type: 'button', text: 'No, it’s a different event — add it' });
+      var back = el('button', { class: 'btn btn-ghost btn-block', type: 'button', text: 'Go back' });
+      update.addEventListener('click', function () { done('update'); });
+      create.addEventListener('click', function () { done('create'); });
+      back.addEventListener('click', function () { done('cancel'); });
+      var box = el('div', { class: 'dup-dialog', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'dupTitle', 'aria-describedby': 'dupText' }, [
+        el('h3', { id: 'dupTitle', text: 'This event may already be on the website' }),
+        el('p', { id: 'dupText', class: 'muted', text: 'There is already an event on the same day that looks like this one. Update it instead of adding a second copy?' }),
+        el('div', { class: 'dup-compare' }, [
+          el('div', {}, [el('small', { text: 'Already on the website' }), el('b', { text: dup.title }),
+            el('span', { text: fmtLong(dup.starts_at) + (dup.venue ? ' · ' + dup.venue : '') })]),
+          el('div', {}, [el('small', { text: 'What you typed' }), el('b', { text: typed.title || 'Untitled' }),
+            el('span', { text: (typed.starts_at ? fmtLong(new Date(typed.starts_at).toISOString()) : '') + (typed.venue ? ' · ' + typed.venue : '') })])
+        ]),
+        el('p', { class: 'hint', text: 'Updating replaces the existing event’s details with what you typed and keeps its photos.' }),
+        el('div', { class: 'dup-actions' }, [update, create, back])
+      ]);
+      wrap.appendChild(box);
+      wrap.addEventListener('click', function (e) { if (e.target === wrap) done('cancel'); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(wrap);
+      update.focus();
+    });
+  }
 
   // ---------- event photos ----------
   var currentEvent = null;

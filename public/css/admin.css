@@ -669,3 +669,20 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .pf-photo button{position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; border:0; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.25); cursor:pointer; line-height:1;}
 .shop-label-admin{font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:18px 0 6px;}
 .pay-methods{display:flex; gap:16px; flex-wrap:wrap;}
+
+/* Shop tab: orders and payments side by side */
+.shop-top{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:18px; align-items:start; margin-bottom:18px;}
+.shop-top > .card{margin:0;}
+@media (max-width: 980px){ .shop-top{grid-template-columns:1fr;} }
+
+/* "This event may already exist" dialog */
+.dup-backdrop{position:fixed; inset:0; z-index:200; background:rgba(15,15,15,.45); display:flex; align-items:center; justify-content:center; padding:20px;}
+.dup-dialog{background:#fff; color:#111; border-radius:18px; max-width:520px; width:100%; padding:22px; box-shadow:0 24px 60px rgba(0,0,0,.3);}
+.dup-dialog h3{margin:0 0 6px; font-size:18px;}
+.dup-compare{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0 6px;}
+.dup-compare > div{border:1px solid #e5e5e5; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:3px; min-width:0;}
+.dup-compare small{color:#777; font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+.dup-compare b{font-size:14px; overflow-wrap:anywhere;}
+.dup-compare span{font-size:12px; color:#555; overflow-wrap:anywhere;}
+.dup-actions{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
+@media (max-width:520px){ .dup-compare{grid-template-columns:1fr;} }
