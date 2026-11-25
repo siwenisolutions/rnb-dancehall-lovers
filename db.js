@@ -224,6 +224,13 @@ CREATE TABLE IF NOT EXISTS products (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE media ADD COLUMN IF NOT EXISTS product_id integer REFERENCES products(id) ON DELETE CASCADE;
+-- A product can be listed before its price is set ("Price coming soon"); it can't be ordered until then.
+ALTER TABLE products ALTER COLUMN price_cents DROP NOT NULL;
+ALTER TABLE products DROP CONSTRAINT IF EXISTS products_price_cents_check;
+DO $$ BEGIN
+  ALTER TABLE products ADD CONSTRAINT products_price_ok CHECK (price_cents IS NULL OR (price_cents > 0 AND price_cents < 100000000));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 CREATE INDEX IF NOT EXISTS media_product_idx ON media (product_id) WHERE product_id IS NOT NULL;
 -- status: pending (waiting for payment), paid, failed, cancelled, sent, delivered
 CREATE TABLE IF NOT EXISTS orders (
@@ -311,7 +318,7 @@ END $$;
 `;
 
 // Bump when SCHEMA changes: the daily job runs it again once.
-const SCHEMA_VERSION = 'cf-1';
+const SCHEMA_VERSION = 'cf-2';
 
 // Creates or updates tables, default settings and the first admin login.
 // Runs from the scheduled job (and is cheap to repeat).

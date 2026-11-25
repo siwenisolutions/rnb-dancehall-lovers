@@ -190,6 +190,7 @@ module.exports = function shop(app, admin, d) {
     for (const l of lines) {
       const p = byId.get(parseInt(l.product_id, 10));
       if (!p) throw httpError(400, 'One of the items is no longer available. Please remove it from your bag.');
+      if (!(p.price_cents > 0)) throw httpError(400, `${p.name} isn't on sale yet (price coming soon). Please remove it from your bag.`);
       const sizes = sizesOf(p);
       const size = String(l.size || '').trim();
       if (sizes.length && !sizes.includes(size)) throw httpError(400, `Choose a size for ${p.name}.`);
@@ -264,9 +265,14 @@ module.exports = function shop(app, admin, d) {
   function productFromBody(b) {
     const name = cleanText(b.name, 120, 'Name');
     if (!name) throw httpError(400, 'Give the item a name.');
-    const price = Math.round(parseFloat(String(b.price || '').replace(/[^0-9.]/g, '')) * 100);
-    if (!(price > 0)) throw httpError(400, 'Type a price, e.g. 25 or 12.50.');
-    if (price >= 100000000) throw httpError(400, 'That price is too high.');
+    // Empty price = "Price coming soon": the item shows in the shop but can't be ordered yet.
+    const rawPrice = String(b.price == null ? '' : b.price).trim();
+    let price = null;
+    if (rawPrice) {
+      price = Math.round(parseFloat(rawPrice.replace(/[^0-9.]/g, '')) * 100);
+      if (!(price > 0)) throw httpError(400, 'Type a price, e.g. 25 or 12.50 — or leave it empty for "Price coming soon".');
+      if (price >= 100000000) throw httpError(400, 'That price is too high.');
+    }
     const sizes = String(b.sizes || '').split(/\n|,/).map((x) => x.trim().slice(0, 20)).filter(Boolean).slice(0, 15).join('\n');
     return { name, description: cleanText(b.description, 2000, 'Description'), price, sizes, active: b.active !== false && b.active !== 'false' };
   }

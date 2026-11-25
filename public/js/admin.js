@@ -2057,7 +2057,7 @@
     resetProductForm();
     $('pfId').value = p.id;
     $('pfName').value = p.name;
-    $('pfPrice').value = (p.price_cents / 100).toFixed(2).replace(/\.00$/, '');
+    $('pfPrice').value = p.price_cents > 0 ? (p.price_cents / 100).toFixed(2).replace(/\.00$/, '') : '';
     $('pfSizes').value = p.sizes.join(', ');
     $('pfDesc').value = p.description;
     $('pfActive').checked = p.active;
@@ -2100,7 +2100,7 @@
     shopState.products.forEach(function (p) {
       box.appendChild(el('div', { class: 'p-row' + (p.active ? '' : ' off') }, [
         el('span', { class: 'p-img', style: p.photo_ids.length ? "background-image:url('" + media(p.photo_ids[0], true) + "')" : '' }),
-        el('span', { class: 'p-txt' }, [el('b', { text: p.name }), el('small', { text: dollars(p.price_cents) + (p.sizes.length ? ' · ' + p.sizes.join(', ') : '') + (p.active ? '' : ' · hidden') })]),
+        el('span', { class: 'p-txt' }, [el('b', { text: p.name }), el('small', { text: (p.price_cents > 0 ? dollars(p.price_cents) : 'Price coming soon') + (p.sizes.length ? ' · ' + p.sizes.join(', ') : '') + (p.active ? '' : ' · hidden') })]),
         el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Edit', onclick: function () { editProduct(p); } }),
         el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Delete', onclick: function () {
           if (!confirm('Delete ' + p.name + ' from the shop? Past orders keep their details.')) return;

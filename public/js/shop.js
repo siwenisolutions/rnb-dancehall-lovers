@@ -26,6 +26,15 @@
     return el('p', { class: 'shop-note' }, [icon('truck'), tx('shop_delivery', 'Delivery within 14 days') + (extra || '')]);
   }
   function money(c) { var v = c / 100; return '$' + (v % 1 ? v.toFixed(2) : String(v)); }
+  function priced(p) { return p.price_cents > 0; }
+  function priceText(p) { return priced(p) ? money(p.price_cents) : tx('shop_soon', 'Price coming soon'); }
+  // WhatsApp chat with the business number (from the site settings), for items without a price yet.
+  var contactPhone = '077 167 4200';
+  R.api('/api/settings').then(function (s) { if (s && s.phone) contactPhone = s.phone; }).catch(function () {});
+  function enquireUrl(p) {
+    var digits = String(contactPhone).replace(/\D/g, '').replace(/^0/, '263');
+    return 'https://wa.me/' + digits + '?text=' + encodeURIComponent("Hi! I'm interested in the " + p.name + ' from your merch shop. When will it be available, and how much is it?');
+  }
   function photo(id, thumb) { return R.mediaUrl(id, thumb); }
   function tx(key, fallback) { return t(key) || fallback; }
 
@@ -33,7 +42,7 @@
   try { bag = JSON.parse(localStorage.getItem('rnbBag') || '[]') || []; } catch (e) { bag = []; }
   function saveBag() { try { localStorage.setItem('rnbBag', JSON.stringify(bag)); } catch (e) { /* private mode */ } updateFab(); }
   function product(id) { return shop.products.filter(function (p) { return p.id === id; })[0]; }
-  function bagLines() { return bag.filter(function (l) { return product(l.product_id); }); }
+  function bagLines() { return bag.filter(function (l) { var p = product(l.product_id); return p && priced(p); }); }
   function bagTotal() { return bagLines().reduce(function (n, l) { return n + product(l.product_id).price_cents * l.qty; }, 0); }
   function bagCount() { return bagLines().reduce(function (n, l) { return n + l.qty; }, 0); }
   function updateFab() {
@@ -83,12 +92,12 @@
       return;
     }
     shop.products.forEach(function (p) {
-      var card = el('button', { class: 'shop-card', type: 'button', 'aria-label': p.name + ', ' + money(p.price_cents) }, [
+      var card = el('button', { class: 'shop-card', type: 'button', 'aria-label': p.name + ', ' + priceText(p) }, [
         p.photo_ids.length ? el('div', { class: 'shop-card-img', style: "background-image:url('" + photo(p.photo_ids[0], true) + "')" })
           : el('div', { class: 'shop-card-img empty' }, [el('span', { text: p.name })]),
         el('div', { class: 'shop-card-body' }, [
           el('b', { text: p.name }),
-          el('span', { class: 'price', text: money(p.price_cents) }),
+          el('span', { class: 'price' + (priced(p) ? '' : ' soon'), text: priceText(p) }),
           p.sizes.length ? el('small', { text: p.sizes.join(' · ') }) : null
         ])
       ]);
@@ -98,6 +107,16 @@
   }
 
   function showItem(p) {
+    if (!priced(p)) {
+      open([
+        photoStrip(p),
+        el('div', { class: 'shop-item-head' }, [el('h2', { class: 'shop-h', id: 'sheetTitle', text: p.name }), el('span', { class: 'price soon', text: priceText(p) })]),
+        p.description ? el('p', { class: 'shop-desc', text: p.description }) : null,
+        el('p', { class: 'shop-desc', text: tx('shop_soon_text', "This item isn't on sale online yet. Message us on WhatsApp to reserve one or to hear first when it's available.") }),
+        el('a', { class: 'btn btn-primary btn-block', href: enquireUrl(p), target: '_blank', rel: 'noopener', text: tx('shop_enquire', 'Enquire on WhatsApp') })
+      ]);
+      return;
+    }
     var size = p.sizes.length === 1 ? p.sizes[0] : '', qty = 1;
     var msg = el('p', { class: 'shop-msg', hidden: true });
     var sizeBox = null;
