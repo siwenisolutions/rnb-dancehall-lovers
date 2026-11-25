@@ -25,9 +25,75 @@
     return node;
   }
 
+  // ---------- photos are made smaller here, before uploading ----------
+  // The website runs on Cloudflare's free plan, which has no time for image
+  // work, so the phone or computer does it: a large copy (1600 px) and a
+  // thumbnail (640 px), as WebP (JPEG on browsers that can't make WebP).
+  // This also turns phone photos the right way up and drops their GPS data.
+  // Each photo's thumbnail goes in a second field, "<field>_thumb", in the
+  // same order (empty when a file couldn't be shrunk, such as a video).
+  var SHRINK = { full: 1600, fullQ: 0.8, thumb: 640, thumbQ: 0.72 };
+  function drawTo(bitmap, max, quality) {
+    var scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(bitmap.width * scale));
+    c.height = Math.max(1, Math.round(bitmap.height * scale));
+    var g = c.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(bitmap, 0, 0, c.width, c.height);
+    function blob(type) { return new Promise(function (ok) { c.toBlob(ok, type, quality); }); }
+    return blob('image/webp').then(function (b) {
+      return b && b.type === 'image/webp' ? b : blob('image/jpeg');
+    });
+  }
+  function shrinkPhoto(file) {
+    if (!(file instanceof Blob) || !/^image\/(jpeg|png|webp|heic|heif|avif|bmp)$/i.test(file.type || '') || !window.createImageBitmap) return Promise.resolve(null);
+    return createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bmp) {
+      return drawTo(bmp, SHRINK.full, SHRINK.fullQ).then(function (full) {
+        return drawTo(bmp, SHRINK.thumb, SHRINK.thumbQ).then(function (thumb) {
+          if (bmp.close) bmp.close();
+          return full && thumb ? { full: full, thumb: thumb } : null;
+        });
+      });
+    }).catch(function () { return null; });
+  }
+  function shrinkForm(fd) {
+    var entries = [];
+    fd.forEach(function (v, k) { entries.push([k, v]); });
+    if (!entries.some(function (e) { return e[1] instanceof Blob; })) return Promise.resolve(fd);
+    var out = new FormData();
+    var thumbs = [];
+    return entries.reduce(function (p, e) {
+      return p.then(function () {
+        var k = e[0], v = e[1];
+        if (!(v instanceof Blob)) { out.append(k, v); return; }
+        return shrinkPhoto(v).then(function (s) {
+          var base = (v.name || 'photo').replace(/\.[^.]+$/, '');
+          if (s) {
+            var ext = s.full.type === 'image/webp' ? '.webp' : '.jpg';
+            out.append(k, s.full, base + ext);
+            thumbs.push([k + '_thumb', s.thumb, base + '-thumb' + ext]);
+          } else {
+            out.append(k, v, v.name || 'file');
+            thumbs.push([k + '_thumb', new Blob([]), 'none']);
+          }
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      thumbs.forEach(function (t) { out.append(t[0], t[1], t[2]); });
+      return out;
+    });
+  }
+
   // Every admin request goes through here. The server requires the X-RNB-Admin
   // header on changes (blocks cross-site requests).
   function call(method, url, body) {
+    if (body instanceof FormData) {
+      return shrinkForm(body).then(function (fd) { return send(method, url, fd); });
+    }
+    return send(method, url, body);
+  }
+  function send(method, url, body) {
     var opts = { method: method, headers: { 'X-RNB-Admin': '1', Accept: 'application/json' }, credentials: 'same-origin' };
     if (body instanceof FormData) opts.body = body;
     else if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
@@ -882,7 +948,7 @@
         files.forEach(function (f) { fd.append('files', f); });
         addLabel.textContent = 'Uploading…';
         call('POST', '/api/admin/slots/' + slot.key, fd).then(function (r) {
-          toast(r.compressing ? 'Video added. It is being made smaller in the background, the website keeps working.' : plural(r.ids.length, 'photo') + ' added to ' + slot.label);
+          toast(r.compressing ? 'Video added. It is being made smaller in the background, the website keeps working.' : (files.some(function (f) { return /^video\//.test(f.type); }) ? 'Video added to ' : plural(r.ids.length, 'photo') + ' added to ') + slot.label);
           afterSlotChange();
         }).catch(function (err) { alert(err.message); addLabel.textContent = '+ Add photo'; input.value = ''; });
       });

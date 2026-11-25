@@ -2,7 +2,7 @@
 // Reads a public social media post from its link: the caption and its picture.
 // Uses public routes only (TikTok's oEmbed, Instagram's embed page, and the
 // Open Graph preview tags that public posts publish for link previews).
-const sharp = require('sharp');
+const { shrink, formatOf, MIME } = require('./images');
 
 // Only these sites (and their image servers) are ever fetched.
 const POST_HOSTS = /(^|\.)(instagram\.com|instagr\.am|tiktok\.com|facebook\.com|fb\.com|fb\.watch|threads\.net|x\.com|twitter\.com)$/i;
@@ -146,8 +146,12 @@ async function fetchPoster(imageUrl, log) {
     const r = await safeFetch(decodeEntities(imageUrl), { hosts: IMAGE_HOSTS, headers: { 'User-Agent': BROWSER_UA }, maxBytes: 12 * 1024 * 1024, asBuffer: true });
     log.push(`image ${r.status}`);
     if (!r.body || !r.body.length) return null;
-    const out = await sharp(r.body).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
-    return `data:image/webp;base64,${out.toString('base64')}`;
+    const out = await shrink(r.body, 1600, 82);
+    if (out) return `data:image/webp;base64,${out.toString('base64')}`;
+    // Cloudflare Images not available: hand over the picture as it is.
+    const fmt = formatOf(r.body);
+    if (!['jpeg', 'png', 'webp', 'gif'].includes(fmt)) return null;
+    return `data:${MIME[fmt]};base64,${r.body.toString('base64')}`;
   } catch (e) {
     log.push(`image failed ${e.message}`);
     return null;

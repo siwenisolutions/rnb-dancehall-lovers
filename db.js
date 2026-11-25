@@ -1,22 +1,55 @@
 'use strict';
-const fs = require('fs');
-const path = require('path');
-const { Pool } = require('pg');
-const { processImage, recompress } = require('./images');
+// Database access on Cloudflare Workers (Neon serverless driver, over HTTPS).
+// Each query is one HTTPS request: no connection to set up, nothing kept
+// between requests (Workers don't allow a connection made in one request to
+// be used in another), and it works through any network.
+//
+// pool.connect() hands back an object with the same query() so the code
+// written for node-postgres keeps working. BEGIN / COMMIT / ROLLBACK are
+// skipped: statements run one by one (each on its own is still atomic).
+const crypto = require('crypto');
+const { neon, neonConfig } = require('@neondatabase/serverless');
 const storage = require('./storage');
 const auth = require('./auth');
-const crypto = require('crypto');
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL is not set');
+const connectionString = process.env.DATABASE_URL || '';
+
+// Local testing only (tools/dev/local-services.js).
+if (process.env.NEON_FETCH_ENDPOINT) neonConfig.fetchEndpoint = process.env.NEON_FETCH_ENDPOINT;
+
+let http = null;
+function sql() {
+  if (!connectionString) throw new Error('DATABASE_URL is not set');
+  if (!http) http = neon(connectionString, { fullResults: true });
+  return http;
 }
 
-const pool = new Pool({
-  connectionString,
-  ssl: /sslmode=require|neon\.tech/.test(connectionString) ? true : false,
-  max: 5,
-});
+const SKIP = /^\s*(BEGIN|COMMIT|ROLLBACK)\s*;?\s*$/i;
+const pool = {
+  async query(text, params) {
+    if (SKIP.test(text)) return { rows: [], rowCount: 0 };
+    return sql().query(text, params || []);
+  },
+  async connect() {
+    return { query: pool.query, release() {} };
+  },
+};
+
+// Splits a block of SQL into statements (keeps DO $$ ... $$ blocks whole).
+function statements(text) {
+  const out = [];
+  let cur = '';
+  let inDollar = false;
+  for (const line of text.split('\n')) {
+    if (/^\s*--/.test(line) && !inDollar) continue;
+    cur += line + '\n';
+    const n = (line.match(/\$\$/g) || []).length;
+    if (n % 2 === 1) inDollar = !inDollar;
+    if (!inDollar && /;\s*$/.test(line)) { out.push(cur.trim()); cur = ''; }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
 
 // Text settings the client can edit from the admin panel. Defaults are what
 // the site shows until they change them.
@@ -249,6 +282,13 @@ CREATE TABLE IF NOT EXISTS drive_removed (
   PRIMARY KEY (event_id, source)
 );
 
+-- Cloudflare: visitors seen in the last few minutes ("on the site now"),
+-- and Drive imports that run in small steps (todo = photos still to copy).
+ALTER TABLE visit_visitors ADD COLUMN IF NOT EXISTS last_seen timestamptz;
+CREATE INDEX IF NOT EXISTS visit_visitors_seen_idx ON visit_visitors (last_seen);
+ALTER TABLE drive_imports ADD COLUMN IF NOT EXISTS todo jsonb;
+ALTER TABLE drive_imports ADD COLUMN IF NOT EXISTS heartbeat_at timestamptz;
+
 CREATE INDEX IF NOT EXISTS media_video_state_idx ON media (video_state) WHERE video_state = 'pending';
 
 DO $$ BEGIN
@@ -270,139 +310,45 @@ DO $$ BEGIN
 END $$;
 `;
 
-// The photos that were embedded in the original single-page site. They are
-// loaded into the database once so the client can manage them like any other.
-const SEED_PHOTOS = [
-  ['p9.jpg', 'experience', 'Personal'],
-  ['p8.jpg', 'experience', 'Captivating'],
-  ['p10.jpg', 'experience', 'Engaging'],
-  ['p1.jpg', 'gallery', ''],
-  ['p2.jpg', 'gallery', ''],
-  ['p3.jpg', 'gallery', 'Live Set'],
-  ['p4.jpg', 'gallery', 'Crew Links'],
-  ['p5.jpg', 'gallery', 'Packed Out'],
-  ['p6.jpg', 'gallery', 'Crowd Favorites'],
-  ['p7.jpg', 'gallery', 'Photo Wall'],
-  ['p11.jpg', 'gallery', ''],
-  ['p12.jpg', 'gallery', ''],
-  ['p13.jpg', 'gallery', ''],
-];
+// Bump when SCHEMA changes: the daily job runs it again once.
+const SCHEMA_VERSION = 'cf-1';
 
-async function migrate() {
-  await pool.query(SCHEMA);
-  await setUpAdmin();
-  for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
-    await pool.query(
-      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
-      [key, value]
-    );
-  }
-  const dir = path.join(__dirname, 'public', 'img');
-  const seeded = await pool.query("SELECT value FROM settings WHERE key = '_photos_seeded'");
-  if (seeded.rowCount === 0) {
-    // Oldest first, so the experience photos keep their original order.
-    for (const [file, category, caption] of SEED_PHOTOS.slice().reverse()) {
-      const img = await processImage(fs.readFileSync(path.join(dir, file)));
-      await insertMedia({ category, caption, eventId: null, img });
-    }
-    await pool.query("INSERT INTO settings (key, value) VALUES ('_photos_seeded', 'yes')");
-  }
-
-  // One-time move to picture sections ("slots"), keeping what is already there.
-  const slotted = await pool.query("SELECT value FROM settings WHERE key = '_slots_seeded'");
-  if (slotted.rowCount === 0) {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      // Experience photos become the three Experience cards (matched by their word).
-      const exp = await client.query("SELECT id, caption FROM media WHERE category = 'experience' ORDER BY created_at, id");
-      const byWord = { personal: 'exp1', captivating: 'exp2', engaging: 'exp3' };
-      const free = ['exp1', 'exp2', 'exp3'];
-      for (const row of exp.rows) {
-        let slot = byWord[row.caption.trim().toLowerCase()];
-        if (!slot || !free.includes(slot)) slot = free[0] || 'exp1';
-        free.splice(free.indexOf(slot), 1);
-        await client.query("UPDATE media SET category = 'site', slot = $1 WHERE id = $2", [slot, row.id]);
-      }
-      // Ticket thumbnails uploaded with the earlier version become ticket card photos.
-      for (const n of ['1', '2']) {
-        const r = await client.query('SELECT value FROM settings WHERE key = $1', [`ticket${n}_image`]);
-        const id = Number(r.rows[0] && r.rows[0].value);
-        if (Number.isInteger(id) && id > 0) {
-          await client.query("UPDATE media SET category = 'site', slot = $1 WHERE id = $2 AND category = 'site'", [`ticket${n}`, id]);
-        }
-      }
-      await client.query("DELETE FROM settings WHERE key IN ('ticket1_image', 'ticket2_image')");
-      await client.query("INSERT INTO settings (key, value) VALUES ('_slots_seeded', 'yes')");
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
-  // Any section that is still empty starts with the photo the site was built with.
-  for (const [slot, def] of Object.entries(SLOTS)) {
-    const has = await pool.query('SELECT 1 FROM media WHERE slot = $1 LIMIT 1', [slot]);
-    const done = await pool.query('SELECT 1 FROM settings WHERE key = $1', [`_slot_seed_${slot}`]);
-    if (has.rowCount === 0 && done.rowCount === 0 && def.seed) {
-      const img = await processImage(fs.readFileSync(path.join(dir, def.seed)));
-      await insertMedia({ category: 'site', caption: '', eventId: null, img, slot });
-    }
-    // Remember it was seeded, so a section the client empties on purpose stays empty.
-    await pool.query("INSERT INTO settings (key, value) VALUES ($1, 'yes') ON CONFLICT (key) DO NOTHING", [`_slot_seed_${slot}`]);
-  }
-  await installHeaderVideo();
-}
-
-// One-time swap of the header background for the video the client sent in
-// November 2026 (seed/hero-2026-11.mp4, already compressed for phones). The
-// old header video and photo are removed. Runs once; after that the header
-// is managed from the admin panel as usual.
-const HEADER_VIDEO = { key: '_hero_video_2026_11', file: path.join(__dirname, 'seed', 'hero-2026-11.mp4') };
-async function installHeaderVideo() {
-  const done = await pool.query('SELECT 1 FROM settings WHERE key = $1', [HEADER_VIDEO.key]);
-  if (done.rowCount || !fs.existsSync(HEADER_VIDEO.file)) return;
-  const data = fs.readFileSync(HEADER_VIDEO.file);
+// Creates or updates tables, default settings and the first admin login.
+// Runs from the scheduled job (and is cheap to repeat).
+async function migrate({ force = false } = {}) {
   const client = await pool.connect();
-  let oldIds = [];
-  try {
-    await client.query('BEGIN');
-    const old = await client.query("SELECT id FROM media WHERE category = 'site' AND slot = 'hero'");
-    oldIds = old.rows.map((r) => r.id);
-    await insertMedia({
-      category: 'site', caption: '', eventId: null, slot: 'hero',
-      img: { mime: 'video/mp4', width: 0, height: 0, data, thumb: Buffer.alloc(0), videoState: 'done' },
-    }, client);
-    if (oldIds.length) await client.query('DELETE FROM media WHERE id = ANY($1::int[])', [oldIds]);
-    await client.query("INSERT INTO settings (key, value) VALUES ($1, 'yes')", [HEADER_VIDEO.key]);
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    console.error('[hero] new header video not installed yet:', err.message);
-    return;
-  } finally {
-    client.release();
+  {
+    if (!force) {
+      const v = await client.query("SELECT value FROM settings WHERE key = '_schema_version'").catch(() => ({ rows: [] }));
+      if (v.rows[0] && v.rows[0].value === SCHEMA_VERSION) {
+        await setUpAdmin(client);
+        return false;
+      }
+    }
+    for (const st of statements(SCHEMA)) await client.query(st);
+    for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
+      await client.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, value]);
+    }
+    await setUpAdmin(client);
+    await client.query("INSERT INTO settings (key, value) VALUES ('_schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [SCHEMA_VERSION]);
+    return true;
   }
-  for (const id of oldIds) forgetMediaFiles(id);
-  console.log(`[hero] header video replaced (removed media ${oldIds.join(', ') || 'none'})`);
 }
 
 // Saves a photo or video. With object storage set up, the file goes to the
 // bucket and the database keeps only its details.
 // First start: the admin account gets the site's contact email (or
 // ADMIN_EMAIL) and the old shared ADMIN_PASSWORD, and must pick its own
-// password at first login. ADMIN_RESET_PASSWORD (set on Render) resets a
+// password at first login. ADMIN_RESET_PASSWORD (a Cloudflare secret) resets a
 // forgotten password once; remove it again afterwards.
-async function setUpAdmin() {
-  const { rows } = await pool.query('SELECT count(*)::int AS n FROM admins');
+async function setUpAdmin(db = pool) {
+  const { rows } = await db.query('SELECT count(*)::int AS n FROM admins');
   if (rows[0].n === 0) {
     const pw = process.env.ADMIN_PASSWORD || '';
     if (pw.length < 10) throw new Error('No admin account yet: set ADMIN_PASSWORD (10+ characters) for the first login.');
-    const r = await pool.query("SELECT value FROM settings WHERE key = 'contact_email'");
+    const r = await db.query("SELECT value FROM settings WHERE key = 'contact_email'");
     const email = auth.normaliseEmail(process.env.ADMIN_EMAIL || (r.rows[0] && r.rows[0].value) || SETTING_DEFAULTS.contact_email);
-    await pool.query('INSERT INTO admins (email, password_hash, must_change) VALUES ($1, $2, true)',
+    await db.query('INSERT INTO admins (email, password_hash, must_change) VALUES ($1, $2, true)',
       [email, await auth.hashPassword(pw)]);
     console.log(`[admin] created the admin login for ${email}; they will choose their own password at first login`);
   }
@@ -410,76 +356,59 @@ async function setUpAdmin() {
   if (reset) {
     if (reset.length < 10) { console.warn('[admin] ADMIN_RESET_PASSWORD ignored: use 10+ characters'); return; }
     const tag = crypto.createHash('sha256').update(reset).digest('hex');
-    const done = await pool.query("SELECT 1 FROM settings WHERE key = '_admin_reset' AND value = $1", [tag]);
+    const done = await db.query("SELECT 1 FROM settings WHERE key = '_admin_reset' AND value = $1", [tag]);
     if (done.rowCount) return; // this reset was already used
     const email = auth.normaliseEmail(process.env.ADMIN_RESET_EMAIL || '');
     const target = email
-      ? await pool.query('SELECT id, email FROM admins WHERE email = $1', [email])
-      : await pool.query('SELECT id, email FROM admins ORDER BY id LIMIT 1');
+      ? await db.query('SELECT id, email FROM admins WHERE email = $1', [email])
+      : await db.query('SELECT id, email FROM admins ORDER BY id LIMIT 1');
     if (!target.rowCount) { console.warn(`[admin] ADMIN_RESET_PASSWORD: no admin ${email}`); return; }
-    await pool.query(
+    await db.query(
       `UPDATE admins SET password_hash = $2, must_change = true, session_version = session_version + 1,
               failed_logins = 0, locked_until = NULL WHERE id = $1`,
       [target.rows[0].id, await auth.hashPassword(reset)]);
-    await pool.query("INSERT INTO settings (key, value) VALUES ('_admin_reset', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [tag]);
-    console.log(`[admin] password reset for ${target.rows[0].email}. Remove ADMIN_RESET_PASSWORD on Render now.`);
+    await db.query("INSERT INTO settings (key, value) VALUES ('_admin_reset', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [tag]);
+    console.log(`[admin] password reset for ${target.rows[0].email}. Remove ADMIN_RESET_PASSWORD in Cloudflare now.`);
   }
 }
 
 async function insertMedia({ category, caption, eventId, img, slot = null, createdAt = null, source = null, productId = null }, db = pool) {
-  const inBucket = storage.enabled;
-  const videoState = img.mime.startsWith('video/') ? (img.videoState || 'pending') : null;
+  if (!storage.enabled) throw new Error('Object storage is not set up (AWS_* settings).');
+  const videoState = img.mime.startsWith('video/') ? (img.videoState || 'done') : null;
+  const thumbLen = img.thumb ? img.thumb.length : 0;
   const { rows } = await db.query(
-    `INSERT INTO media (category, event_id, caption, mime, width, height, data, thumb, slot, created_at,
+    `INSERT INTO media (category, event_id, caption, mime, width, height, slot, created_at,
                         in_bucket, bytes, thumb_bytes, video_state, source, product_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12, $13, $14, $15, $16) RETURNING id`,
-    [category, eventId, caption, img.mime, img.width, img.height,
-      inBucket ? null : img.data, inBucket ? null : img.thumb, slot, createdAt,
-      inBucket, img.data.length, img.thumb.length, videoState, source, productId]
+     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, now()), true, $9, $10, $11, $12, $13) RETURNING id`,
+    [category, eventId, caption, img.mime, img.width, img.height, slot, createdAt,
+      img.data.length, thumbLen, videoState, source, productId]
   );
   const id = rows[0].id;
-  if (inBucket) await storage.putMedia(id, img);
+  try {
+    await storage.putMedia(id, img);
+  } catch (err) {
+    await db.query('DELETE FROM media WHERE id = $1', [id]).catch(() => {});
+    throw err;
+  }
   return id;
 }
 
 // Removes a file from object storage after its row is gone (never throws).
-function forgetMediaFiles(id) {
-  if (!storage.enabled) return;
-  storage.deleteMedia(id).catch((err) => console.warn(`[storage] could not delete media ${id}:`, err.message));
+// Keeps the Worker running until a background task has finished.
+function later(promise) {
+  if (globalThis.__waitUntil) globalThis.__waitUntil(promise);
+  return promise;
 }
 
-// One-time (and resumable) move of files from the database to object storage.
-async function moveMediaToBucket() {
+function forgetMediaFiles(id) {
   if (!storage.enabled) return;
-  const { rows } = await pool.query('SELECT id FROM media WHERE NOT in_bucket ORDER BY id');
-  if (!rows.length) return;
-  let moved = 0, bytes = 0;
-  for (const { id } of rows) {
-    try {
-      const r = await pool.query('SELECT mime, data, thumb FROM media WHERE id = $1 AND NOT in_bucket', [id]);
-      if (!r.rowCount) continue;
-      const { mime, data, thumb } = r.rows[0];
-      await storage.putMedia(id, { mime, data, thumb: thumb || Buffer.alloc(0) });
-      const u = await pool.query(
-        'UPDATE media SET in_bucket = true, data = NULL, thumb = NULL, bytes = $2, thumb_bytes = $3 WHERE id = $1 AND NOT in_bucket',
-        [id, data.length, thumb ? thumb.length : 0]);
-      if (!u.rowCount) forgetMediaFiles(id); // deleted while it was being copied
-      else { moved += 1; bytes += data.length + (thumb ? thumb.length : 0); }
-    } catch (err) {
-      console.error(`[storage] media ${id} not moved yet:`, err.message);
-    }
-  }
-  console.log(`[storage] moved ${moved} of ${rows.length} files (${(bytes / 1048576).toFixed(1)} MB) to object storage`);
-  if (moved) {
-    // Give the freed database space back.
-    await pool.query('VACUUM FULL media').catch((err) => console.warn('[storage] vacuum skipped:', err.message));
-  }
+  later(storage.deleteMedia(id).catch((err) => console.warn(`[storage] could not delete media ${id}:`, err.message)));
 }
 
 // Deletes files in object storage whose photo or video no longer exists
 // (for example after an event and its photos were deleted). Files younger
 // than 15 minutes are left alone, as their upload may still be finishing.
-async function sweepOrphanFiles() {
+async function sweepOrphanFiles({ max = 25 } = {}) {
   if (!storage.enabled) return;
   const listed = await storage.listMedia();
   if (!listed.size) return;
@@ -488,36 +417,12 @@ async function sweepOrphanFiles() {
   const cutoff = Date.now() - 15 * 60 * 1000;
   const keys = [];
   for (const [id, e] of listed) if (!live.has(id) && e.newest < cutoff) keys.push(...e.keys);
-  if (keys.length) {
-    await storage.deleteKeys(keys);
-    console.log(`[storage] removed ${keys.length} leftover files`);
+  // A few per run: each delete is one outside request (the free plan allows 50 a run).
+  const now = keys.slice(0, max);
+  if (now.length) {
+    await storage.deleteKeys(now);
+    console.log(`[storage] removed ${now.length} leftover files${keys.length > now.length ? ` (${keys.length - now.length} next time)` : ''}`);
   }
 }
 
-// One-time pass that shrinks photos stored before the current compression
-// settings. Runs in the background after start-up, one photo at a time.
-async function compressStoredPhotos() {
-  const done = await pool.query("SELECT 1 FROM settings WHERE key = '_media_compressed_v2'");
-  if (done.rowCount) return;
-  const { rows } = await pool.query("SELECT id FROM media WHERE mime LIKE 'image/%' AND data IS NOT NULL ORDER BY id");
-  let saved = 0, changed = 0;
-  for (const { id } of rows) {
-    try {
-      const r = await pool.query('SELECT data, thumb FROM media WHERE id = $1 AND data IS NOT NULL', [id]);
-      if (!r.rowCount) continue;
-      const { data, thumb } = r.rows[0];
-      const out = await recompress(data, thumb);
-      if (!out) continue;
-      await pool.query('UPDATE media SET data = $1, thumb = $2, width = $3, height = $4, bytes = $6, thumb_bytes = $7 WHERE id = $5',
-        [out.data, out.thumb, out.width, out.height, id, out.data.length, out.thumb.length]);
-      saved += data.length + thumb.length - out.data.length - out.thumb.length;
-      changed += 1;
-    } catch (err) {
-      console.error(`[compress] photo ${id} skipped:`, err.message);
-    }
-  }
-  await pool.query("INSERT INTO settings (key, value) VALUES ('_media_compressed_v2', 'yes') ON CONFLICT (key) DO NOTHING");
-  console.log(`[compress] ${changed} of ${rows.length} photos smaller, saved ${(saved / 1048576).toFixed(1)} MB`);
-}
-
-module.exports = { pool, migrate, insertMedia, forgetMediaFiles, moveMediaToBucket, sweepOrphanFiles, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX };
+module.exports = { statements, pool, migrate, insertMedia, forgetMediaFiles, sweepOrphanFiles, later, SETTING_DEFAULTS, SLOTS, SLOT_MAX };

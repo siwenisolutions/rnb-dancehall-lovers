@@ -4,12 +4,12 @@
 // page or API, so this reads its public events list and each event's page
 // (name, date, start time, venue, flyer, ticket link).
 //
-// Runs twice a day, at 12:00 and 21:00 Harare time (or as soon as the server
-// wakes up after a missed check), and from the admin panel's "Check now".
+// Runs twice a day, at 12:00 and 21:00 Harare time (from the Worker's
+// scheduled job), and from the admin panel's "Check now".
 // A Megaticket event is only ever added once: deleting it on the website
 // keeps it deleted.
 
-const { pool, insertMedia } = require('./db');
+const { pool: db, insertMedia } = require('./db');
 const { processImage } = require('./images');
 
 const BASE = (process.env.MEGATICKET_BASE || 'https://www.megaticket.africa').replace(/\/+$/, '');
@@ -20,7 +20,7 @@ const CHECK_HOURS = [12, 21]; // Harare time (UTC+2, no daylight saving)
 const HARARE_MS = 2 * 3600 * 1000;
 // Megaticket shows start times in UTC: its "11:00" is the flyer's 1 PM.
 const SITE_OFFSET = process.env.MEGATICKET_TIME_OFFSET || '+00:00';
-const MAX_NEW_PER_RUN = 10;
+const MAX_NEW_PER_RUN = 6; // keeps a run under the free plan's 50 outside requests
 
 let hooks = { assertRoom: async () => {}, changed: () => {} };
 function configure(h) { hooks = { ...hooks, ...h }; }
@@ -119,15 +119,15 @@ function slugOf(url) {
   return m ? m[1].toLowerCase() : null;
 }
 
-let running = null;
+// (A promise can't be shared between requests on Workers, so no de-duplication;
+// adding is safe to repeat: a slug already seen is never added twice.)
 async function check(reason = 'schedule') {
-  if (running) return running;
-  running = run(reason).finally(() => { running = null; });
-  return running;
+  return run(reason);
 }
 
 async function run(reason) {
   const result = { at: new Date().toISOString(), reason, found: 0, added: [], updated: [], error: null };
+  const pool = await db.connect();
   try {
     // 1. Which Dancehall Lovers events does Megaticket list?
     const slugs = new Set();
@@ -200,9 +200,9 @@ async function run(reason) {
       if (ev.image) {
         try {
           const buf = await get(new URL(ev.image, BASE).toString(), true);
-          await hooks.assertRoom(buf.length);
+          await hooks.assertRoom(buf.length, pool);
           const img = await processImage(buf);
-          const mediaId = await insertMedia({ category: 'event', caption: '', eventId, img, source: `megaticket:${slug}` });
+          const mediaId = await insertMedia({ category: 'event', caption: '', eventId, img, source: `megaticket:${slug}` }, pool);
           await pool.query('UPDATE events SET cover_media_id = $1 WHERE id = $2', [mediaId, eventId]);
         } catch (err) {
           console.warn(`[megaticket] flyer for ${slug}: ${err.message}`);
@@ -215,14 +215,18 @@ async function run(reason) {
     result.error = err.message;
     console.warn(`[megaticket] check failed: ${err.message}`);
   }
-  await pool.query(
-    `INSERT INTO settings (key, value) VALUES ('_megaticket_last', $1)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [JSON.stringify(result)]);
+  try {
+    await pool.query(
+      `INSERT INTO settings (key, value) VALUES ('_megaticket_last', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [JSON.stringify(result)]);
+  } finally {
+    pool.release();
+  }
   return result;
 }
 
 async function lastResult() {
-  const { rows } = await pool.query("SELECT value FROM settings WHERE key = '_megaticket_last'");
+  const { rows } = await db.query("SELECT value FROM settings WHERE key = '_megaticket_last'");
   try { return rows.length ? JSON.parse(rows[0].value) : null; } catch { return null; }
 }
 
@@ -239,20 +243,11 @@ function slots(now = new Date()) {
   };
 }
 
-// Every 10 minutes: run if a check time has passed since the last check.
-// A server that was asleep at 12:00 checks as soon as it wakes up.
-function start() {
-  if (process.env.MEGATICKET_CHECK === 'off') return;
-  const tick = async () => {
-    try {
-      const last = await lastResult();
-      if (!last || new Date(last.at) < slots().last) await check('schedule');
-    } catch (err) {
-      console.warn(`[megaticket] ${err.message}`);
-    }
-  };
-  setTimeout(tick, 30 * 1000).unref();
-  setInterval(tick, 10 * 60 * 1000).unref();
+// For the scheduled job: true if a check time has passed since the last check.
+async function due(now = new Date()) {
+  if (process.env.MEGATICKET_CHECK === 'off') return false;
+  const last = await lastResult();
+  return !last || new Date(last.at) < slots(now).last;
 }
 
-module.exports = { check, lastResult, slots, start, configure, parseEvent, findSlugs };
+module.exports = { check, lastResult, slots, due, configure, parseEvent, findSlugs };

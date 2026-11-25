@@ -59,7 +59,7 @@ async function get(url, { maxBytes = 5 * 1024 * 1024, asBuffer = false, timeout 
       const { done, value } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > maxBytes) { await reader.cancel(); throw new DriveError('A file in the folder is too big (over 40 MB).'); }
+      if (size > maxBytes) { await reader.cancel(); throw new DriveError('A file in the folder is too big (over 20 MB).'); }
       chunks.push(value);
     }
     const buf = Buffer.concat(chunks);
@@ -165,28 +165,26 @@ async function listFolder(id, resourceKey = '') {
   };
 }
 
-// Downloads one photo. Drive's own resized copy (up to 2000 px, which is
-// more than the website keeps) is tried first: it's fast and small. If
-// that fails, the original file is downloaded.
-async function downloadImage(fileId) {
-  const tries = [
-    `${WEB}/thumbnail?id=${encodeURIComponent(fileId)}&sz=s2000`,
-    process.env.DRIVE_WEB_BASE
-      ? `${WEB}/download?id=${encodeURIComponent(fileId)}`
-      : `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`,
-  ];
-  let last = 'not an image';
-  for (const url of tries) {
-    try {
-      const r = await get(url, { asBuffer: true, maxBytes: 40 * 1024 * 1024, timeout: 60000 });
-      if (r.status === 200 && /^image\//i.test(r.type) && r.body.length > 100) return r.body;
-      if (r.status === 200 && /octet-stream/i.test(r.type) && r.body.length > 100) return r.body; // original file
-      last = `HTTP ${r.status} ${r.type}`;
-    } catch (err) {
-      last = err.message;
+// Downloads one photo as a large copy and a thumbnail. Drive makes both
+// itself (resized JPEGs), so the Worker has no image work to do. If that
+// fails, the original file is downloaded and { full } comes back alone.
+async function downloadPhoto(fileId, sizes = { full: 1600, thumb: 640 }) {
+  const id = encodeURIComponent(fileId);
+  const thumbUrl = (px) => `${WEB}/thumbnail?id=${id}&sz=s${px}`;
+  const isImage = (r) => r.status === 200 && /^image\//i.test(r.type) && r.body.length > 100;
+  try {
+    const full = await get(thumbUrl(sizes.full), { asBuffer: true, maxBytes: 20 * 1024 * 1024, timeout: 30000 });
+    if (isImage(full)) {
+      const thumb = await get(thumbUrl(sizes.thumb), { asBuffer: true, maxBytes: 5 * 1024 * 1024, timeout: 30000 }).catch(() => null);
+      return { full: full.body, thumb: thumb && isImage(thumb) ? thumb.body : null };
     }
-  }
-  throw new DriveError(`could not download (${last})`);
+  } catch { /* try the original */ }
+  const original = process.env.DRIVE_WEB_BASE
+    ? `${WEB}/download?id=${id}`
+    : `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
+  const r = await get(original, { asBuffer: true, maxBytes: 20 * 1024 * 1024, timeout: 60000 });
+  if (r.status === 200 && (/^image\//i.test(r.type) || /octet-stream/i.test(r.type)) && r.body.length > 100) return { full: r.body, thumb: null };
+  throw new DriveError(`could not download (HTTP ${r.status} ${r.type})`);
 }
 
 // Reads a date from a folder name such as "12 Dec 2026", "2026-12-12",
@@ -207,4 +205,4 @@ function dateFromName(name) {
   return '';
 }
 
-module.exports = { parseFolderLink, listFolder, downloadImage, dateFromName, parseEmbedPage, DriveError };
+module.exports = { parseFolderLink, listFolder, downloadPhoto, dateFromName, parseEmbedPage, DriveError };

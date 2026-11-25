@@ -1,32 +1,46 @@
 'use strict';
 // Photos and videos live in Neon Object Storage (5 GB on the free plan),
-// not in the database. Without the AWS_* settings below everything falls back
-// to storing files in the database, as before.
-const {
-  S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, ListObjectsV2Command,
-} = require('@aws-sdk/client-s3');
+// not in the database. Talks to it over plain S3 requests (aws4fetch), which
+// is small and works on Cloudflare Workers.
+const { AwsClient } = require('aws4fetch');
 
 const BUCKET = process.env.MEDIA_BUCKET || '';
-const enabled = !!(BUCKET && process.env.AWS_ENDPOINT_URL_S3
-  && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+const ENDPOINT = (process.env.AWS_ENDPOINT_URL_S3 || '').replace(/\/+$/, '');
+const enabled = !!(BUCKET && ENDPOINT && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
 
-const client = enabled ? new S3Client({
-  region: process.env.AWS_REGION || 'eu-central-1',
-  endpoint: process.env.AWS_ENDPOINT_URL_S3,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-  forcePathStyle: true,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-}) : null;
+let aws = null;
+function client() {
+  if (!aws) {
+    aws = new AwsClient({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      region: process.env.AWS_REGION || 'eu-central-1',
+      service: 's3',
+    });
+  }
+  return aws;
+}
 
 const fullKey = (id) => `media/${id}/full`;
 const thumbKey = (id) => `media/${id}/thumb`;
+const urlOf = (key) => `${ENDPOINT}/${BUCKET}/${key.split('/').map(encodeURIComponent).join('/')}`;
+
+class StorageError extends Error {
+  constructor(message, status) { super(message); this.status = status; this.notFound = status === 404; }
+}
+
+async function send(method, key, { body, headers = {}, query = '' } = {}) {
+  const url = key === null ? `${ENDPOINT}/${BUCKET}${query}` : urlOf(key) + query;
+  const res = await client().fetch(url, { method, body, headers });
+  if (!res.ok && !(method === 'GET' && res.status === 206)) {
+    const text = await res.text().catch(() => '');
+    throw new StorageError(`storage ${method} ${key || ''} answered ${res.status} ${text.slice(0, 200)}`, res.status);
+  }
+  return res;
+}
 
 async function put(key, body, contentType) {
-  await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType }));
+  await send('PUT', key, { body, headers: { 'Content-Type': contentType, 'Content-Length': String(body.length) } });
 }
 
 // Stores a photo (large copy + thumbnail) or a video under the media id.
@@ -35,25 +49,19 @@ async function putMedia(id, img) {
   if (img.thumb && img.thumb.length) await put(thumbKey(id), img.thumb, img.mime);
 }
 
-// Returns { body (stream), length, contentRange } for a file, or a byte range of it.
+// The stored file as a fetch Response (status 200, or 206 for a byte range).
 async function getMedia(id, { thumb = false, range } = {}) {
-  const r = await client.send(new GetObjectCommand({
-    Bucket: BUCKET, Key: thumb ? thumbKey(id) : fullKey(id), Range: range || undefined,
-  }));
-  return { body: r.Body, length: Number(r.ContentLength), contentRange: r.ContentRange };
+  return send('GET', thumb ? thumbKey(id) : fullKey(id), { headers: range ? { Range: range } : {} });
 }
 
-async function getMediaBuffer(id) {
-  const { body } = await getMedia(id);
-  return Buffer.from(await body.transformToByteArray());
+async function getMediaBuffer(id, opts) {
+  const res = await getMedia(id, opts);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 async function deleteKeys(keys) {
-  for (let i = 0; i < keys.length; i += 1000) {
-    const chunk = keys.slice(i, i + 1000);
-    await client.send(new DeleteObjectsCommand({
-      Bucket: BUCKET, Delete: { Objects: chunk.map((Key) => ({ Key })), Quiet: true },
-    }));
+  for (const key of keys) {
+    await send('DELETE', key).catch((err) => { if (!err.notFound) throw err; });
   }
 }
 
@@ -61,24 +69,35 @@ async function deleteMedia(id) {
   await deleteKeys([fullKey(id), thumbKey(id)]);
 }
 
+function xmlValues(xml, tag) {
+  const out = [];
+  const re = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g');
+  let m;
+  while ((m = re.exec(xml))) out.push(m[1]);
+  return out;
+}
+
 // Every stored media id with its total size in bytes.
 async function listMedia() {
   const out = new Map();
-  let token;
+  let token = '';
   do {
-    const r = await client.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: 'media/', ContinuationToken: token }));
-    for (const o of r.Contents || []) {
-      const m = /^media\/(\d+)\/(full|thumb)$/.exec(o.Key);
+    const query = `?list-type=2&prefix=media%2F${token ? `&continuation-token=${encodeURIComponent(token)}` : ''}`;
+    const xml = await (await send('GET', null, { query })).text();
+    for (const c of xmlValues(xml, 'Contents')) {
+      const key = (xmlValues(c, 'Key')[0] || '').replace(/&amp;/g, '&');
+      const m = /^media\/(\d+)\/(full|thumb)$/.exec(key);
       if (!m) continue;
       const id = Number(m[1]);
       const e = out.get(id) || { bytes: 0, keys: [], newest: 0 };
-      e.bytes += Number(o.Size); e.keys.push(o.Key);
-      e.newest = Math.max(e.newest, new Date(o.LastModified).getTime() || 0);
+      e.bytes += Number(xmlValues(c, 'Size')[0] || 0);
+      e.keys.push(key);
+      e.newest = Math.max(e.newest, new Date(xmlValues(c, 'LastModified')[0] || 0).getTime() || 0);
       out.set(id, e);
     }
-    token = r.IsTruncated ? r.NextContinuationToken : undefined;
+    token = /<IsTruncated>true<\/IsTruncated>/.test(xml) ? (xmlValues(xml, 'NextContinuationToken')[0] || '') : '';
   } while (token);
   return out;
 }
 
-module.exports = { enabled, BUCKET, putMedia, getMedia, getMediaBuffer, deleteMedia, deleteKeys, listMedia };
+module.exports = { enabled, BUCKET, putMedia, getMedia, getMediaBuffer, deleteMedia, deleteKeys, listMedia, StorageError };

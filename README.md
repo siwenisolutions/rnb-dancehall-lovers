@@ -14,82 +14,80 @@ Go to **https://rnbdancehalllovers.co.zw/admin** and log in with the admin passw
 
 Photos from a phone are fine; they are resized automatically.
 
-## How it works
+## How it works (Cloudflare Workers, free plan)
 
-- `server.js`: Express app that serves the pages in `public/`, a JSON API, and the admin API.
-- `db.js`: Postgres schema (created on startup) plus first-run seeding of the original photos.
-- Photos (WebP, a large version and a thumbnail) and videos are stored in Neon Object Storage, bucket `rnb-media` on the project's main branch (5 GB on the free plan), and served from `/media/:id`. Postgres keeps only their details. Without the `AWS_*` settings, files are kept in Postgres as before (1 GB limit). On start-up, files still in Postgres are moved to the bucket.
-- Videos are compressed in the background after upload (`jobs.js`, `video.js`): at most 1920 px on the long side, 30 fps, H.264 CRF 23, AAC 128k. The original shows until the smaller copy is ready; a video that is not at least 10% smaller, or fails twice, is kept as uploaded.
+The site runs as one Cloudflare Worker (`wrangler.jsonc`). It moved off Render in November 2026.
+
+- `worker.js`: entry point. Serves photos and videos at `/media/:id` from object storage and keeps them in
+  Cloudflare's cache; hands everything else to the Express app; runs the scheduled job every 5 minutes.
+- `server.js`: Express app (pages, JSON API, admin API), running on Workers with `nodejs_compat`.
+- CSS, JS, images and the welcome video in `public/` are served by Cloudflare directly (static assets,
+  free and unlimited). HTML pages are left out of the assets (`public/.assetsignore`) and bundled into
+  `generated/pages.js` by `tools/cf-build.js` at deploy time, so the Worker can fill in the website text.
+- `db.js`: Postgres on Neon through the Neon serverless driver over HTTPS (one request per query, no
+  connections kept). Transactions are not used on Workers; each statement runs on its own. The schema is
+  applied by the 6-hourly job (bump `SCHEMA_VERSION` when it changes).
+- Photos (a large copy up to 1600 px and a 640 px thumbnail) and videos are stored in Neon Object Storage,
+  bucket `rnb-media` on the project's main branch (5 GB on the free plan). Postgres keeps only their details.
+- **Photos are shrunk in the admin's browser** before upload (`public/js/admin.js`, WebP, or JPEG on browsers
+  that can't make WebP), because the free plan gives each request only ~10 ms of CPU. Photos the server
+  fetches itself (Megaticket flyers, social posts) are shrunk with Cloudflare Images (`IMAGES` binding,
+  5,000 a month free); Google Drive photos come already resized from Drive.
+- **Videos are stored as uploaded** (no compression on Workers), up to 40 MB each.
+- Scheduled job (`*/5 * * * *`): Megaticket at 12:00 and 21:00 Harare time; every 6 hours the schema,
+  Drive folder checks, storage tidy-up, old visitor codes and unpaid orders; otherwise one step of a waiting
+  Drive import, only when the `drive-work` flag in Workers KV (`FLAGS`) says there is one, so the database
+  can sleep when nothing is happening.
+- Free plan limits that shaped the code: 100,000 Worker requests a day, ~10 ms CPU and 50 outside requests
+  per request, 100 MB uploads, 128 MB memory.
 - Admin login is email + password (`admins` table, scrypt hashes, `auth.js`). On first start the account is created with the site's contact email (or `ADMIN_EMAIL`) and `ADMIN_PASSWORD` as a temporary password; the admin must choose their own password at first login. Changing the password, or "Log out everywhere", ends all other sessions. 5 wrong passwords lock the login for 15 minutes.
-- Forgotten password: set `ADMIN_RESET_PASSWORD` on Render (10+ characters). On the next start it becomes a one-time temporary password for that account (or the one in `ADMIN_RESET_EMAIL`); the admin logs in with it and must choose a new one. Remove the variable afterwards; the same value is never applied twice.
+- Forgotten password: add the secret `ADMIN_RESET_PASSWORD` in Cloudflare (10+ characters). At the next 6-hourly job it becomes a one-time temporary password for that account (or the one in `ADMIN_RESET_EMAIL`); the admin logs in with it and must choose a new one. Remove the secret afterwards; the same value is never applied twice.
 - Every fixed word on the public pages is editable in the admin panel (Text tab). Fields are defined in `content.js`; pages use `{{key}}` placeholders that the server fills before sending a page. Saved words live in `settings` as `c:<key>`.
 
-Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:id`, `/gallery`.
+Public pages: `/` (home), `/events` (all events, upcoming and past), `/events/:id`, `/gallery`, `/shop`.
 
-## Environment variables
+## Deploying
 
-| Name | Purpose |
-| --- | --- |
-| `DATABASE_URL` | Postgres connection string (Neon project `rnb-dancehall-lovers`) |
-| `ADMIN_PASSWORD` | Temporary password for the very first login only (10+ characters). Not used once the account exists |
-| `ADMIN_EMAIL` | Optional: login email for that first account (default: the site's contact email) |
-| `ADMIN_RESET_PASSWORD` / `ADMIN_RESET_EMAIL` | Optional: one-time password reset, see above. Remove after use |
-| `SESSION_SECRET` | Random string, 32+ characters, used to sign login cookies |
-| `CANONICAL_HOST` | Set to `rnbdancehalllovers.co.zw` once the domain works: every other address (www, onrender.com) redirects there |
-| `AWS_ENDPOINT_URL_S3` | Object Storage endpoint of the Neon branch, `https://br-raspy-mode-b95p644d.storage.c-7.eu-central-1.aws.neon.tech` |
-| `AWS_REGION` | `eu-central-1` |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Neon storage credential `rnb-website-render` (scopes `storage:read`, `storage:write`) |
-| `MEDIA_BUCKET` | `rnb-media` |
-| `GOOGLE_API_KEY` | Optional: a Google API key with the Drive API enabled. Without it, Drive folders are read from their public embed page; with it, the Drive API is used (better for very large folders) |
-| `MEDIA_LIMIT_MB` | Storage cap shown in the admin panel when the bucket is used. Default `5120` (5 GB) |
-| `NODE_ENV` | `production` on Render (makes cookies HTTPS-only) |
-| `KEEP_AWAKE` | Leave unset on the free plan: the server pings its own `/ping` every 10 minutes so Render doesn't put it to sleep. Set to `off` after moving to a paid plan |
-| `BEHIND_CLOUDFLARE` | Set to `yes` only after the domain runs through Cloudflare (orange cloud). Uses Cloudflare's visitor address for login lockouts and loads the header video straight from Render (Cloudflare's free plan may not deliver video) |
-| `KEEP_AWAKE_HOURS` | When to stay awake, in Zimbabwe time. Default `6-24` (free hours are shared with other free services in the workspace); `0-24` = always |
+Cloudflare dashboard → **Workers & Pages** → the `rnb-dancehall-lovers` Worker is connected to this GitHub
+repository (Workers Builds): every push to the production branch deploys. Deploy command `npx wrangler deploy`
+(it runs `node tools/cf-build.js` first, see `wrangler.jsonc`).
+
+## Settings (Worker → Settings → Variables and Secrets)
+
+Plain values in `wrangler.jsonc`: `NODE_ENV`, `AWS_REGION`, `AWS_ENDPOINT_URL_S3`, `MEDIA_BUCKET`.
+
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Secret | Postgres connection string (Neon project `rnb-dancehall-lovers`, main branch) |
+| `SESSION_SECRET` | Secret | Random string, 32+ characters, used to sign login cookies |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Secret | Neon storage credential (scopes `storage:read`, `storage:write`) |
+| `CANONICAL_HOST` | Text | Set to `rnbdancehalllovers.co.zw` once the domain works: every other address (www, workers.dev) redirects there |
+| `ADMIN_PASSWORD` | Secret | Only for a brand new database: temporary password for the very first login |
+| `ADMIN_RESET_PASSWORD` / `ADMIN_RESET_EMAIL` | Secret | Optional: one-time password reset, see above. Remove after use |
+| `GOOGLE_API_KEY` | Secret | Optional: Drive API key (better for very large folders) |
+| `PAYNOW_INTEGRATION_ID` / `PAYNOW_INTEGRATION_KEY` / `PAYNOW_AUTH_EMAIL` | Secret | Optional: shop payments (can also be set in the admin panel) |
+| `MEDIA_LIMIT_MB` | Text | Storage cap shown in the admin panel. Default `5120` (5 GB) |
 
 ## Run locally
 
 ```bash
 npm install
-DATABASE_URL=postgres://... ADMIN_PASSWORD=change-me-please SESSION_SECRET=$(openssl rand -hex 32) npm start
+# Local stand-ins for Neon (HTTP queries on a local Postgres), object storage and Google Drive:
+node tools/dev/local-services.js &
+# .dev.vars: DATABASE_URL=postgresql://postgres:pg@localhost:5432/rnb, NEON_FETCH_ENDPOINT=http://127.0.0.1:4444/sql,
+# AWS_ENDPOINT_URL_S3=http://127.0.0.1:4445, AWS_ACCESS_KEY_ID=local, AWS_SECRET_ACCESS_KEY=local,
+# SESSION_SECRET=<32+ chars>, DRIVE_WEB_BASE=http://127.0.0.1:4446
+npx wrangler dev --test-scheduled
 ```
 
 ## Custom domain (rnbdancehalllovers.co.zw)
 
-The domain is managed at the `.co.zw` registrar, not on Render, so moving the site does not need the old
-Render account. In the Render dashboard for this service, open **Settings → Custom Domains**, add
-`rnbdancehalllovers.co.zw` and `www.rnbdancehalllovers.co.zw`, then at the registrar's DNS settings:
-
-- `A` record for `@` (the bare domain) → `216.24.57.1`
-- `CNAME` record for `www` → this service's `*.onrender.com` address
-
-Remove any old `A`/`CNAME` records for those names that point to the previous site. Render issues the HTTPS
-certificate automatically once DNS has updated (minutes to a few hours). Then set `CANONICAL_HOST`.
+The domain must be on Cloudflare (Cloudflare → **Add a domain** → Free plan, copy the DNS records from the
+current host, especially **MX and TXT records for email**, then change the two nameservers at the .co.zw
+registrar). Then Worker → **Settings → Domains & Routes → Add → Custom domain**: `rnbdancehalllovers.co.zw`
+and `www.rnbdancehalllovers.co.zw` (Cloudflare replaces the old Render records itself). Then set
+`CANONICAL_HOST`. Photos and videos are cached on the custom domain only (not on workers.dev).
 
 ## Google Drive
 
 Admin → Events → **Add from Google Drive**: paste the link to a folder shared as "Anyone with the link" (`drive.js`, `jobs.js`). The admin can make one event per folder inside it (dates in folder names are read), one new event, or add the photos to an existing event. Photos (including folders inside, two levels deep) are copied into the website in the background, compressed like uploads, so the site never depends on Drive. Each event stays linked to its folder: new photos are copied every 6 hours, or straight away with "Check for new photos now" in the event's photos. Photos the admin deletes are never copied again (`drive_removed`).
-
-
-## Cloudflare (free plan) in front of the site
-
-Cloudflare caches photos and page files at its edge, so a busy night costs Render
-and the database far less, and it absorbs bot and attack traffic.
-
-1. Cloudflare dashboard: **Add a domain** → `rnbdancehalllovers.co.zw` → **Free** plan.
-2. **DNS → Records**. Check every record from the current DNS host was copied, especially
-   **MX and TXT records for email**. Then make sure these two exist, both **Proxied** (orange):
-   - `CNAME  @    rnb-dancehall-lovers-pvic.onrender.com`
-   - `CNAME  www  rnb-dancehall-lovers-pvic.onrender.com`
-3. **SSL/TLS → Overview**: encryption mode **Full** (as Render's Cloudflare guide says).
-   **SSL/TLS → Edge Certificates**: turn on **Always Use HTTPS**.
-4. **Caching → Cache Rules → Create rule** "Photos":
-   when *URI Path starts with* `/media/` → **Eligible for cache**, Edge TTL *use cache-control
-   header if present*. (Photo URLs have no file extension, so Cloudflare skips them otherwise.)
-   Pages and `/api/` are not cached, so admin changes still show straight away.
-5. At the domain registrar (the .co.zw company the domain was bought from), replace the two
-   nameservers with the two Cloudflare shows. Wait until Cloudflare says the domain is **Active**.
-6. Render → the service → **Environment**: add `BEHIND_CLOUDFLARE` = `yes` and save (it redeploys).
-7. Render → **Settings → Custom Domains**: both domains should still show *Certificate issued*.
-   If Render can't renew a certificate later, switch the two records to *DNS only* (grey) for a
-   few minutes, click **Verify**, then switch back to orange.

@@ -315,7 +315,7 @@ module.exports = function shop(app, admin, d) {
     await assertRoomFor(files.reduce((n, f) => n + f.size, 0));
     const ids = [];
     for (const f of files) {
-      const img = await processImage(f.buffer);
+      const img = await processImage(f.buffer, f.thumb && f.thumb.buffer);
       if (!img.mime.startsWith('image/')) throw httpError(400, 'Shop items take photos only.');
       ids.push(await insertMedia({ category: 'product', caption: '', eventId: null, img, productId: id }));
     }
@@ -384,14 +384,12 @@ module.exports = function shop(app, admin, d) {
     await pool.query('UPDATE orders SET seen = true WHERE NOT seen');
     res.json({ ok: true });
   }));
-  // Pending orders older than a day were never paid.
-  setInterval(() => {
-    pool.query("UPDATE orders SET status = 'cancelled', error = 'Not paid within a day', updated_at = now() WHERE status = 'pending' AND created_at < now() - interval '1 day' AND pay_method <> 'manual'")
-      .catch(() => {});
-  }, 3600 * 1000).unref();
-
   return { shopSettings };
 };
+
+// Pending orders older than a day were never paid (run by the scheduled job).
+module.exports.cancelStaleOrders = (pool) => pool.query(
+  "UPDATE orders SET status = 'cancelled', error = 'Not paid within a day', updated_at = now() WHERE status = 'pending' AND created_at < now() - interval '1 day' AND pay_method <> 'manual'");
 
 module.exports.hashForTest = (values, key) => {
   let str = '';

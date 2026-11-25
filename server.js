@@ -1,13 +1,14 @@
 'use strict';
+// The website and admin panel as an Express app, run on Cloudflare Workers
+// (worker.js hands requests to it; photos and videos at /media/ and the
+// scheduled jobs are handled in worker.js itself).
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const { pool, migrate, insertMedia, forgetMediaFiles, moveMediaToBucket, sweepOrphanFiles, compressStoredPhotos, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
+const { pool, insertMedia, forgetMediaFiles, SETTING_DEFAULTS, SLOTS, SLOT_MAX } = require('./db');
 const storage = require('./storage');
 const jobs = require('./jobs');
-const { compressPendingVideos } = jobs;
+const pages = require('./generated/pages');
 const drive = require('./drive');
 const visits = require('./visits');
 const { processImage, detectVideo } = require('./images');
@@ -16,7 +17,6 @@ const megaticket = require('./megaticket');
 const auth = require('./auth');
 const content = require('./content');
 
-const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || '';
 const IS_PROD = process.env.NODE_ENV === 'production';
 const SESSION_HOURS = 12;
@@ -38,7 +38,7 @@ const STORAGE_USED_SQL = storage.enabled
   : '(SELECT sum(pg_database_size(datname)) FROM pg_database WHERE NOT datistemplate)';
 
 if (SESSION_SECRET.length < 32) {
-  throw new Error('SESSION_SECRET (32+ chars) must be set');
+  console.error('SESSION_SECRET (32+ chars) must be set: admin logins are refused until it is.');
 }
 
 const app = express();
@@ -54,35 +54,24 @@ app.use((req, res, next) => {
   next();
 });
 
-// Cloudflare (free plan) in front of the site: set BEHIND_CLOUDFLARE=yes on
-// Render once the domain's DNS is on Cloudflare with the orange cloud on.
-// - Visitors' real addresses come from Cloudflare's CF-Connecting-IP header
-//   (only trusted when this is on, so nobody can fake it before then).
-// - Cloudflare's free plan may not be used to deliver video, so the header
-//   video is then loaded straight from Render's own address instead.
-const BEHIND_CLOUDFLARE = process.env.BEHIND_CLOUDFLARE === 'yes';
-const VIDEO_BASE = BEHIND_CLOUDFLARE
-  ? (process.env.VIDEO_BASE_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '') : '';
-const videoUrl = (id) => `${VIDEO_BASE}/media/${id}`;
+// Visitors' real addresses come from Cloudflare's CF-Connecting-IP header.
+const VIDEO_BASE = '';
 function clientIp(req) {
-  return (BEHIND_CLOUDFLARE && req.get('cf-connecting-ip')) || req.ip;
+  return req.get('cf-connecting-ip') || req.ip;
 }
 
-// Old onrender.com address and www. both forward to the main domain once it is set.
-// (Except photos/videos when VIDEO_BASE points at the onrender.com address.)
+// The workers.dev address and www. both forward to the main domain once it is set.
 const CANONICAL_HOST = process.env.CANONICAL_HOST || '';
 // The site's public address, for links Google and Paynow use.
 const SITE_URL = (process.env.SITE_URL || `https://${CANONICAL_HOST || 'rnbdancehalllovers.co.zw'}`).replace(/\/+$/, '');
 app.use((req, res, next) => {
-  if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz' && req.path !== '/ping'
-      && !(VIDEO_BASE && req.path.startsWith('/media/'))) {
+  if (CANONICAL_HOST && req.hostname !== CANONICAL_HOST && req.path !== '/healthz' && req.path !== '/ping') {
     return res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
   }
   next();
 });
 
-// Keep-awake target: answers without touching the database, so the
-// pings below don't keep waking the Postgres server too.
+// Answers without touching the database (for uptime checks).
 app.get('/ping', (req, res) => res.type('text').send('ok'));
 
 app.get('/healthz', async (req, res) => {
@@ -154,6 +143,7 @@ function parseId(value) {
 const REMEMBER_DAYS = 30;
 
 function sign(payload) {
+  if (SESSION_SECRET.length < 32) throw httpError(503, 'The admin panel is not set up yet (SESSION_SECRET).');
   return crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
 }
 
@@ -277,9 +267,9 @@ app.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control',
 app.get('/sitemap.xml', wrap(async (req, res) => {
   res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(await seo.sitemap());
 }));
-// The onrender.com address shows the same pages: keep it out of Google.
+// The workers.dev address shows the same pages: keep it out of Google.
 app.use((req, res, next) => {
-  if (/\.onrender\.com$/i.test(req.hostname)) res.set('X-Robots-Tag', 'noindex');
+  if (/\.workers\.dev$/i.test(req.hostname)) res.set('X-Robots-Tag', 'noindex');
   next();
 });
 
@@ -339,20 +329,20 @@ async function ticketsOnSale(settings) {
 }
 
 // ---------- caching for busy times ----------
-// Public answers are kept in memory for 2 minutes, photo details for good,
-// and photo/video files on the server's disk. A crowd of visitors then costs
-// a handful of database queries instead of one per visitor, which keeps the
-// free database (100 compute hours and 5 GB of downloads a month) alive.
-// Anything the admin changes clears the memory straight away.
+// Public answers are kept in memory for 2 minutes (in each Worker instance),
+// so a crowd of visitors costs a handful of database queries instead of one
+// per visitor, which keeps the free database (100 compute hours a month)
+// alive. Photos and videos are cached by Cloudflare (worker.js). Anything the
+// admin changes clears this instance's memory straight away; other instances
+// catch up within 2 minutes.
 const API_TTL = 2 * 60 * 1000;
 const apiCache = new Map();
-const mediaMeta = new Map();
 let heroCache = null;
 function clearPublicCache() {
   apiCache.clear();
   if (typeof seoCache !== 'undefined') seoCache.clear();
-  mediaMeta.clear();
   heroCache = null;
+  contentCache = null;
 }
 function cachedApi(req, res, next) {
   if (req.method !== 'GET') return next();
@@ -525,148 +515,6 @@ app.get('/api/photos', wrap(async (req, res) => {
   res.json({ photos: rows.slice(0, limit), more: rows.length > limit });
 }));
 
-// Photos are immutable once uploaded (edits create new ids), so cache hard.
-// Photo links end in .webp so Cloudflare caches them without any extra setup.
-app.get(/^\/media\/(\d+)(?:\.(?:webp|jpg|png|mp4|webm))?$/, wrap(async (req, res) => {
-  const id = parseId(req.params[0]);
-  let meta = mediaMeta.get(id);
-  if (!meta) {
-    const head = await pool.query('SELECT mime, in_bucket, COALESCE(bytes, octet_length(data)) AS size FROM media WHERE id = $1', [id]);
-    if (head.rowCount === 0) throw httpError(404, 'Photo not found.');
-    meta = { mime: head.rows[0].mime, inBucket: head.rows[0].in_bucket, size: Number(head.rows[0].size) };
-    mediaMeta.set(id, meta);
-    if (mediaMeta.size > 20000) mediaMeta.delete(mediaMeta.keys().next().value);
-  }
-  const { mime, inBucket, size } = meta;
-  res.set({ 'Cache-Control': 'public, max-age=31536000, immutable', 'Accept-Ranges': 'bytes' });
-  if (req.path.endsWith('.jpg') && mime.startsWith('image/')) return sendJpeg(req, res, id, inBucket);
-
-  if (inBucket) return sendFromBucket(req, res, id, mime, size);
-
-  if (mime.startsWith('video/')) {
-    // Videos are sent in pieces so they start playing quickly and can be skipped through.
-    const m = /^bytes=(\d*)-(\d*)$/.exec(req.get('Range') || '');
-    let start = 0;
-    let end = Math.min(size - 1, 2 * 1024 * 1024 - 1);
-    if (m) {
-      if (m[1] === '' && m[2] !== '') { start = Math.max(0, size - Number(m[2])); end = size - 1; }
-      else { start = Number(m[1]); end = m[2] ? Math.min(Number(m[2]), size - 1) : Math.min(size - 1, start + 2 * 1024 * 1024 - 1); }
-      if (start >= size || start > end) return res.status(416).set('Content-Range', `bytes */${size}`).end();
-    } else {
-      end = size - 1;
-    }
-    const { rows } = await pool.query('SELECT substring(data FROM $2 FOR $3) AS chunk FROM media WHERE id = $1', [id, start + 1, end - start + 1]);
-    res.status(m ? 206 : 200).set({ 'Content-Type': mime, 'Content-Length': String(end - start + 1) });
-    if (m) res.set('Content-Range', `bytes ${start}-${end}/${size}`);
-    return res.send(rows[0].chunk);
-  }
-
-  const col = req.query.size === 'thumb' ? 'thumb' : 'data';
-  const { rows } = await pool.query(`SELECT ${col} AS bytes FROM media WHERE id = $1`, [id]);
-  res.set('Content-Type', mime).send(rows[0].bytes);
-}));
-
-// Files from object storage are kept on the server's disk after the first
-// visitor asks for them, so later visitors don't download them from Neon again.
-const DISK_CACHE = path.join(require('os').tmpdir(), 'rnb-media-cache');
-const DISK_CACHE_MAX = 2 * 1024 * 1024 * 1024;
-let diskCacheBytes = 0;
-const fetching = new Map();
-try { fs.rmSync(DISK_CACHE, { recursive: true, force: true }); fs.mkdirSync(DISK_CACHE, { recursive: true }); } catch { /* cache stays off */ }
-function cachedFile(id, thumb) {
-  const file = path.join(DISK_CACHE, `${id}-${thumb ? 'thumb' : 'full'}`);
-  if (fs.existsSync(file)) return Promise.resolve(file);
-  if (diskCacheBytes > DISK_CACHE_MAX) return Promise.resolve(null);
-  if (fetching.has(file)) return fetching.get(file);
-  const p = (async () => {
-    const part = `${file}.${process.pid}.part`;
-    try {
-      const { body } = await storage.getMedia(id, { thumb });
-      await require('stream/promises').pipeline(body, fs.createWriteStream(part));
-      diskCacheBytes += fs.statSync(part).size;
-      fs.renameSync(part, file);
-      return file;
-    } catch (err) {
-      fs.rmSync(part, { force: true });
-      throw err;
-    } finally {
-      fetching.delete(file);
-    }
-  })();
-  fetching.set(file, p);
-  return p;
-}
-
-// A photo as a JPEG, for visitors who download or share it (every phone and
-// app opens JPEG). Made once from the stored copy, then kept on disk.
-// ?dl=1 makes the browser save it as a file.
-async function sendJpeg(req, res, id, inBucket) {
-  const file = path.join(DISK_CACHE, `${id}-jpg`);
-  if (!fs.existsSync(file)) {
-    let src;
-    if (inBucket) {
-      const local = await cachedFile(id, false).catch(() => null);
-      src = local ? await fs.promises.readFile(local) : await storage.getMediaBuffer(id);
-    } else {
-      const r = await pool.query('SELECT data FROM media WHERE id = $1', [id]);
-      if (!r.rowCount) throw httpError(404, 'Photo not found.');
-      src = r.rows[0].data;
-    }
-    const out = await require('sharp')(src).rotate().jpeg({ quality: 88, mozjpeg: true }).toBuffer();
-    await fs.promises.writeFile(`${file}.part`, out);
-    await fs.promises.rename(`${file}.part`, file);
-  }
-  res.set('Content-Type', 'image/jpeg');
-  if (req.query.dl) res.attachment(`RnB-Dancehall-Lovers-${id}.jpg`);
-  return res.sendFile(file, { cacheControl: false, lastModified: false });
-}
-
-// Sends a photo or video (or the requested piece of a video) from object storage.
-async function sendFromBucket(req, res, id, mime, size) {
-  const wantThumb = !mime.startsWith('video/') && req.query.size === 'thumb';
-  let local = null;
-  try {
-    local = await cachedFile(id, wantThumb);
-  } catch (err) {
-    if (err.name === 'NoSuchKey' || (err.$metadata && err.$metadata.httpStatusCode === 404)) throw httpError(404, 'Photo not found.');
-    console.warn(`[media] ${id}: disk cache skipped: ${err.message}`);
-  }
-  if (local) {
-    // sendFile handles "Range" requests itself, so videos can be skipped through.
-    return res.sendFile(local, { headers: { 'Content-Type': mime }, cacheControl: false, lastModified: false });
-  }
-  return streamFromBucket(req, res, id, mime, size);
-}
-
-async function streamFromBucket(req, res, id, mime, size) {
-  const thumb = !mime.startsWith('video/') && req.query.size === 'thumb';
-  let range;
-  let status = 200;
-  if (mime.startsWith('video/')) {
-    const m = /^bytes=(\d*)-(\d*)$/.exec(req.get('Range') || '');
-    if (m) {
-      let start, end;
-      if (m[1] === '' && m[2] !== '') { start = Math.max(0, size - Number(m[2])); end = size - 1; }
-      else { start = Number(m[1]); end = m[2] ? Math.min(Number(m[2]), size - 1) : Math.min(size - 1, start + 2 * 1024 * 1024 - 1); }
-      if (start >= size || start > end) return res.status(416).set('Content-Range', `bytes */${size}`).end();
-      range = `bytes=${start}-${end}`;
-      status = 206;
-    }
-  }
-  let file;
-  try {
-    file = await storage.getMedia(id, { thumb, range });
-  } catch (err) {
-    if (err.name === 'NoSuchKey' || (err.$metadata && err.$metadata.httpStatusCode === 404)) throw httpError(404, 'Photo not found.');
-    throw err;
-  }
-  res.status(status).set({ 'Content-Type': mime, 'Content-Length': String(file.length) });
-  if (status === 206) res.set('Content-Range', file.contentRange);
-  file.body.on('error', () => res.destroy());
-  req.on('close', () => { if (!res.writableEnded && file.body.destroy) file.body.destroy(); });
-  file.body.pipe(res);
-}
-
 // ---------- admin API ----------
 
 app.post('/api/admin/login', express.json({ limit: '10kb' }), wrap(async (req, res) => {
@@ -778,13 +626,13 @@ admin.post('/account/sign-out-everywhere', wrap(async (req, res) => {
 
 // ---------- website text ----------
 
-let contentCache = null;
+var contentCache = null;
 async function savedContent() {
-  if (contentCache) return contentCache;
+  if (contentCache && contentCache.exp > Date.now()) return contentCache.value;
   const { rows } = await pool.query("SELECT key, value FROM settings WHERE key LIKE 'c:%'");
   const out = {};
   for (const r of rows) out[r.key.slice(2)] = r.value;
-  contentCache = out;
+  contentCache = { value: out, exp: Date.now() + API_TTL };
   return out;
 }
 
@@ -1022,6 +870,8 @@ admin.get('/drive/imports', wrap(async (req, res) => {
        FROM drive_imports d JOIN events e ON e.id = d.event_id
       WHERE NOT d.automatic OR d.added > 0 OR d.status IN ('pending', 'running', 'failed')
       ORDER BY d.id DESC LIMIT 15`);
+  // The panel asks every few seconds while an import runs: each ask moves it one step on.
+  if (rows.some((r) => r.status === 'pending' || r.status === 'running') && await jobs.needsWork()) jobs.kick();
   res.json({ imports: rows });
 }));
 
@@ -1081,15 +931,29 @@ admin.delete('/events/:id', wrap(async (req, res) => {
   // Event photos are removed with the event (ON DELETE CASCADE).
   const r = await pool.query('DELETE FROM events WHERE id = $1', [id]);
   if (r.rowCount === 0) throw httpError(404, 'Event not found.');
+  // Their files in object storage are cleared by the scheduled job.
   res.json({ ok: true });
-  // Their files in object storage are cleared once the upload grace time has passed.
-  setTimeout(() => sweepOrphanFiles().catch((err) => console.warn('[storage] sweep failed:', err.message)), 16 * 60 * 1000).unref();
 }));
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024, files: 20 },
-});
+// Uploads. The admin panel sends each photo already shrunk, with its
+// thumbnail in a second field named "<field>_thumb" (same order). These
+// helpers accept both and hang each thumbnail on its photo (file.thumb).
+function makeUpload(limits) {
+  const m = multer({ storage: multer.memoryStorage(), limits: { ...limits, files: limits.files * 2 } });
+  const pair = (req, name) => {
+    const files = (req.files && req.files[name]) || [];
+    const thumbs = (req.files && req.files[`${name}_thumb`]) || [];
+    files.forEach((f, i) => { f.thumb = thumbs[i] || null; });
+    return files;
+  };
+  return {
+    array: (name, max) => [m.fields([{ name, maxCount: max }, { name: `${name}_thumb`, maxCount: max }]),
+      (req, res, next) => { req.files = pair(req, name); next(); }],
+    single: (name) => [m.fields([{ name, maxCount: 1 }, { name: `${name}_thumb`, maxCount: 1 }]),
+      (req, res, next) => { req.file = pair(req, name)[0]; req.files = undefined; next(); }],
+  };
+}
+const upload = makeUpload({ fileSize: 15 * 1024 * 1024, files: 20 });
 
 // Merchandise shop and its payments (shop.js).
 require('./shop')(app, admin, {
@@ -1114,7 +978,7 @@ admin.post('/photos', upload.array('photos', 20), wrap(async (req, res) => {
   await assertRoomFor(files.reduce((n, f) => n + f.size, 0));
   const ids = [];
   for (const file of files) {
-    const img = await processImage(file.buffer);
+    const img = await processImage(file.buffer, file.thumb && file.thumb.buffer);
     ids.push(await insertMedia({ category, caption, eventId, img }));
   }
   if (eventId && req.body.cover === '1') {
@@ -1128,15 +992,13 @@ admin.post('/photos', upload.array('photos', 20), wrap(async (req, res) => {
 
 // ---------- picture sections (slots) ----------
 
-// Videos for the header can be bigger than photos.
-const VIDEO_MAX_MB = Number(process.env.VIDEO_MAX_MB || 60);
-const uploadMedia = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: VIDEO_MAX_MB * 1024 * 1024, files: SLOT_MAX },
-});
+// Videos for the header can be bigger than photos. (A Worker has 128 MB of
+// memory, so videos stay under 40 MB; they are kept as uploaded.)
+const VIDEO_MAX_MB = Number(process.env.VIDEO_MAX_MB || 40);
+const uploadMedia = makeUpload({ fileSize: VIDEO_MAX_MB * 1024 * 1024, files: SLOT_MAX });
 
-async function storageUsed() {
-  const { rows } = await pool.query(`SELECT ${STORAGE_USED_SQL}::bigint AS b`);
+async function storageUsed(db = pool) {
+  const { rows } = await db.query(`SELECT ${STORAGE_USED_SQL}::bigint AS b`);
   return Number(rows[0].b);
 }
 // Flyers for tickets and table bookings: one of each per event. A new one
@@ -1150,7 +1012,7 @@ admin.post('/events/:id/flyers/:kind', upload.single('photo'), wrap(async (req, 
   const ev = await pool.query('SELECT 1 FROM events WHERE id = $1', [id]);
   if (!ev.rowCount) throw httpError(400, 'That event no longer exists.');
   await assertRoomFor(req.file.size);
-  const img = await processImage(req.file.buffer);
+  const img = await processImage(req.file.buffer, req.file.thumb && req.file.thumb.buffer);
   const newId = await insertMedia({ category: 'flyer', caption: '', eventId: id, img, slot: kind });
   const old = await pool.query("DELETE FROM media WHERE event_id = $1 AND category = 'flyer' AND slot = $2 AND id <> $3 RETURNING id", [id, kind, newId]);
   old.rows.forEach((r) => forgetMediaFiles(r.id));
@@ -1164,8 +1026,8 @@ admin.delete('/events/:id/flyers/:kind', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-async function assertRoomFor(bytes) {
-  if ((await storageUsed()) + bytes > STORAGE_LIMIT_BYTES * 0.98) {
+async function assertRoomFor(bytes, db = pool) {
+  if ((await storageUsed(db)) + bytes > STORAGE_LIMIT_BYTES * 0.98) {
     throw httpError(400, 'Your storage is full. Delete some old photos or videos first, or ask Siweni to upgrade your storage.');
   }
 }
@@ -1176,10 +1038,10 @@ async function prepareUpload(file, allowVideo) {
   const video = detectVideo(file.buffer);
   if (video) {
     if (!allowVideo) throw httpError(400, 'Videos can only be used for the header background. Please choose a photo here.');
-    return { mime: video, width: 0, height: 0, data: file.buffer, thumb: Buffer.alloc(0) };
+    return { mime: video, width: 0, height: 0, data: file.buffer, thumb: Buffer.alloc(0), videoState: 'done' };
   }
   if (file.size > 15 * 1024 * 1024) throw httpError(400, 'Each photo must be under 15 MB.');
-  return processImage(file.buffer);
+  return processImage(file.buffer, file.thumb && file.thumb.buffer);
 }
 
 admin.get('/slots', wrap(async (req, res) => {
@@ -1208,8 +1070,7 @@ admin.post('/slots/:slot', uploadMedia.array('files', SLOT_MAX), wrap(async (req
   for (const file of files) prepared.push(await prepareUpload(file, def.video));
   const ids = [];
   for (const img of prepared) ids.push(await insertMedia({ category: 'site', caption: '', eventId: null, img, slot }));
-  res.status(201).json({ ids, compressing: prepared.some((img) => img.mime.startsWith('video/')) });
-  startVideoCompression();
+  res.status(201).json({ ids, compressing: false });
 }));
 
 // Replace a photo with a new one, keeping its place (section, event, order, cover).
@@ -1231,8 +1092,7 @@ admin.post('/photos/:id/replace', uploadMedia.single('file'), wrap(async (req, r
     await client.query('DELETE FROM media WHERE id = $1', [id]);
     await client.query('COMMIT');
     forgetMediaFiles(id);
-    res.status(201).json({ id: newId, compressing: img.mime.startsWith('video/') });
-    startVideoCompression();
+    res.status(201).json({ id: newId, compressing: false });
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -1280,32 +1140,17 @@ admin.delete('/photos/:id', wrap(async (req, res) => {
 
 app.use('/api/admin', admin);
 
-// ---------- pages & static files ----------
-
-const PUBLIC = path.join(__dirname, 'public');
-
-// Pages are sent with "?v=<content hash>" on their CSS/JS links, so a browser
-// never pairs a new page with an old cached stylesheet or script.
-const ASSET_LINK = /(href|src)="(\/(?:css|js)\/[^"?]+)"/g;
-const assetVersions = new Map();
-const pageCache = new Map();
+// ---------- pages ----------
+// Page files are built into generated/pages.js at deploy time (npm run build),
+// with "?v=<content hash>" on their CSS/JS links, so a browser never pairs a
+// new page with an old cached stylesheet or script. CSS, JS, images and the
+// welcome video are served by Cloudflare straight from public/ (static assets).
 function assetVersion(urlPath) {
-  if (!assetVersions.has(urlPath) || !IS_PROD) {
-    let v = '0';
-    try {
-      v = crypto.createHash('md5').update(fs.readFileSync(path.join(PUBLIC, urlPath))).digest('hex').slice(0, 10);
-    } catch { /* missing file: leave unversioned */ }
-    assetVersions.set(urlPath, v);
-  }
-  return assetVersions.get(urlPath);
+  return pages.versions[urlPath] || '0';
 }
 function sendPage(res, file, status = 200) {
-  let html = IS_PROD && pageCache.get(file);
-  if (!html) {
-    html = fs.readFileSync(path.join(PUBLIC, file), 'utf8')
-      .replace(ASSET_LINK, (m, attr, p) => `${attr}="${p}?v=${assetVersion(p)}"`);
-    if (IS_PROD) pageCache.set(file, html);
-  }
+  const html = pages.html[file];
+  if (!html) return res.status(404).type('text').send('Not found');
   if (file === 'admin.html') return res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
   // Public pages: fill in the website text and hand the scripts their words.
   // The home page also gets its header video (or first photo) in the HTML,
@@ -1321,7 +1166,7 @@ function sendPage(res, file, status = 200) {
       .then(({ rows }) => {
         const video = rows.find((r) => r.mime.startsWith('video/'));
         if (video) {
-          return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="${videoUrl(video.id)}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
+          return `<div class="slides" aria-hidden="true" data-ssr-video="${video.id}"><video class="slide on" src="/media/${video.id}" autoplay muted loop playsinline preload="auto" disablepictureinpicture></video></div>`;
         }
         return rows[0] ? `<div class="slides" aria-hidden="true"><div class="slide on" style="background-image:url('/media/${rows[0].id}.webp')"></div></div>` : '';
       }).then((html) => { heroCache = { html, exp: Date.now() + API_TTL }; return html; }).catch(() => '');
@@ -1372,17 +1217,8 @@ const PAGES = {
 };
 for (const [route, file] of Object.entries(PAGES)) app.get(route, (req, res) => sendPage(res, file));
 app.get('/events/:id', (req, res) => sendPage(res, 'event.html'));
-// Photos rarely change; CSS/JS are versioned by the pages and revalidated otherwise.
 // Pages are only sent through sendPage (which fills in their text).
 app.use((req, res, next) => (/\.html$/i.test(req.path) ? next(httpError(404, 'Not found.')) : next()));
-app.use(express.static(PUBLIC, {
-  index: false,
-  setHeaders(res, filePath) {
-    if (filePath.includes(`${path.sep}img${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=86400');
-    else if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
-    else res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  },
-}));
 
 app.use((req, res, next) => next(httpError(404, 'Not found.')));
 
@@ -1392,7 +1228,9 @@ app.use((err, req, res, next) => {
   let message = err.message;
   if (err instanceof multer.MulterError) {
     status = 400;
-    message = err.code === 'LIMIT_FILE_SIZE' ? 'Each photo must be under 15 MB.' : 'Upload failed: too many files.';
+    message = err.code === 'LIMIT_FILE_SIZE'
+      ? (/^\/api\/admin\/(slots|photos\/\d+\/replace)/.test(req.path) ? `Each file must be under 15 MB (videos: ${VIDEO_MAX_MB} MB).` : 'Each photo must be under 15 MB.')
+      : 'Upload failed: too many files.';
   }
   if (status >= 500) {
     console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`, err);
@@ -1404,72 +1242,7 @@ app.use((err, req, res, next) => {
   sendPage(res, '404.html', status);
 });
 
-// Render's free plan puts the site to sleep after 15 minutes without visitors,
-// and the next visitor waits about a minute on a loading screen. Calling our
-// own public address every 10 minutes counts as a visitor, so it stays awake.
-// Free hours (750 a month) are shared with every free service in the Render
-// workspace, so by default it only stays awake 06:00-24:00 Zimbabwe time
-// (KEEP_AWAKE_HOURS="6-24"; "0-24" = always). Overnight it is allowed to sleep;
-// the first visitor after 06:00 wakes it and the pings take over again.
-// Render sets RENDER_EXTERNAL_URL itself; KEEP_AWAKE=off turns this off
-// (for example on a paid plan, which never sleeps).
-function awakeWindow(spec) {
-  const m = /^(\d{1,2})-(\d{1,2})$/.exec(String(spec || '').trim());
-  const start = m ? Number(m[1]) : 6;
-  const end = m ? Number(m[2]) : 24;
-  return (start >= 0 && end <= 24 && start < end) ? { start, end } : { start: 6, end: 24 };
-}
+jobs.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
+megaticket.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
 
-function hourInZimbabwe(date = new Date()) {
-  return Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Africa/Harare' }).format(date));
-}
-
-function keepAwake() {
-  const base = process.env.RENDER_EXTERNAL_URL;
-  if (!base || process.env.KEEP_AWAKE === 'off') return;
-  const url = `${base.replace(/\/$/, '')}/ping`;
-  const minutes = Math.max(1, Number(process.env.KEEP_AWAKE_MINUTES) || 10);
-  const { start, end } = awakeWindow(process.env.KEEP_AWAKE_HOURS);
-  const timer = setInterval(() => {
-    const hour = hourInZimbabwe();
-    if (hour < start || hour >= end) return; // quiet hours: let it sleep
-    fetch(url, { signal: AbortSignal.timeout(30000) })
-      .then((r) => { if (!r.ok) console.warn(`[keep-awake] ${url} answered ${r.status}`); })
-      .catch((err) => console.warn('[keep-awake] ping failed:', err.message));
-  }, minutes * 60 * 1000);
-  timer.unref();
-  console.log(`[keep-awake] pinging ${url} every ${minutes} min, ${start}:00-${end}:00 Zimbabwe time`);
-}
-
-function startVideoCompression() {
-  compressPendingVideos().catch((err) => console.error('[video] queue stopped:', err.message));
-}
-
-if (require.main === module) {
-  migrate()
-    .then(() => app.listen(PORT, () => {
-      console.log(`RnB Dancehall Lovers running on port ${PORT}`);
-      // Background work, one after the other: shrink old photos, move files
-      // to object storage, tidy leftovers, then compress any waiting videos.
-      compressStoredPhotos().catch((err) => console.error('[compress] failed:', err.message))
-        .then(() => moveMediaToBucket()).catch((err) => console.error('[storage] move failed:', err.message))
-        .then(() => sweepOrphanFiles()).catch((err) => console.warn('[storage] sweep failed:', err.message))
-        .then(() => startVideoCompression())
-        .then(() => jobs.resumeDriveImports()).catch((err) => console.error('[drive] resume failed:', err.message));
-      jobs.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
-      megaticket.configure({ assertRoom: assertRoomFor, changed: clearPublicCache });
-      megaticket.start();
-      visits.start();
-      // Look for new photos in linked Google Drive folders every 6 hours.
-      const sync = () => jobs.syncDriveFolders().catch((err) => console.warn('[drive] sync failed:', err.message));
-      setTimeout(sync, 3 * 60 * 1000).unref();
-      setInterval(sync, 6 * 3600 * 1000).unref();
-      keepAwake();
-    }))
-    .catch((err) => {
-      console.error('Startup failed:', err);
-      process.exit(1);
-    });
-}
-
-module.exports = { app, awakeWindow, hourInZimbabwe };
+module.exports = { app, clearPublicCache };
