@@ -976,6 +976,9 @@ require('./shop')(app, admin, {
   upload, clientIp, clearPublicCache, siteUrl: () => SITE_URL,
 });
 
+// Visitor contacts: "Get event updates" signups and shop customers (contacts.js).
+require('./contacts')(app, admin, { pool, httpError, wrap, cleanText, parseId, clientIp });
+
 // Upload one or more photos. category=event requires event_id.
 // cover=1 (event only) makes the first uploaded photo the event's poster/cover.
 admin.post('/photos', upload.array('photos', 20), wrap(async (req, res) => {

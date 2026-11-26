@@ -282,6 +282,25 @@ CREATE TABLE IF NOT EXISTS drive_imports (
   finished_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS drive_imports_status_idx ON drive_imports (status, id);
+-- People who asked for event updates on the website (with their consent).
+CREATE TABLE IF NOT EXISTS contacts (
+  id           serial PRIMARY KEY,
+  name         text NOT NULL,
+  phone        text NOT NULL DEFAULT '',
+  email        text NOT NULL DEFAULT '',
+  source       text NOT NULL DEFAULT 'signup',
+  interests    text[] NOT NULL DEFAULT '{}',
+  consent      boolean NOT NULL DEFAULT false,
+  consent_text text NOT NULL DEFAULT '',
+  consent_at   timestamptz,
+  page         text NOT NULL DEFAULT '',
+  seen         boolean NOT NULL DEFAULT false,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS contacts_phone_idx ON contacts (phone) WHERE phone <> '';
+CREATE INDEX IF NOT EXISTS contacts_email_idx ON contacts (email) WHERE email <> '';
+
 -- Drive photos the admin deleted or replaced on the website: never copied again.
 CREATE TABLE IF NOT EXISTS drive_removed (
   event_id integer NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -318,7 +337,7 @@ END $$;
 `;
 
 // Bump when SCHEMA changes: the daily job runs it again once.
-const SCHEMA_VERSION = 'cf-2';
+const SCHEMA_VERSION = 'cf-3';
 
 // Creates or updates tables, default settings and the first admin login.
 // Runs from the scheduled job (and is cheap to repeat).

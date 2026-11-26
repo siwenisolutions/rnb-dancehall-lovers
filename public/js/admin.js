@@ -210,6 +210,7 @@
     $('appView').hidden = false;
     loadAll();
     checkOrders();
+    checkContacts();
     if (!welcomeHidden()) openWelcome();
   }
 
@@ -301,6 +302,7 @@
     if (name === 'text') loadText();
     if (name === 'events') loadMegaticket();
     if (name === 'shop') loadShop();
+    if (name === 'contacts') loadContacts();
     if (name === 'account') loadAccount();
     $$('[data-tab]').forEach(function (t) { t.setAttribute('aria-selected', t.dataset.tab === name ? 'true' : 'false'); });
     $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
@@ -1973,6 +1975,67 @@
   });
   window.addEventListener('beforeunload', function (e) {
     if (!$('txSheet').hidden && txInput() && txInput().value !== tx.before) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // ---------- Contacts ----------
+  var ctState = { list: [], filter: '' };
+  function ctBadge(n) { $('contactsBadge').hidden = !n; $('contactsBadge').textContent = String(n); }
+  function checkContacts() { get('/api/admin/contacts').then(function (r) { ctState.list = r.contacts; ctBadge(r.unseen); }).catch(function () {}); }
+  function loadContacts() {
+    get('/api/admin/contacts').then(function (r) {
+      ctState.list = r.contacts;
+      renderContacts();
+      if (r.unseen) call('POST', '/api/admin/contacts/seen').then(function () { ctBadge(0); }).catch(function () {});
+    }).catch(function (err) { toast(err.message); });
+  }
+  function renderContacts() {
+    var q = ($('ctSearch').value || '').trim().toLowerCase();
+    var rows = ctState.list.filter(function (c) {
+      if (ctState.filter && c.source !== ctState.filter) return false;
+      return !q || [c.name, c.phone, c.email].join(' ').toLowerCase().indexOf(q) !== -1;
+    });
+    var body = $('ctBody');
+    body.textContent = '';
+    rows.forEach(function (c) {
+      var tr = document.createElement('tr');
+      if (c.source === 'signup' && !c.seen) tr.className = 'ct-new';
+      function td(text, cls) { var d = document.createElement('td'); d.textContent = text || ''; if (cls) d.className = cls; tr.appendChild(d); return d; }
+      td(c.name, 'ct-name');
+      var wa = td('');
+      if (c.phone) {
+        var a = document.createElement('a');
+        a.href = 'https://wa.me/' + (c.phone.charAt(0) === '+' ? c.phone.slice(1) : '263' + c.phone.replace(/^0/, ''));
+        a.target = '_blank'; a.rel = 'noopener'; a.textContent = c.phone;
+        wa.appendChild(a);
+      }
+      var em = td('');
+      if (c.email) { var m = document.createElement('a'); m.href = 'mailto:' + c.email; m.textContent = c.email; em.appendChild(m); }
+      td(c.source === 'order' ? 'Shop order' : 'Website');
+      td((c.interests || []).join(', '));
+      td(c.consent ? 'Agreed' : 'No', c.consent ? 'ct-yes' : 'ct-no');
+      td(fmtDate(c.created_at));
+      var act = td('');
+      if (c.id) {
+        var del = document.createElement('button');
+        del.type = 'button'; del.className = 'btn btn-ghost btn-sm'; del.textContent = 'Remove';
+        del.addEventListener('click', function () {
+          if (!confirm('Remove ' + c.name + ' from your contacts? Do this when someone asks you to stop messaging them.')) return;
+          call('DELETE', '/api/admin/contacts/' + c.id).then(function () { toast(c.name + ' removed'); loadContacts(); }).catch(function (err) { toast(err.message); });
+        });
+        act.appendChild(del);
+      }
+      body.appendChild(tr);
+    });
+    var signups = ctState.list.filter(function (c) { return c.source === 'signup'; }).length;
+    $('ctCount').textContent = rows.length + ' shown · ' + signups + ' website signups · ' + (ctState.list.length - signups) + ' shop customers';
+    $('ctEmpty').hidden = ctState.list.length > 0;
+  }
+  $('ctSearch').addEventListener('input', renderContacts);
+  $$('#ctSeg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('#ctSeg button').forEach(function (x) { x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
+      ctState.filter = b.dataset.val; renderContacts();
+    });
   });
 
   // ---------- Megaticket ----------

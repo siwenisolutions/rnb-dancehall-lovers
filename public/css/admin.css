@@ -671,8 +671,11 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .pay-methods{display:flex; gap:16px; flex-wrap:wrap;}
 
 /* Shop tab: orders and payments side by side */
-.shop-top{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:18px; align-items:start; margin-bottom:18px;}
-.shop-top > .card{margin:0;}
+.shop-top{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:18px; align-items:stretch; margin-bottom:18px;}
+.shop-top > .card{margin:0; display:flex; flex-direction:column; min-height:0;}
+/* Orders scroll inside their card so both cards stay the same height. */
+.shop-top > .shop-card-admin .order-list{flex:1 1 0; min-height:240px; overflow-y:auto;}
+.shop-top > #payForm .btn-row{margin-top:auto !important; padding-top:14px;}
 @media (max-width: 980px){ .shop-top{grid-template-columns:1fr;} }
 
 /* "This event may already exist" dialog */
@@ -686,3 +689,14 @@ input:focus,textarea:focus,select:focus,.btn:focus-visible,[tabindex]:focus-visi
 .dup-compare span{font-size:12px; color:#555; overflow-wrap:anywhere;}
 .dup-actions{display:flex; flex-direction:column; gap:8px; margin-top:14px;}
 @media (max-width:520px){ .dup-compare{grid-template-columns:1fr;} }
+
+/* Contacts */
+.ct-table-wrap{overflow-x:auto; margin-top:10px;}
+.ct-table{width:100%; border-collapse:collapse; font-size:14px;}
+.ct-table th{text-align:left; font-weight:600; font-size:12px; color:var(--muted, #68655f); padding:8px 10px; border-bottom:1px solid var(--line, #e2e0db); white-space:nowrap;}
+.ct-table td{padding:9px 10px; border-bottom:1px solid var(--line, #e2e0db); vertical-align:middle;}
+.ct-table td a{text-decoration:underline; text-underline-offset:2px;}
+.ct-table .ct-name{font-weight:600;}
+.ct-table .ct-yes{color:#1a7f4b; font-weight:600;}
+.ct-table .ct-no{color:var(--muted, #68655f);}
+.ct-table tr.ct-new td{background:rgba(193,31,214,.06);}

@@ -88,6 +88,7 @@
         <button role="tab" data-tab="details" aria-selected="false" title="Website details: pictures, contact, tickets">Details</button>
         <button role="tab" data-tab="text" aria-selected="false" title="Website text: every word on your website">Text</button>
         <button role="tab" data-tab="shop" aria-selected="false" title="Merch shop: orders, items and payments">Shop <span class="tab-n" id="shopBadge" hidden></span></button>
+        <button role="tab" data-tab="contacts" aria-selected="false" title="People who asked for event updates, and shop customers">Contacts <span class="tab-n" id="contactsBadge" hidden></span></button>
       </nav>
 
       <div class="top-actions">
@@ -596,6 +597,33 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- ===== CONTACTS ===== -->
+    <section data-panel="contacts" hidden>
+      <div class="page-head">
+        <h1>Contacts</h1>
+        <p class="hint">People who asked for event updates on the website, plus everyone who ordered from the shop. Website visitors tick a box agreeing to hear from you before they are added — only message people marked <b>Agreed</b> with offers, and remove anyone who asks you to stop.</p>
+      </div>
+      <div class="card">
+        <div class="card-row wrap">
+          <input type="search" id="ctSearch" placeholder="Search name, number or email" style="flex:1; min-width:200px">
+          <div class="seg seg-sm" role="radiogroup" id="ctSeg">
+            <button type="button" role="radio" aria-checked="true" data-val="">Everyone</button>
+            <button type="button" role="radio" aria-checked="false" data-val="signup">Website signups</button>
+            <button type="button" role="radio" aria-checked="false" data-val="order">Shop customers</button>
+          </div>
+          <a class="btn btn-dark" id="ctCsv" href="/api/admin/contacts.csv" download>Download CSV</a>
+        </div>
+        <p class="hint" id="ctCount"></p>
+        <div class="ct-table-wrap">
+          <table class="ct-table">
+            <thead><tr><th>Name</th><th>WhatsApp</th><th>Email</th><th>From</th><th>Interested in</th><th>Agreed</th><th>Added</th><th></th></tr></thead>
+            <tbody id="ctBody"></tbody>
+          </table>
+        </div>
+        <p class="hint" id="ctEmpty" hidden>No contacts yet. A small “Get event updates” box appears on the website after a visitor has been reading for a little while; signups show up here.</p>
+      </div>
     </section>
 
     <!-- ===== ACCOUNT ===== -->

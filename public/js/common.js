@@ -227,6 +227,7 @@
       }
     });
     contact.push(el('div', { class: 'footer-buttons', style: 'margin-top:14px;' }, buttons));
+    if (!EDIT) contact.push(el('button', { type: 'button', class: 'updates-link', text: 'Get event updates on WhatsApp', onclick: function () { openUpdates(true); } }));
 
     footer.appendChild(el('div', { class: 'wrap' }, [
       el('div', { class: 'footer-grid' }, [
@@ -411,9 +412,79 @@
     ]);
   }
 
+  // ---------- "Get event updates" (visitors share their contact, with consent) ----------
+  var UPD_KEY = 'rnb-updates';
+  function updState() { try { return JSON.parse(localStorage.getItem(UPD_KEY) || '{}'); } catch (e) { return {}; } }
+  function setUpd(v) { try { localStorage.setItem(UPD_KEY, JSON.stringify(v)); } catch (e) { /* private mode */ } }
+  var updOpen = false;
+  function openUpdates(force) {
+    if (updOpen || EDIT) return;
+    var st = updState();
+    if (!force && (st.done || (st.later && Date.now() - st.later < 7 * 864e5))) return;
+    updOpen = true;
+    var msg = el('p', { class: 'upd-msg', role: 'status' });
+    var name = el('input', { type: 'text', name: 'name', maxlength: '80', autocomplete: 'name', placeholder: 'Your name', required: true, 'aria-label': 'Your name' });
+    var phone = el('input', { type: 'tel', name: 'phone', autocomplete: 'tel', placeholder: 'WhatsApp number, e.g. 0771 234 567', 'aria-label': 'WhatsApp number' });
+    var email = el('input', { type: 'email', name: 'email', autocomplete: 'email', placeholder: 'Email (optional)', 'aria-label': 'Email' });
+    var trap = el('input', { type: 'text', name: 'website', tabindex: '-1', autocomplete: 'off', class: 'upd-trap', 'aria-hidden': 'true' });
+    var consent = el('input', { type: 'checkbox', name: 'consent' });
+    var picks = ['events', 'tickets', 'merch'].map(function (k) {
+      return el('label', { class: 'upd-chip' }, [el('input', { type: 'checkbox', value: k, checked: true }), el('span', { text: { events: 'New events', tickets: 'Ticket drops', merch: 'Merch' }[k] })]);
+    });
+    var send = el('button', { type: 'submit', class: 'upd-send', text: 'Keep me posted' });
+    function close(later) {
+      if (later) setUpd({ later: Date.now() });
+      box.classList.remove('show');
+      setTimeout(function () { box.remove(); updOpen = false; }, 250);
+    }
+    var form = el('form', { class: 'upd-form', novalidate: true }, [
+      name, phone, email, trap,
+      el('div', { class: 'upd-chips' }, picks),
+      el('label', { class: 'upd-consent' }, [consent, el('span', { text: 'I agree to receive event news and offers from RnB Dancehall Lovers by WhatsApp or email. I can ask to stop at any time.' })]),
+      msg, send
+    ]);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      msg.textContent = ''; msg.className = 'upd-msg';
+      if (!name.value.trim()) { msg.textContent = 'Please add your name.'; name.focus(); return; }
+      if (!phone.value.trim() && !email.value.trim()) { msg.textContent = 'Add a WhatsApp number or an email so we can reach you.'; phone.focus(); return; }
+      if (!consent.checked) { msg.textContent = 'Please tick the box to agree to receive updates.'; return; }
+      send.disabled = true; send.textContent = 'Saving…';
+      fetch('/api/contacts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.value, phone: phone.value, email: email.value, website: trap.value, consent: true, page: location.pathname,
+          interests: picks.map(function (p) { var i = p.querySelector('input'); return i.checked ? i.value : null; }).filter(Boolean) })
+      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Something went wrong.'); return j; }); })
+        .then(function () {
+          setUpd({ done: Date.now() });
+          form.replaceWith(el('div', { class: 'upd-thanks' }, [el('b', { text: 'You’re on the list.' }), el('p', { text: 'We’ll let you know about the next event first.' })]));
+          setTimeout(function () { close(false); }, 3500);
+        })
+        .catch(function (err) { msg.textContent = err.message; msg.className = 'upd-msg err'; send.disabled = false; send.textContent = 'Keep me posted'; });
+    });
+    var box = el('aside', { class: 'upd', role: 'dialog', 'aria-label': 'Get event updates' }, [
+      el('button', { type: 'button', class: 'upd-x', 'aria-label': 'Not now', text: '×', onclick: function () { close(true); } }),
+      el('p', { class: 'upd-kicker', text: 'Don’t miss the next one' }),
+      el('h3', { text: 'Get event updates' }),
+      el('p', { class: 'upd-sub', text: 'Line-ups, early tickets and merch drops, straight to your WhatsApp.' }),
+      form
+    ]);
+    document.body.appendChild(box);
+    requestAnimationFrame(function () { box.classList.add('show'); });
+    setTimeout(function () { (force ? name : send).focus({ preventScroll: true }); }, 50);
+  }
+  // Ask once people have shown interest: after 25 seconds, or after reading most of a page.
+  if (!EDIT && !/^\/admin/.test(location.pathname)) {
+    setTimeout(function () { openUpdates(false); }, 25000);
+    window.addEventListener('scroll', function onScroll() {
+      var h = document.documentElement;
+      if (h.scrollTop + window.innerHeight > h.scrollHeight * 0.65) { window.removeEventListener('scroll', onScroll); openUpdates(false); }
+    }, { passive: true });
+  }
+
   window.RNB = {
     t: t, el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
-    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, renderFooter: renderFooter
+    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, renderFooter: renderFooter, openUpdates: openUpdates
   };
 
   renderHeader();
