@@ -348,7 +348,7 @@ const SCHEMA_VERSION = 'cf-4';
 // Runs from the scheduled job (and is cheap to repeat).
 async function migrate({ force = false } = {}) {
   const client = await pool.connect();
-  {
+  try {
     if (!force) {
       const v = await client.query("SELECT value FROM settings WHERE key = '_schema_version'").catch(() => ({ rows: [] }));
       if (v.rows[0] && v.rows[0].value === SCHEMA_VERSION) {
@@ -356,13 +356,20 @@ async function migrate({ force = false } = {}) {
         return false;
       }
     }
-    for (const st of statements(SCHEMA)) await client.query(st);
+    // One statement failing (a slow update, a lock) must not stop the rest: the tables and
+    // columns after it still get created, and the next run tries the failed one again.
+    let failed = 0;
+    for (const st of statements(SCHEMA)) {
+      try { await client.query(st); } catch (err) { failed++; console.warn('[schema] statement failed:', err.message, '·', st.slice(0, 80)); }
+    }
     for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
       await client.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, value]);
     }
     await setUpAdmin(client);
-    await client.query("INSERT INTO settings (key, value) VALUES ('_schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [SCHEMA_VERSION]);
+    if (!failed) await client.query("INSERT INTO settings (key, value) VALUES ('_schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [SCHEMA_VERSION]);
     return true;
+  } finally {
+    try { client.release(); } catch (e) { /* already closed */ }
   }
 }
 

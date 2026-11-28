@@ -989,3 +989,22 @@ a.mcard-btn{display:inline-flex; align-items:center; text-decoration:none;}
   .ecard .mcard-meta > span:nth-child(n+2){display:inline-flex;}
   .ecard .mcard-btn{flex:none; font-size:13px; padding:10px 14px;}
 }
+
+/* ---------- Rounder buttons, roomier cards, gallery off the edges ---------- */
+.btn, .event-card .actions .btn, .trend-card .read, .legal-nav > a, .shop-sizes button, .pay-opt, .sf-size, .shop-filter-btn, .shop-sort select{border-radius:999px;}
+.shop-qty{border-radius:999px;} .shop-qty button{border-radius:999px;}
+.mcard-body{padding:22px 22px 22px; gap:12px;}
+.mcard-tags{top:18px; left:18px; right:18px;}
+.mcard-chips{gap:8px;}
+.event-grid{gap:26px;}
+.ticket-grid{gap:26px;}
+@media (max-width:640px){
+  .mcard-body{padding:18px 18px 18px; gap:10px;}
+  .mcard-tags{top:14px; left:14px; right:14px;}
+  .ecard .mcard-foot{gap:10px;}
+  .event-grid, .ticket-grid{gap:20px;}
+}
+@media (max-width:560px){
+  .gallery-grid{gap:6px; margin:0; padding-left:0; padding-right:0;}
+  .gallery-grid > *{border-radius:10px; overflow:hidden;}
+}

@@ -114,6 +114,8 @@ function withDownload(res, id, dl, jpg) {
   return out;
 }
 
+let schemaChecked = false;
+
 // Hourly-ish jobs, each on its own so one failure doesn't stop the rest.
 async function tidyUp() {
   const steps = [
@@ -131,6 +133,8 @@ async function tidyUp() {
 export default {
   async fetch(request, workerEnv, ctx) {
     const url = new URL(request.url);
+    // After a deploy, bring the database up to date straight away (not only on the timer).
+    if (!schemaChecked) { schemaChecked = true; ctx.waitUntil(migrate().catch((err) => console.warn('[schema]', err.message))); }
     try {
       if (url.pathname.startsWith('/media/')) return await serveMedia(request, url, ctx);
       return await handleAsNodeRequest(PORT, request);
