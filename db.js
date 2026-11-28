@@ -89,7 +89,7 @@ const SETTING_DEFAULTS = {
 // play as a slideshow; the header can hold a video instead.
 const SLOT_MAX = 5;
 const SLOTS = {
-  hero: { label: 'Header background', where: 'The big picture at the top of the home page', video: true, seed: 'p6.jpg' },
+  hero: { label: 'Header background', where: 'The big picture at the top of the home page. Videos are kept exactly as uploaded, so for a sharp picture use the original from your phone (1080p, under 40 MB)', video: true, seed: 'p6.jpg' },
   ticket1: { label: 'Ticket card 1', where: 'Tickets on sale, first card', seed: 'p12.jpg' },
   ticket2: { label: 'Ticket card 2', where: 'Tickets on sale, second card', seed: 'p5.jpg' },
   exp1: { label: 'Experience card 1', where: 'The Experience, left card', seed: 'p9.jpg' },
