@@ -315,6 +315,13 @@ async function ticketsOnSale(settings) {
     kind: 'event', event_id: e.id, title: e.title, venue: e.venue, starts_at: e.starts_at, url: e.ticket_url, tables_url: e.tables_url,
     photo_ids: e.photo_ids, sort: new Date(e.starts_at).getTime(), ...placeOf(e.venue, e.title, e.description),
   }));
+  // The same ticket page added twice (by hand and from Megaticket) shows once: the copy with photos.
+  for (let i = out.length - 1; i >= 0; i--) {
+    const j = out.findIndex((t) => t.url === out[i].url);
+    if (j === i) continue;
+    if ((out[i].photo_ids || []).length > (out[j].photo_ids || []).length) out[j] = out[i];
+    out.splice(i, 1);
+  }
   const eventUrls = new Set(out.map((t) => t.url));
   for (const n of [1, 2]) {
     const url = settings[`ticket${n}_url`];

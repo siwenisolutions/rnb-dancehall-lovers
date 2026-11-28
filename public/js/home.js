@@ -119,12 +119,16 @@
         label = tk.label || R.t('ticket_btn') || 'Get Tickets';
         slideshow(thumb, slots['ticket' + tk.card]);
       }
-      return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'data-ticket': '', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
+      var when = tk.kind === 'event' ? R.fmtDay(tk.starts_at) + ' ' + R.fmtMonth(tk.starts_at) : '';
+      var actions = R.ticketActions({ url: url, tablesUrl: tk.tables_url, eventId: tk.event_id, card: tk.card, title: title, when: when,
+        ticketText: label + ' →' });
+      return el('article', { class: 'ticket-card' }, [
         thumb,
+        el('a', { class: 'ticket-cover', href: url, target: '_blank', rel: 'noopener', 'data-ticket': '', 'aria-label': title + ': get tickets (opens ' + host + ')' }),
         el('div', { class: 'ticket-body' }, [
           el('div', { class: 'ticket-sub', text: sub }),
           el('h3', { text: title }),
-          el('span', { class: 'btn btn-primary', text: label + ' →' })
+          el('div', { class: 'ticket-actions' }, actions)
         ])
       ]);
     }).filter(Boolean);
@@ -153,6 +157,9 @@
     R.renderFooter(s);
     slideshow(document.querySelector('.hero'), slots.hero, { video: true, videoBase: data.video_base });
     renderTickets(data.tickets, slots);
+    var want = new URLSearchParams(location.search).get('tickets');
+    var picked = (data.tickets || []).filter(function (tk) { return String(tk.card || '') === want || String(tk.event_id || '') === want; })[0] || (data.tickets || [])[0];
+    if (picked) R.ticketIntent(picked.url);
     renderUpcoming(data.upcoming || [], s);
     renderExperience(slots, s);
     slideshow(document.querySelector('.promo-photo'), slots.promo);

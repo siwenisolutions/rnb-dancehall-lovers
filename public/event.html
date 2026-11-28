@@ -52,6 +52,7 @@
         ev.is_upcoming ? el('div', { class: 'event-btns' }, R.eventButtons(ev, '', R.t('event_ticket_btn'))) : null
       ])
     ]));
+    if (ev.is_upcoming) R.ticketIntent(ev.ticket_url);
     if (data.photos.length) {
       var grid = document.getElementById('grid');
       data.photos.forEach(function (p, i) { grid.appendChild(R.galleryItem(data.photos, i)); });

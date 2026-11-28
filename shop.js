@@ -153,8 +153,10 @@ module.exports = function shop(app, admin, d) {
   app.get('/api/shop', wrap(async (req, res) => {
     const s = await shopSettings();
     const { rows } = await pool.query(`SELECT ${productCols} FROM products p WHERE p.active ORDER BY p.sort, p.id`);
+    const banner = await pool.query("SELECT id FROM media WHERE category = 'site' AND slot = 'shop' AND mime LIKE 'image/%' ORDER BY created_at, id LIMIT 5");
     res.json({
       open: s.open,
+      banner: banner.rows.map((r) => r.id),
       products: rows.map(publicProduct),
       categories: CATEGORIES,
       methods: s.methods.map((m) => ({ id: m, name: METHODS[m] })),

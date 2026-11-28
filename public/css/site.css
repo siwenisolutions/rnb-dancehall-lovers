@@ -867,15 +867,9 @@ video.slide{width:100%; height:100%; object-fit:cover;}
 
 /* ---------- Shop page (store layout, after-dark theme) ---------- */
 .shop-page{padding-top:96px;}
-.shop-hero{position:relative; overflow:hidden; isolation:isolate; border-radius:32px; padding:26px 40px 30px; color:#fff;
-  background:radial-gradient(70% 120% at 100% 0%, rgba(193,31,214,.55) 0%, rgba(193,31,214,0) 60%), radial-gradient(60% 90% at 0% 100%, rgba(255,92,126,.35) 0%, rgba(255,92,126,0) 60%), #140f18;}
-.shop-hero-art{position:absolute; inset:0; z-index:-1; pointer-events:none;}
-.shop-hero-art .vinyl{position:absolute; right:-90px; top:50%; width:420px; height:420px; margin-top:-210px; opacity:.9; animation:spin 14s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.shop-eq{position:absolute; left:40px; right:40px; bottom:0; height:60px; display:flex; align-items:flex-end; gap:6px; opacity:.18;}
-.shop-eq i{flex:1; border-radius:4px 4px 0 0; background:linear-gradient(var(--pink), var(--purple)); transform-origin:bottom; animation:tkEq 1.6s ease-in-out infinite;}
-.shop-eq i:nth-child(3n){animation-delay:-.4s; height:80%;} .shop-eq i:nth-child(3n+1){animation-delay:-.9s; height:55%;} .shop-eq i:nth-child(3n+2){animation-delay:-1.3s; height:100%;}
-@media (prefers-reduced-motion:reduce){ .shop-hero-art .vinyl, .shop-eq i{animation:none;} }
+.shop-hero{position:relative; overflow:hidden; isolation:isolate; border-radius:32px; padding:26px 40px 30px; color:#fff; background:#140f18;}
+.shop-hero-img{position:absolute; inset:0; z-index:-1; background:#140f18 url('/img/p4.jpg') center 35%/cover no-repeat;}
+.shop-hero-img::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, rgba(14,10,18,.92) 0%, rgba(14,10,18,.72) 45%, rgba(14,10,18,.25) 100%), linear-gradient(0deg, rgba(14,10,18,.75) 0%, rgba(14,10,18,0) 40%);}
 .crumbs{display:flex; align-items:center; gap:10px; font-size:13px; color:rgba(255,255,255,.65);}
 .crumbs a:hover{color:#fff;}
 .crumbs b{color:#fff; font-weight:700;}
@@ -951,7 +945,7 @@ video.slide{width:100%; height:100%; object-fit:cover;}
   .shop-hero-main{grid-template-columns:1fr; margin-top:22px;}
   .shop-hero-side{justify-items:stretch; grid-template-columns:1fr auto; align-items:center;}
   .shop-feature{width:auto;}
-  .shop-hero-art .vinyl{width:260px; height:260px; right:-110px; top:110px; margin-top:0; opacity:.55;}
+  .shop-hero-img::after{background:linear-gradient(0deg, rgba(14,10,18,.94) 0%, rgba(14,10,18,.7) 55%, rgba(14,10,18,.45) 100%);}
   .shop-main{grid-template-columns:1fr; gap:0; padding-top:20px;}
   .shop-filters{position:static; display:none; margin-bottom:16px;}
   .shop-filters.open{display:grid;}
@@ -964,3 +958,13 @@ video.slide{width:100%; height:100%; object-fit:cover;}
   .shop-grid{gap:10px;}
   .shop-sort{font-size:0; gap:0;}
 }
+
+/* ---------- Ticket cards: tickets, tables and a copy-link button ---------- */
+.ticket-cover{position:absolute; inset:0; z-index:1;}
+.ticket-body{pointer-events:none;}
+.ticket-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; pointer-events:auto;}
+.ticket-body .ticket-actions .btn{margin-top:0;}
+.ticket-actions .btn-dark{background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.28); backdrop-filter:blur(8px);}
+.btn-copy.copied{background:var(--yellow); color:#141210;}
+.ticket-actions .btn-copy{background:#fff; color:#141210;}
+@media (max-width:640px){ .ticket-actions .btn{padding:12px 14px; font-size:13px;} }

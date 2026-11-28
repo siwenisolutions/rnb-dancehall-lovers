@@ -177,6 +177,7 @@
       });
 
     var tel = s.phone ? '+263' + s.phone.replace(/\D/g, '').replace(/^(263|0)/, '') : '';
+    if (s.phone) sitePhone = s.phone;
     var contact = [el('h4', { text: t('footer_contact') })];
     if (s.contact_email) {
       // mailto: only works when the device has an email app set up, so also
@@ -294,11 +295,8 @@
     return wrap;
   }
   function eventButtons(ev, cls, ticketText) {
-    var out = [];
-    var ticket = safeLink(ev.ticket_url), tables = safeLink(ev.tables_url);
-    if (ticket) out.push(el('a', { class: 'btn btn-primary ' + (cls || ''), href: ticket, target: '_blank', rel: 'noopener', 'data-ticket': '', text: ticketText || t('ticket_btn') || 'Get Tickets' }));
-    if (tables) out.push(el('a', { class: 'btn btn-dark ' + (cls || ''), href: tables, target: '_blank', rel: 'noopener', 'data-ticket': '', text: t('tables_btn') || 'Buy Tables' }));
-    return out;
+    return ticketActions({ url: ev.ticket_url, tablesUrl: ev.tables_url, eventId: ev.id, title: ev.title,
+      when: ev.starts_at ? fmtDay(ev.starts_at) + ' ' + fmtMonth(ev.starts_at) : '', ticketText: ticketText }, cls);
   }
 
   // ---------- event card ----------
@@ -553,8 +551,10 @@
     return /^07\d{8}$/.test(p) || /^\+\d{8,15}$/.test(p);
   }
   var tkOpen = false;
+  var sitePhone = '077 167 4200';
   function openTicketStep(href) {
     if (tkOpen) return;
+    if (tkSaved()) return openReady(href);
     tkOpen = true;
     var host = '';
     try { host = new URL(href).host.replace(/^www\./, ''); } catch (e) { /* keep empty */ }
@@ -616,6 +616,82 @@
     requestAnimationFrame(function () { wrapEl.classList.add('show'); });
     setTimeout(function () { name.focus({ preventScroll: true }); }, 60);
   }
+
+  // Someone opened a shared ticket link (…?tickets=1) and has already given
+  // their details: a single button, since browsers only open new tabs on a tap.
+  function openReady(href) {
+    if (tkOpen) return;
+    tkOpen = true;
+    var bg = el('div', { class: 'tk-bg' });
+    function close() { wrapEl.classList.remove('show'); document.body.style.overflow = ''; setTimeout(function () { wrapEl.remove(); tkOpen = false; }, 220); }
+    var go = el('a', { class: 'btn btn-primary btn-block tk-go', href: href, target: '_blank', rel: 'noopener', 'data-no-gate': '', text: 'Continue to tickets →', onclick: function () { setTimeout(close, 100); } });
+    var box = el('div', { class: 'tk-box', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'tkTitle' }, [
+      el('button', { type: 'button', class: 'upd-x', 'aria-label': 'Close', text: '×', onclick: close }),
+      el('div', { class: 'tk-eq', 'aria-hidden': 'true' }, [el('i'), el('i'), el('i'), el('i'), el('i')]),
+      el('p', { class: 'upd-kicker', text: 'Your tickets' }),
+      el('h3', { id: 'tkTitle', class: 'display', text: 'Ready when you are' }),
+      el('p', { class: 'upd-sub', text: 'Tap below to choose your tickets.' }),
+      go
+    ]);
+    var wrapEl = el('div', { class: 'tk-wrap' }, [bg, box]);
+    bg.addEventListener('click', close);
+    document.body.appendChild(wrapEl);
+    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(function () { wrapEl.classList.add('show'); });
+  }
+
+  // ---------- Ticket buttons: tickets, tables, copy link ----------
+  // A shared link points at this website (not straight at the ticket site), so
+  // whoever opens it still goes through the quick details step first.
+  function shareLinkFor(o) {
+    if (o.eventId) return location.origin + '/events/' + o.eventId + '?tickets=1';
+    return location.origin + '/?tickets=' + encodeURIComponent(o.card || '1') + '#tickets';
+  }
+  function copyText(text, btn) {
+    var label = btn.textContent;
+    var done = function () { btn.textContent = 'Link copied!'; btn.classList.add('copied'); setTimeout(function () { btn.textContent = label; btn.classList.remove('copied'); }, 2200); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this link:', text); });
+    else window.prompt('Copy this link:', text);
+  }
+  function tableLink(o) {
+    var mine = safeLink(o.tablesUrl);
+    if (mine) return { href: mine, ticket: true };
+    // No table booking page yet: book on WhatsApp with the business number.
+    var digits = String(sitePhone).replace(/\D/g, '').replace(/^0/, '263');
+    var msg = 'Hi! I’d like to book a table for ' + (o.title || t('site_name')) + (o.when ? ' (' + o.when + ')' : '') + '. How many people can a table take, and how much is it?';
+    return { href: 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg), ticket: false };
+  }
+  function ticketActions(o, cls) {
+    var out = [];
+    var ticket = safeLink(o.url);
+    if (ticket) out.push(el('a', { class: 'btn btn-primary ' + (cls || ''), href: ticket, target: '_blank', rel: 'noopener', 'data-ticket': '', text: o.ticketText || t('ticket_btn') || 'Get Tickets' }));
+    if (ticket || safeLink(o.tablesUrl)) {
+      var tb = tableLink(o);
+      var a = el('a', { class: 'btn btn-dark ' + (cls || ''), href: tb.href, target: '_blank', rel: 'noopener', text: t('tables_btn') || 'Book a Table' });
+      if (tb.ticket) a.setAttribute('data-ticket', '');
+      out.push(a);
+    }
+    if (ticket) {
+      var share = el('button', { type: 'button', class: 'btn btn-outline btn-copy ' + (cls || ''), text: 'Copy link', 'aria-label': 'Copy a link to share these tickets' });
+      share.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var link = shareLinkFor(o);
+        // Phones: the share sheet (WhatsApp, Instagram…); computers: copy.
+        if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+          navigator.share({ title: o.title || t('site_name'), text: (o.title || t('site_name')) + ': get your tickets', url: link }).catch(function () {});
+        } else copyText(link, share);
+      });
+      out.push(share);
+    }
+    return out;
+  }
+  // Opened from a shared link: show the ticket step for that event straight away.
+  function ticketIntent(href) {
+    if (!href || EDIT) return;
+    if (!/[?&]tickets=/.test(location.search)) return;
+    setTimeout(function () { openTicketStep(href); }, 400);
+  }
+
   if (!EDIT && !/^\/admin/.test(location.pathname)) {
     document.addEventListener('click', function (e) {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -628,7 +704,7 @@
 
   window.RNB = {
     t: t, el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
-    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, merchCard: merchCard, money: mcMoney, renderFooter: renderFooter, openUpdates: openUpdates
+    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, merchCard: merchCard, money: mcMoney, ticketActions: ticketActions, ticketIntent: ticketIntent, renderFooter: renderFooter, openUpdates: openUpdates
   };
 
   renderHeader();

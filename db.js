@@ -100,6 +100,7 @@ const SLOTS = {
   join2: { label: 'Our events · See the photos', where: 'Bottom of the home page, right panel', seed: 'p13.jpg' },
   intro1: { label: 'Old is the new vibe card', where: 'First card under the header, behind "Old is the new vibe"' },
   intro2: { label: 'More than music card', where: 'Second card under the header, behind "More than music"' },
+  shop: { label: 'Merch shop banner', where: 'Behind the title at the top of the merch shop page (a crowd photo from an event is used until you add one)' },
 };
 
 const SCHEMA = `

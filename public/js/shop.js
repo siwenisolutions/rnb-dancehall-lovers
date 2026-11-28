@@ -502,6 +502,7 @@
   // ---------- start ----------
   R.api('/api/shop').then(function (d) {
     shop = d;
+    if (d.banner && d.banner.length) document.getElementById('shopBanner').style.backgroundImage = "url('" + R.mediaUrl(d.banner[0]) + "')";
     var recent = shop.products.filter(function (p) { return p.in_stock !== false; }).sort(function (a, b) { return b.id - a.id; })[0];
     newestId = recent ? recent.id : null;
     sortSel.value = state.sort;
