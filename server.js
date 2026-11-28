@@ -1231,6 +1231,7 @@ function sendPage(res, file, status = 200) {
 const PAGES = {
   '/': 'index.html', '/index.html': 'index.html',
   '/admin': 'admin.html', '/events': 'events.html', '/gallery': 'gallery.html', '/shop': 'shop.html',
+  '/terms': 'terms.html', '/privacy': 'privacy.html', '/returns': 'returns.html',
   '/events.html': 'events.html', '/gallery.html': 'gallery.html', '/admin.html': 'admin.html', '/event.html': 'event.html',
 };
 for (const [route, file] of Object.entries(PAGES)) app.get(route, (req, res) => sendPage(res, file));

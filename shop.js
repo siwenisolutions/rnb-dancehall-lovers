@@ -140,11 +140,14 @@ module.exports = function shop(app, admin, d) {
   }
 
   // ---------- public ----------
-  const productCols = `p.id, p.name, p.description, p.price_cents, p.sizes, p.active, p.sort,
+  // Shop filter groups (keys are stored on the product; names are shown).
+  const CATEGORIES = { clothing: 'Clothing', headwear: 'Caps & hats', accessories: 'Accessories', drinkware: 'Cups & bottles' };
+  const productCols = `p.id, p.name, p.description, p.price_cents, p.sizes, p.active, p.sort, p.category, p.in_stock, p.created_at,
     ARRAY(SELECT m.id FROM media m WHERE m.product_id = p.id ORDER BY m.created_at, m.id) AS photo_ids`;
   function sizesOf(p) { return String(p.sizes || '').split(/\n|,/).map((x) => x.trim()).filter(Boolean); }
   function publicProduct(p) {
-    return { id: p.id, name: p.name, description: p.description, price_cents: p.price_cents, sizes: sizesOf(p), photo_ids: p.photo_ids };
+    return { id: p.id, name: p.name, description: p.description, price_cents: p.price_cents, sizes: sizesOf(p), photo_ids: p.photo_ids,
+      category: CATEGORIES[p.category] ? p.category : '', in_stock: p.in_stock !== false, created_at: p.created_at };
   }
 
   app.get('/api/shop', wrap(async (req, res) => {
@@ -153,6 +156,7 @@ module.exports = function shop(app, admin, d) {
     res.json({
       open: s.open,
       products: rows.map(publicProduct),
+      categories: CATEGORIES,
       methods: s.methods.map((m) => ({ id: m, name: METHODS[m] })),
       online: paynowOn(s),
     });
@@ -184,13 +188,14 @@ module.exports = function shop(app, admin, d) {
     if (!lines.length) throw httpError(400, 'Your bag is empty.');
     if (lines.length > MAX_LINES) throw httpError(400, `Please order at most ${MAX_LINES} different items at a time.`);
     const ids = [...new Set(lines.map((l) => parseInt(l.product_id, 10)).filter((n) => n > 0))];
-    const { rows } = await pool.query('SELECT id, name, price_cents, sizes FROM products WHERE active AND id = ANY($1::int[])', [ids]);
+    const { rows } = await pool.query('SELECT id, name, price_cents, sizes, in_stock FROM products WHERE active AND id = ANY($1::int[])', [ids]);
     const byId = new Map(rows.map((r) => [r.id, r]));
     const items = [];
     for (const l of lines) {
       const p = byId.get(parseInt(l.product_id, 10));
       if (!p) throw httpError(400, 'One of the items is no longer available. Please remove it from your bag.');
       if (!(p.price_cents > 0)) throw httpError(400, `${p.name} isn't on sale yet (price coming soon). Please remove it from your bag.`);
+      if (p.in_stock === false) throw httpError(400, `${p.name} has just sold out. Please remove it from your bag.`);
       const sizes = sizesOf(p);
       const size = String(l.size || '').trim();
       if (sizes.length && !sizes.includes(size)) throw httpError(400, `Choose a size for ${p.name}.`);
@@ -274,7 +279,9 @@ module.exports = function shop(app, admin, d) {
       if (price >= 100000000) throw httpError(400, 'That price is too high.');
     }
     const sizes = String(b.sizes || '').split(/\n|,/).map((x) => x.trim().slice(0, 20)).filter(Boolean).slice(0, 15).join('\n');
-    return { name, description: cleanText(b.description, 2000, 'Description'), price, sizes, active: b.active !== false && b.active !== 'false' };
+    const category = CATEGORIES[b.category] ? b.category : '';
+    const inStock = b.in_stock !== false && b.in_stock !== 'false';
+    return { name, description: cleanText(b.description, 2000, 'Description'), price, sizes, active: b.active !== false && b.active !== 'false', category, inStock };
   }
   admin.get('/shop', wrap(async (req, res) => {
     const s = await shopSettings();
@@ -291,16 +298,16 @@ module.exports = function shop(app, admin, d) {
   admin.post('/shop/products', wrap(async (req, res) => {
     const p = productFromBody(req.body || {});
     const { rows } = await pool.query(
-      `INSERT INTO products (name, description, price_cents, sizes, active, sort)
-       VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(max(sort), 0) + 1 FROM products)) RETURNING id`,
-      [p.name, p.description, p.price, p.sizes, p.active]);
+      `INSERT INTO products (name, description, price_cents, sizes, active, category, in_stock, sort)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(max(sort), 0) + 1 FROM products)) RETURNING id`,
+      [p.name, p.description, p.price, p.sizes, p.active, p.category, p.inStock]);
     res.status(201).json({ id: rows[0].id });
   }));
   admin.put('/shop/products/:id', wrap(async (req, res) => {
     const id = parseId(req.params.id);
     const p = productFromBody(req.body || {});
-    const r = await pool.query('UPDATE products SET name = $1, description = $2, price_cents = $3, sizes = $4, active = $5 WHERE id = $6',
-      [p.name, p.description, p.price, p.sizes, p.active, id]);
+    const r = await pool.query('UPDATE products SET name = $1, description = $2, price_cents = $3, sizes = $4, active = $5, category = $6, in_stock = $7 WHERE id = $8',
+      [p.name, p.description, p.price, p.sizes, p.active, p.category, p.inStock, id]);
     if (!r.rowCount) throw httpError(404, 'Item not found.');
     res.json({ ok: true });
   }));

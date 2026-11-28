@@ -206,7 +206,7 @@
       var url = safeLink(tk.url);
       if (!url) return;
       var where = [tk.place || tk.title, tk.when].filter(Boolean).join(' · ');
-      buttons.push(el('a', { class: 'btn btn-outline btn-ticket', href: url, target: '_blank', rel: 'noopener' }, [
+      buttons.push(el('a', { class: 'btn btn-outline btn-ticket', href: url, target: '_blank', rel: 'noopener', 'data-ticket': '' }, [
         tk.flag ? el('span', { class: 'flag', 'aria-hidden': 'true', text: tk.flag }) : null,
         el('span', { class: 'bt-txt' }, [
           el('b', { text: tk.label + (tk.country ? ' · ' + tk.country : '') }),
@@ -216,7 +216,7 @@
       ]));
       var tables = safeLink(tk.tables_url);
       if (tables) {
-        buttons.push(el('a', { class: 'btn btn-outline btn-ticket btn-tables', href: tables, target: '_blank', rel: 'noopener' }, [
+        buttons.push(el('a', { class: 'btn btn-outline btn-ticket btn-tables', href: tables, target: '_blank', rel: 'noopener', 'data-ticket': '' }, [
           tk.flag ? el('span', { class: 'flag', 'aria-hidden': 'true', text: tk.flag }) : null,
           el('span', { class: 'bt-txt' }, [
             el('b', { text: (t('tables_btn') || 'Buy Tables') + (tk.country ? ' · ' + tk.country : '') }),
@@ -251,7 +251,12 @@
         el('div', { class: 'footer-col' }, contact)
       ]),
       el('div', { class: 'footer-bottom' }, [
-        el('span', { text: '© ' + new Date().getFullYear() + ' ' + t('site_name') + (t('footer_place') ? ' · ' + t('footer_place') : '') })
+        el('span', { text: '© ' + new Date().getFullYear() + ' ' + t('site_name') + '. All rights reserved.' + (t('footer_place') ? ' · ' + t('footer_place') : '') }),
+        el('nav', { class: 'footer-legal', 'aria-label': 'Policies' }, [
+          el('a', { href: '/terms', text: 'Terms of Use' }),
+          el('a', { href: '/privacy', text: 'Privacy & Cookies' }),
+          el('a', { href: '/returns', text: 'Tickets, Returns & Refunds' })
+        ])
       ])
     ]));
   }
@@ -272,7 +277,7 @@
     flyers.forEach(function (f) {
       var a = el('a', { class: 'poster flyer ' + (f.id ? 'ph media' : 'empty'), href: f.href, 'aria-label': ev.title + (f.tag ? ': ' + f.tag : '') },
         f.id ? [] : [el('span', { text: ev.title })]);
-      if (f.out) { a.target = '_blank'; a.rel = 'noopener'; }
+      if (f.out) { a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('data-ticket', ''); }
       if (f.id) a.style.backgroundImage = "url('" + mediaUrl(f.id, thumb) + "')";
       if (f.tag) a.appendChild(el('span', { class: 'flyer-tag', text: f.tag + (f.out ? ' →' : '') }));
       strip.appendChild(a);
@@ -291,8 +296,8 @@
   function eventButtons(ev, cls, ticketText) {
     var out = [];
     var ticket = safeLink(ev.ticket_url), tables = safeLink(ev.tables_url);
-    if (ticket) out.push(el('a', { class: 'btn btn-primary ' + (cls || ''), href: ticket, target: '_blank', rel: 'noopener', text: ticketText || t('ticket_btn') || 'Get Tickets' }));
-    if (tables) out.push(el('a', { class: 'btn btn-dark ' + (cls || ''), href: tables, target: '_blank', rel: 'noopener', text: t('tables_btn') || 'Buy Tables' }));
+    if (ticket) out.push(el('a', { class: 'btn btn-primary ' + (cls || ''), href: ticket, target: '_blank', rel: 'noopener', 'data-ticket': '', text: ticketText || t('ticket_btn') || 'Get Tickets' }));
+    if (tables) out.push(el('a', { class: 'btn btn-dark ' + (cls || ''), href: tables, target: '_blank', rel: 'noopener', 'data-ticket': '', text: t('tables_btn') || 'Buy Tables' }));
     return out;
   }
 
@@ -482,9 +487,148 @@
     }, { passive: true });
   }
 
+  // ---------- Merch card (shop page and home page) ----------
+  // A full-bleed photo card: tags on top, then name, details, a price pill
+  // and a white button over a dark fade.
+  var MC_ICONS = {
+    tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+    size: '<path d="M4 7h16v10H4z"/><path d="M8 7v3M12 7v4M16 7v3"/>',
+    truck: '<path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3.5V16h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>'
+  };
+  function mcIcon(n) { var s = document.createElement('span'); s.className = 'mc-ic'; s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<svg viewBox="0 0 24 24">' + MC_ICONS[n] + '</svg>'; return s; }
+  var MC_CATS = { clothing: 'Clothing', headwear: 'Caps & hats', accessories: 'Accessories', drinkware: 'Cups & bottles' };
+  function mcMoney(c) { var v = c / 100; return '$' + (v % 1 ? v.toFixed(2) : String(v)); }
+  function merchCard(p, o) {
+    o = o || {};
+    var priced = p.price_cents > 0, sold = p.in_stock === false;
+    var href = '/shop?item=' + p.id;
+    var isNew = o.newest === p.id;
+    var action = sold ? 'Sold out' : !priced ? 'Enquire' : o.actionText ? o.actionText : p.sizes.length > 1 ? 'Choose size' : 'Add to bag';
+    var btn = el('button', { type: 'button', class: 'mcard-btn', disabled: sold, text: action, 'aria-label': action + ': ' + p.name });
+    if (!sold) btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); (o.onAction || function () { location.href = href; })(p); });
+    var link = el('a', { class: 'mcard-link', href: href, 'aria-label': p.name + ', ' + (priced ? mcMoney(p.price_cents) : 'price coming soon') + (sold ? ', sold out' : '') });
+    if (o.onOpen) link.addEventListener('click', function (e) { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); o.onOpen(p); });
+    var meta = [];
+    if (p.category && MC_CATS[p.category]) meta.push(el('span', null, [mcIcon('tag'), MC_CATS[p.category]]));
+    meta.push(el('span', null, [mcIcon('size'), p.sizes.length ? p.sizes.join(' · ') : 'One size']));
+    if (o.delivery) meta.push(el('span', null, [mcIcon('truck'), o.delivery]));
+    return el('article', { class: 'mcard' + (sold ? ' is-sold' : '') + (p.photo_ids.length ? '' : ' no-photo') }, [
+      p.photo_ids.length ? el('div', { class: 'mcard-img', style: "background-image:url('" + mediaUrl(p.photo_ids[0], true) + "')" })
+        : el('div', { class: 'mcard-img empty', 'aria-hidden': 'true' }, [el('span', { text: p.name })]),
+      el('div', { class: 'mcard-tags' }, [
+        sold ? el('span', { class: 'mtag sold', text: 'Sold out' }) : isNew ? el('span', { class: 'mtag new', text: 'New drop' }) : null
+      ]),
+      el('div', { class: 'mcard-body' }, [
+        el('h3', { text: p.name }),
+        el('div', { class: 'mcard-meta' }, meta),
+        el('div', { class: 'mcard-foot' }, [
+          el('span', { class: 'mcard-price' + (priced ? '' : ' soon'), text: priced ? mcMoney(p.price_cents) : 'Price soon' }),
+          btn
+        ])
+      ]),
+      link
+    ]);
+  }
+
+  // ---------- One quick step before the ticket site ----------
+  // Tickets are sold on Megaticket, which keeps the buyer's details to itself.
+  // So the first time someone taps a ticket link on this phone, we ask for
+  // their name and WhatsApp number (needed) and, as a separate unticked
+  // choice, whether they want event news. Then they go straight on.
+  var TK_KEY = 'rnb-ticket-buyer';
+  var TICKET_HOSTS = /megaticket|quicket|computicket|webtickets|tixafrica|eventbrite|howler|sahwigate|ticketpro|ticketbox/i;
+  function tkSaved() { try { return JSON.parse(localStorage.getItem(TK_KEY) || 'null'); } catch (e) { return null; } }
+  function isTicketLink(a) {
+    if (!a || !a.href || a.hasAttribute('data-no-gate')) return false;
+    if (a.hasAttribute('data-ticket')) return true;
+    try { var u = new URL(a.href, location.href); return u.host !== location.host && TICKET_HOSTS.test(u.host); } catch (e) { return false; }
+  }
+  function goTo(href) {
+    var w = window.open(href, '_blank');
+    if (w) { try { w.opener = null; } catch (e) { /* cross-origin */ } } else location.href = href;
+  }
+  function phoneOk(v) {
+    var p = String(v || '').replace(/[\s()-]/g, '');
+    if (/^\+?263/.test(p)) p = '0' + p.replace(/^\+?263/, '');
+    return /^07\d{8}$/.test(p) || /^\+\d{8,15}$/.test(p);
+  }
+  var tkOpen = false;
+  function openTicketStep(href) {
+    if (tkOpen) return;
+    tkOpen = true;
+    var host = '';
+    try { host = new URL(href).host.replace(/^www\./, ''); } catch (e) { /* keep empty */ }
+    var siteLabel = /megaticket/i.test(host) ? 'Megaticket' : host || 'the ticket site';
+    var msg = el('p', { class: 'upd-msg', role: 'status' });
+    function field(label, input, hint) {
+      return el('label', { class: 'tk-field' }, [el('span', { class: 'tk-label' }, [label, hint ? el('small', { text: hint }) : null]), input]);
+    }
+    var name = el('input', { type: 'text', name: 'name', maxlength: '80', autocomplete: 'name', required: true, placeholder: 'e.g. Tariro Moyo' });
+    var phone = el('input', { type: 'tel', name: 'phone', autocomplete: 'tel', required: true, placeholder: '0771 234 567' });
+    var email = el('input', { type: 'email', name: 'email', autocomplete: 'email', placeholder: 'you@example.com' });
+    var trap = el('input', { type: 'text', name: 'website', tabindex: '-1', autocomplete: 'off', class: 'upd-trap', 'aria-hidden': 'true' });
+    var news = el('input', { type: 'checkbox', name: 'news' });
+    var send = el('button', { type: 'submit', class: 'btn btn-primary btn-block tk-go', text: 'Continue to tickets →' });
+    var bg = el('div', { class: 'tk-bg' });
+    function close() {
+      wrapEl.classList.remove('show');
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
+      setTimeout(function () { wrapEl.remove(); tkOpen = false; }, 220);
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    var form = el('form', { class: 'upd-form tk-form', novalidate: true }, [
+      field('Your name', name),
+      field('WhatsApp number', phone),
+      field('Email', email, 'optional'),
+      trap,
+      el('label', { class: 'upd-consent tk-news' }, [news, el('span', { text: 'Also send me news about future events, ticket drops and merch. I can ask you to stop at any time.' })]),
+      msg, send,
+      el('p', { class: 'tk-small' }, ['You’ll finish buying on ' + siteLabel + '. We use your details as our ', el('a', { href: '/privacy', target: '_blank', text: 'Privacy Policy' }), ' explains.'])
+    ]);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      msg.textContent = '';
+      if (!name.value.trim()) { msg.textContent = 'Please add your name.'; name.focus(); return; }
+      if (!phoneOk(phone.value)) { msg.textContent = 'Please type a valid WhatsApp number, e.g. 0771 234 567.'; phone.focus(); return; }
+      if (email.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) { msg.textContent = 'Please check your email address, or leave it empty.'; email.focus(); return; }
+      var body = { name: name.value, phone: phone.value, email: email.value, website: trap.value, consent: news.checked, source: 'tickets', page: location.pathname };
+      // Saved in the background; the buyer never waits for it and is never stopped by it.
+      try { fetch('/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive: true }).catch(function () {}); } catch (err) { /* old browser */ }
+      try { localStorage.setItem(TK_KEY, JSON.stringify({ name: name.value.trim(), at: Date.now() })); } catch (err) { /* private mode */ }
+      if (news.checked) setUpd({ done: Date.now() });
+      close();
+      goTo(href);
+    });
+    var box = el('div', { class: 'tk-box', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'tkTitle' }, [
+      el('button', { type: 'button', class: 'upd-x', 'aria-label': 'Close', text: '×', onclick: close }),
+      el('div', { class: 'tk-eq', 'aria-hidden': 'true' }, [el('i'), el('i'), el('i'), el('i'), el('i')]),
+      el('p', { class: 'upd-kicker', text: 'One quick step' }),
+      el('h3', { id: 'tkTitle', class: 'display', text: 'Before your tickets' }),
+      el('p', { class: 'upd-sub', text: 'Tell us who’s coming, so we can send entry details and any changes to the event to your WhatsApp. You’ll only be asked once on this phone.' }),
+      form
+    ]);
+    var wrapEl = el('div', { class: 'tk-wrap' }, [bg, box]);
+    bg.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(wrapEl);
+    document.body.style.overflow = 'hidden';
+    requestAnimationFrame(function () { wrapEl.classList.add('show'); });
+    setTimeout(function () { name.focus({ preventScroll: true }); }, 60);
+  }
+  if (!EDIT && !/^\/admin/.test(location.pathname)) {
+    document.addEventListener('click', function (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!isTicketLink(a) || tkSaved()) return;
+      e.preventDefault();
+      openTicketStep(a.href);
+    });
+  }
+
   window.RNB = {
     t: t, el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
-    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, renderFooter: renderFooter, openUpdates: openUpdates
+    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, merchCard: merchCard, money: mcMoney, renderFooter: renderFooter, openUpdates: openUpdates
   };
 
   renderHeader();

@@ -578,6 +578,14 @@
           <input type="text" id="pfName" maxlength="120" required placeholder="e.g. RnB Lovers Cap">
           <label for="pfPrice">Price (US$)</label>
           <input type="text" id="pfPrice" inputmode="decimal" placeholder="e.g. 25 — leave empty for “Price coming soon”">
+          <label for="pfCategory">Category <small>(for the shop filters)</small></label>
+          <select id="pfCategory">
+            <option value="">No category</option>
+            <option value="clothing">Clothing</option>
+            <option value="headwear">Caps &amp; hats</option>
+            <option value="accessories">Accessories</option>
+            <option value="drinkware">Cups &amp; bottles</option>
+          </select>
           <label for="pfSizes">Sizes <small>(optional)</small></label>
           <input type="text" id="pfSizes" placeholder="e.g. S, M, L, XL">
           <p class="hint">Separate sizes with commas. Leave empty for one-size items like cups and caps.</p>
@@ -587,6 +595,7 @@
           <div class="pf-photos" id="pfPhotos"></div>
           <label class="drop" for="pfFiles"><b id="pfFilesName">Choose photos</b><small>Up to 10. The first one shows in the shop.</small><input type="file" id="pfFiles" accept="image/*" multiple></label>
           <label class="check"><input type="checkbox" id="pfActive" checked> Show in the shop</label>
+          <label class="check"><input type="checkbox" id="pfStock" checked> In stock <small>(untick when it sells out; it stays in the shop marked “Sold out”)</small></label>
           <button class="btn btn-dark btn-block" type="submit" id="pfSubmit">Add item</button>
           <div class="msg" id="pfMsg" hidden></div>
         </form>
@@ -603,7 +612,7 @@
     <section data-panel="contacts" hidden>
       <div class="page-head">
         <h1>Contacts</h1>
-        <p class="hint">People who asked for event updates on the website, plus everyone who ordered from the shop. Website visitors tick a box agreeing to hear from you before they are added — only message people marked <b>Agreed</b> with offers, and remove anyone who asks you to stop.</p>
+        <p class="hint">People who asked for event updates on the website, ticket buyers (they give their name and WhatsApp number before going to the ticket site), and everyone who ordered from the shop. Only send offers and event news to people marked <b>Agreed</b> — they ticked the box saying yes. Ticket buyers marked <b>No</b> can be contacted about the event they bought for (changes, entry details), not marketing. Remove anyone who asks you to stop.</p>
       </div>
       <div class="card">
         <div class="card-row wrap">
@@ -611,6 +620,7 @@
           <div class="seg seg-sm" role="radiogroup" id="ctSeg">
             <button type="button" role="radio" aria-checked="true" data-val="">Everyone</button>
             <button type="button" role="radio" aria-checked="false" data-val="signup">Website signups</button>
+            <button type="button" role="radio" aria-checked="false" data-val="tickets">Ticket buyers</button>
             <button type="button" role="radio" aria-checked="false" data-val="order">Shop customers</button>
           </div>
           <a class="btn btn-dark" id="ctCsv" href="/api/admin/contacts.csv" download>Download CSV</a>

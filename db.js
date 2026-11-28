@@ -232,6 +232,10 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 CREATE INDEX IF NOT EXISTS media_product_idx ON media (product_id) WHERE product_id IS NOT NULL;
+-- Shop filters: a category (clothing, headwear, accessories, drinkware or empty)
+-- and whether the item is in stock (sold-out items stay listed, greyed out).
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS in_stock boolean NOT NULL DEFAULT true;
 -- status: pending (waiting for payment), paid, failed, cancelled, sent, delivered
 CREATE TABLE IF NOT EXISTS orders (
   id           serial PRIMARY KEY,
@@ -337,7 +341,7 @@ END $$;
 `;
 
 // Bump when SCHEMA changes: the daily job runs it again once.
-const SCHEMA_VERSION = 'cf-3';
+const SCHEMA_VERSION = 'cf-4';
 
 // Creates or updates tables, default settings and the first admin login.
 // Runs from the scheduled job (and is cheap to repeat).

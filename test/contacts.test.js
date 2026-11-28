@@ -71,3 +71,12 @@ test('bots that fill the hidden field are ignored quietly', async () => {
   assert.equal(r.status, 200);
   assert.equal(rows.length, 0);
 });
+
+test('ticket buyers need a WhatsApp number but not the marketing tick', async () => {
+  const { app, rows } = makeApp();
+  assert.equal((await post(app, { name: 'Rudo', source: 'tickets' })).status, 400);
+  const r = await post(app, { name: 'Rudo', phone: '0771234567', source: 'tickets' });
+  assert.equal(r.status, 200);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].phone, '0771234567');
+});

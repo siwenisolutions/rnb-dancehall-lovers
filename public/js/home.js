@@ -119,7 +119,7 @@
         label = tk.label || R.t('ticket_btn') || 'Get Tickets';
         slideshow(thumb, slots['ticket' + tk.card]);
       }
-      return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
+      return el('a', { class: 'ticket-card', href: url, target: '_blank', rel: 'noopener', 'data-ticket': '', 'aria-label': title + ': get tickets (opens ' + host + ')' }, [
         thumb,
         el('div', { class: 'ticket-body' }, [
           el('div', { class: 'ticket-sub', text: sub }),
@@ -178,16 +178,10 @@
     R.api('/api/shop').then(function (shop) {
       var items = (shop && shop.open && shop.products) || [];
       if (!items.length) return;
-      items.slice().sort(function (a, b) { return b.id - a.id; }).slice(0, 3).forEach(function (p, i) {
-        var price = p.price_cents > 0 ? '$' + (p.price_cents % 100 ? (p.price_cents / 100).toFixed(2) : String(p.price_cents / 100)) : 'Price coming soon';
-        box.appendChild(R.el('a', { class: 'merch-product', href: '/shop?item=' + p.id, 'aria-label': p.name + ', ' + price }, [
-          R.el('div', { class: 'mp-img', style: p.photo_ids.length ? "background-image:url('" + R.mediaUrl(p.photo_ids[0], true) + "')" : '' }),
-          R.el('div', { class: 'mp-body' }, [
-            i === 0 ? R.el('span', { class: 'mp-new', text: 'New' }) : null,
-            R.el('b', { text: p.name }),
-            R.el('span', { class: 'price' + (p.price_cents > 0 ? '' : ' soon'), text: price })
-          ])
-        ]));
+      var list = items.slice().sort(function (a, b) { return (a.in_stock === false) - (b.in_stock === false) || b.id - a.id; }).slice(0, 3);
+      var newest = list[0] && list[0].in_stock !== false ? list[0].id : null;
+      list.forEach(function (p) {
+        box.appendChild(R.merchCard(p, { newest: newest, actionText: 'Shop now' }));
       });
       box.hidden = false;
     }).catch(function () { /* the pills still show */ });

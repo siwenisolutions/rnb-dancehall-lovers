@@ -49,6 +49,8 @@
     var n = bagCount();
     fab.hidden = n === 0;
     fabText.textContent = tx('shop_bag', 'Your bag') + ' · ' + n + ' · ' + money(bagTotal());
+    var pill = document.getElementById('bagPillText');
+    if (pill) pill.textContent = tx('shop_bag', 'Your bag') + ' · ' + n + (n ? ' · ' + money(bagTotal()) : '');
   }
   fab.addEventListener('click', showBag);
 
@@ -84,29 +86,199 @@
     return el('div', { class: 'flyers many' }, [strip, dots]);
   }
 
-  // ---------- items ----------
-  function render() {
-    grid.textContent = '';
-    if (!shop.open || !shop.products.length) {
-      grid.appendChild(el('div', { class: 'empty-state' }, [el('b', { text: tx('shop_empty', 'New merch is on the way.') })]));
-      return;
+  // ---------- items: categories, filters, sort ----------
+  var CAT_NAMES = { clothing: 'Clothing', headwear: 'Caps & hats', accessories: 'Accessories', drinkware: 'Cups & bottles' };
+  var SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL'];
+  var PRICE_BANDS = [
+    { id: 'u10', label: 'Under $10', test: function (c) { return c > 0 && c < 1000; } },
+    { id: '10-25', label: '$10 – $25', test: function (c) { return c >= 1000 && c < 2500; } },
+    { id: '25-50', label: '$25 – $50', test: function (c) { return c >= 2500 && c < 5000; } },
+    { id: '50+', label: '$50 and up', test: function (c) { return c >= 5000; } },
+    { id: 'soon', label: 'Price coming soon', test: function (c) { return !(c > 0); } }
+  ];
+  var state = { cat: '', sizes: [], price: '', stock: false, sort: 'featured' };
+  try { var qc = new URLSearchParams(location.search).get('cat'); if (qc && CAT_NAMES[qc]) state.cat = qc; } catch (e) { /* old browser */ }
+  var catsBox = document.getElementById('shopCats');
+  var filtersBox = document.getElementById('shopFilters');
+  var countEl = document.getElementById('shopCount');
+  var sortSel = document.getElementById('shopSort');
+  var filterToggle = document.getElementById('filterToggle');
+  var newestId = null;
+
+  function band(id) { return PRICE_BANDS.filter(function (b) { return b.id === id; })[0]; }
+  function matches(p, skip) {
+    if (skip !== 'cat' && state.cat && p.category !== state.cat) return false;
+    if (skip !== 'size' && state.sizes.length && !(p.sizes.length ? p.sizes.some(function (z) { return state.sizes.indexOf(z) !== -1; }) : state.sizes.indexOf('One size') !== -1)) return false;
+    if (skip !== 'price' && state.price && !band(state.price).test(p.price_cents)) return false;
+    if (skip !== 'stock' && state.stock && p.in_stock === false) return false;
+    return true;
+  }
+  function sorted(list) {
+    var l = list.slice();
+    var price = function (p) { return p.price_cents > 0 ? p.price_cents : null; };
+    if (state.sort === 'new') l.sort(function (a, b) { return b.id - a.id; });
+    if (state.sort === 'low' || state.sort === 'high') {
+      l.sort(function (a, b) {
+        var x = price(a), y = price(b);
+        if (x === null) return 1; if (y === null) return -1;
+        return state.sort === 'low' ? x - y : y - x;
+      });
     }
-    shop.products.forEach(function (p) {
-      var card = el('button', { class: 'shop-card', type: 'button', 'aria-label': p.name + ', ' + priceText(p) }, [
-        p.photo_ids.length ? el('div', { class: 'shop-card-img', style: "background-image:url('" + photo(p.photo_ids[0], true) + "')" })
-          : el('div', { class: 'shop-card-img empty' }, [el('span', { text: p.name })]),
-        el('div', { class: 'shop-card-body' }, [
-          el('b', { text: p.name }),
-          el('span', { class: 'price' + (priced(p) ? '' : ' soon'), text: priceText(p) }),
-          p.sizes.length ? el('small', { text: p.sizes.join(' · ') }) : null
-        ])
-      ]);
-      card.addEventListener('click', function () { showItem(p); });
-      grid.appendChild(card);
+    // Sold-out items always go last.
+    return l.sort(function (a, b) { return (a.in_stock === false) - (b.in_stock === false); });
+  }
+  function catsPresent() {
+    var seen = {};
+    shop.products.forEach(function (p) { if (p.category && CAT_NAMES[p.category]) seen[p.category] = (seen[p.category] || 0) + 1; });
+    return Object.keys(CAT_NAMES).filter(function (k) { return seen[k]; }).map(function (k) { return { id: k, name: CAT_NAMES[k], n: seen[k] }; });
+  }
+  function sizesPresent() {
+    var all = {}, one = false;
+    shop.products.forEach(function (p) { if (!p.sizes.length) one = true; p.sizes.forEach(function (z) { all[z] = true; }); });
+    var list = Object.keys(all).sort(function (a, b) {
+      var x = SIZE_ORDER.indexOf(a.toUpperCase()), y = SIZE_ORDER.indexOf(b.toUpperCase());
+      return (x === -1 ? 99 : x) - (y === -1 ? 99 : y) || a.localeCompare(b);
+    });
+    if (one && list.length) list.push('One size');
+    return list;
+  }
+  function setCat(c) { state.cat = c; render(); }
+
+  function renderCats() {
+    catsBox.textContent = '';
+    var cats = catsPresent();
+    if (!cats.length) { catsBox.hidden = true; return; }
+    catsBox.hidden = false;
+    [{ id: '', name: 'All merch', n: shop.products.length }].concat(cats).forEach(function (c) {
+      catsBox.appendChild(el('button', { type: 'button', class: 'shop-cat', 'aria-pressed': state.cat === c.id ? 'true' : 'false', onclick: function () { setCat(c.id); } }, [
+        c.name, el('small', { text: String(c.n) })
+      ]));
     });
   }
 
+  function group(title, nodes, extra) {
+    return el('div', { class: 'sf-group' }, [el('div', { class: 'sf-head' }, [el('b', { text: title }), extra || null])].concat(nodes));
+  }
+  function renderFilters() {
+    filtersBox.textContent = '';
+    var any = state.cat || state.sizes.length || state.price || state.stock;
+    filtersBox.appendChild(el('div', { class: 'sf-top' }, [
+      el('b', { text: 'Filters' }),
+      any ? el('button', { type: 'button', class: 'sf-clear', text: 'Clear all', onclick: function () { state = { cat: '', sizes: [], price: '', stock: false, sort: state.sort }; render(); } }) : null
+    ]));
+    var cats = catsPresent();
+    if (cats.length) {
+      filtersBox.appendChild(group('Category', [{ id: '', name: 'All merch' }].concat(cats).map(function (c) {
+        var n = shop.products.filter(function (p) { return (!c.id || p.category === c.id) && matches(p, 'cat'); }).length;
+        return el('label', { class: 'sf-radio' }, [
+          el('input', { type: 'radio', name: 'sfcat', checked: state.cat === c.id, onchange: function () { setCat(c.id); } }),
+          el('span', { text: c.name }), el('small', { text: String(n) })
+        ]);
+      })));
+    }
+    var sizes = sizesPresent();
+    if (sizes.length) {
+      filtersBox.appendChild(group('Size', [el('div', { class: 'sf-sizes' }, sizes.map(function (z) {
+        var on = state.sizes.indexOf(z) !== -1;
+        return el('button', { type: 'button', class: 'sf-size', 'aria-pressed': on ? 'true' : 'false', text: z, onclick: function () {
+          if (on) state.sizes.splice(state.sizes.indexOf(z), 1); else state.sizes.push(z);
+          render();
+        } });
+      }))]));
+    }
+    var bands = PRICE_BANDS.map(function (b) {
+      return { b: b, n: shop.products.filter(function (p) { return b.test(p.price_cents) && matches(p, 'price'); }).length, all: shop.products.filter(function (p) { return b.test(p.price_cents); }).length };
+    }).filter(function (x) { return x.all > 0; });
+    if (bands.length > 1 || state.price) {
+      var max = Math.max.apply(null, bands.map(function (x) { return x.n; }).concat([1]));
+      filtersBox.appendChild(group('Price', [el('div', { class: 'sf-bars', 'aria-hidden': 'true' }, bands.map(function (x) {
+        return el('i', { class: state.price === x.b.id ? 'on' : '', style: 'height:' + Math.max(8, Math.round(x.n / max * 100)) + '%' });
+      }))].concat(bands.map(function (x) {
+        return el('label', { class: 'sf-radio' }, [
+          el('input', { type: 'radio', name: 'sfprice', checked: state.price === x.b.id, onclick: function () { state.price = state.price === x.b.id ? '' : x.b.id; render(); } }),
+          el('span', { text: x.b.label }), el('small', { text: String(x.n) })
+        ]);
+      }))));
+    }
+    if (shop.products.some(function (p) { return p.in_stock === false; })) {
+      filtersBox.appendChild(group('Availability', [el('label', { class: 'sf-toggle' }, [
+        el('span', { text: 'In stock only' }),
+        el('input', { type: 'checkbox', role: 'switch', checked: state.stock, onchange: function (e) { state.stock = e.target.checked; render(); } }),
+        el('i', { 'aria-hidden': 'true' })
+      ])]));
+    }
+    filtersBox.appendChild(el('div', { class: 'sf-help' }, [
+      el('b', { text: 'Need help?' }),
+      el('p', { text: 'Sizes, bulk orders for your crew, or something you want back in stock — message us on WhatsApp.' }),
+      el('a', { href: enquireUrl({ name: 'merch' }).replace(/text=.*/, 'text=' + encodeURIComponent('Hi! I have a question about your merch.')), target: '_blank', rel: 'noopener', text: 'Chat on WhatsApp →' })
+    ]));
+  }
+
+  function renderFeature() {
+    var box = document.getElementById('shopFeature');
+    var p = shop.products.filter(function (x) { return x.id === newestId; })[0];
+    if (!p) { box.hidden = true; return; }
+    box.textContent = '';
+    box.href = '/shop?item=' + p.id;
+    box.appendChild(el('span', { class: 'sfeat-img', style: p.photo_ids.length ? "background-image:url('" + photo(p.photo_ids[0], true) + "')" : '' }));
+    box.appendChild(el('span', { class: 'sfeat-txt' }, [el('small', { text: 'New drop' }), el('b', { text: p.name }), el('span', { text: priceText(p) })]));
+    box.appendChild(el('span', { class: 'sfeat-go', 'aria-hidden': 'true', text: '→' }));
+    box.onclick = function (e) { e.preventDefault(); showItem(p); };
+    box.hidden = false;
+  }
+
+  function quickAdd(p) {
+    if (!priced(p) || p.sizes.length > 1) { showItem(p); return; }
+    var size = p.sizes[0] || '';
+    var same = bag.filter(function (l) { return l.product_id === p.id && l.size === size; })[0];
+    if (same) same.qty = Math.min(20, same.qty + 1); else bag.push({ product_id: p.id, size: size, qty: 1 });
+    saveBag();
+    showBag(p.name + ' added.');
+  }
+
+  function render() {
+    grid.textContent = '';
+    if (!shop.open || !shop.products.length) {
+      catsBox.hidden = true; filtersBox.hidden = true;
+      document.querySelector('.shop-toolbar').hidden = true;
+      grid.appendChild(el('div', { class: 'empty-state' }, [el('b', { text: tx('shop_empty', 'New merch is on the way.') })]));
+      return;
+    }
+    renderCats();
+    renderFilters();
+    var list = sorted(shop.products.filter(function (p) { return matches(p); }));
+    countEl.textContent = list.length === shop.products.length ? list.length + (list.length === 1 ? ' item' : ' items') : list.length + ' of ' + shop.products.length + ' items';
+    if (!list.length) {
+      grid.appendChild(el('div', { class: 'empty-state' }, [el('b', { text: 'Nothing matches those filters.' }),
+        el('button', { type: 'button', class: 'btn btn-outline', text: 'Clear filters', onclick: function () { state = { cat: '', sizes: [], price: '', stock: false, sort: state.sort }; render(); } })]));
+      return;
+    }
+    var delivery = tx('shop_delivery_short', '14 days');
+    list.forEach(function (p) {
+      grid.appendChild(R.merchCard(p, { newest: newestId, delivery: delivery, onOpen: showItem, onAction: function (x) {
+        if (!priced(x)) { window.open(enquireUrl(x), '_blank', 'noopener'); return; }
+        quickAdd(x);
+      } }));
+    });
+  }
+  sortSel.addEventListener('change', function () { state.sort = sortSel.value; render(); });
+  filterToggle.addEventListener('click', function () {
+    var open = filtersBox.classList.toggle('open');
+    filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.getElementById('bagPill').addEventListener('click', showBag);
+
   function showItem(p) {
+    if (p.in_stock === false) {
+      open([
+        photoStrip(p),
+        el('div', { class: 'shop-item-head' }, [el('h2', { class: 'shop-h', id: 'sheetTitle', text: p.name }), el('span', { class: 'price soon', text: 'Sold out' })]),
+        p.description ? el('p', { class: 'shop-desc', text: p.description }) : null,
+        el('p', { class: 'shop-desc', text: 'This one has sold out. Message us on WhatsApp and we’ll tell you when it’s back.' }),
+        el('a', { class: 'btn btn-primary btn-block', href: enquireUrl(p).replace(/text=.*/, 'text=' + encodeURIComponent('Hi! Please let me know when the ' + p.name + ' is back in stock.')), target: '_blank', rel: 'noopener', text: 'Tell me when it’s back' })
+      ]);
+      return;
+    }
     if (!priced(p)) {
       open([
         photoStrip(p),
@@ -239,6 +411,7 @@
     var msg = el('p', { class: 'shop-msg', hidden: true });
     var btn = el('button', { class: 'btn btn-primary btn-block', type: 'submit', text: (shop.online ? tx('shop_pay', 'Pay') + ' ' : 'Place order · ') + money(bagTotal()) });
     form.appendChild(msg);
+    form.appendChild(el('p', { class: 'co-terms' }, ['By placing your order you agree to our ', el('a', { href: '/terms#shop', target: '_blank', text: 'Terms' }), ' and ', el('a', { href: '/returns#merch', target: '_blank', text: 'Returns policy' }), '. See how we use your details in our ', el('a', { href: '/privacy', target: '_blank', text: 'Privacy Policy' }), '.']));
     form.appendChild(btn);
     form.appendChild(deliveryNote());
     form.addEventListener('submit', function (e) {
@@ -329,6 +502,10 @@
   // ---------- start ----------
   R.api('/api/shop').then(function (d) {
     shop = d;
+    var recent = shop.products.filter(function (p) { return p.in_stock !== false; }).sort(function (a, b) { return b.id - a.id; })[0];
+    newestId = recent ? recent.id : null;
+    sortSel.value = state.sort;
+    renderFeature();
     render();
     updateFab();
     var ref = new URLSearchParams(location.search).get('order');

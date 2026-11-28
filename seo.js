@@ -102,14 +102,14 @@ module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMI
     }
     if (file === 'shop.html') {
       const { rows } = await pool.query(
-        `SELECT p.id, p.name, p.description, p.price_cents,
+        `SELECT p.id, p.name, p.description, p.price_cents, p.in_stock,
                 (SELECT m.id FROM media m WHERE m.product_id = p.id ORDER BY m.created_at, m.id LIMIT 1) AS photo
            FROM products p WHERE p.active ORDER BY p.sort, p.id LIMIT 30`);
       rows.forEach((p) => graph.push({
         '@type': 'Product', name: p.name, description: p.description || `${siteName} merchandise`,
         image: p.photo ? [media(p.photo)] : undefined, brand: { '@type': 'Brand', name: siteName },
         url: abs(`/shop?item=${p.id}`),
-        offers: { '@type': 'Offer', price: (p.price_cents / 100).toFixed(2), priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: abs(`/shop?item=${p.id}`) },
+        offers: !(p.price_cents > 0) ? undefined : { '@type': 'Offer', price: (p.price_cents / 100).toFixed(2), priceCurrency: 'USD', availability: p.in_stock === false ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', url: abs(`/shop?item=${p.id}`) },
       }));
     }
     out.tags.push(`<script type="application/ld+json">${json({ '@context': 'https://schema.org', '@graph': graph })}</script>`);
@@ -128,6 +128,9 @@ module.exports = function seo({ pool, siteUrl, getSettings, eventColumns, UPCOMI
       { loc: '/events', freq: 'daily', pri: '0.9' },
       { loc: '/shop', freq: 'weekly', pri: '0.8' },
       { loc: '/gallery', freq: 'weekly', pri: '0.7' },
+      { loc: '/terms', freq: 'yearly', pri: '0.2' },
+      { loc: '/privacy', freq: 'yearly', pri: '0.2' },
+      { loc: '/returns', freq: 'yearly', pri: '0.2' },
     ];
     const ev = await pool.query('SELECT id, created_at, starts_at FROM events ORDER BY starts_at DESC LIMIT 500');
     ev.rows.forEach((e) => urls.push({ loc: `/events/${e.id}`, freq: new Date(e.starts_at) > new Date() ? 'daily' : 'monthly', pri: '0.6' }));

@@ -1998,7 +1998,7 @@
     body.textContent = '';
     rows.forEach(function (c) {
       var tr = document.createElement('tr');
-      if (c.source === 'signup' && !c.seen) tr.className = 'ct-new';
+      if (c.source !== 'order' && !c.seen) tr.className = 'ct-new';
       function td(text, cls) { var d = document.createElement('td'); d.textContent = text || ''; if (cls) d.className = cls; tr.appendChild(d); return d; }
       td(c.name, 'ct-name');
       var wa = td('');
@@ -2010,7 +2010,7 @@
       }
       var em = td('');
       if (c.email) { var m = document.createElement('a'); m.href = 'mailto:' + c.email; m.textContent = c.email; em.appendChild(m); }
-      td(c.source === 'order' ? 'Shop order' : 'Website');
+      td({ order: 'Shop order', tickets: 'Ticket buyer' }[c.source] || 'Website');
       td((c.interests || []).join(', '));
       td(c.consent ? 'Agreed' : 'No', c.consent ? 'ct-yes' : 'ct-no');
       td(fmtDate(c.created_at));
@@ -2026,8 +2026,8 @@
       }
       body.appendChild(tr);
     });
-    var signups = ctState.list.filter(function (c) { return c.source === 'signup'; }).length;
-    $('ctCount').textContent = rows.length + ' shown · ' + signups + ' website signups · ' + (ctState.list.length - signups) + ' shop customers';
+    function count(src) { return ctState.list.filter(function (c) { return c.source === src; }).length; }
+    $('ctCount').textContent = rows.length + ' shown · ' + count('signup') + ' website signups · ' + count('tickets') + ' ticket buyers · ' + count('order') + ' shop customers';
     $('ctEmpty').hidden = ctState.list.length > 0;
   }
   $('ctSearch').addEventListener('input', renderContacts);
@@ -2158,6 +2158,8 @@
     $('productForm').reset();
     $('pfId').value = '';
     $('pfActive').checked = true;
+    $('pfStock').checked = true;
+    $('pfCategory').value = '';
     $('productFormTitle').textContent = 'Add an item';
     $('pfSubmit').textContent = 'Add item';
     $('pfCancel').hidden = true;
@@ -2175,6 +2177,8 @@
     $('pfSizes').value = p.sizes.join(', ');
     $('pfDesc').value = p.description;
     $('pfActive').checked = p.active;
+    $('pfStock').checked = p.in_stock !== false;
+    $('pfCategory').value = p.category || '';
     $('productFormTitle').textContent = 'Edit item';
     $('pfSubmit').textContent = 'Save item';
     $('pfCancel').hidden = false;
@@ -2192,7 +2196,7 @@
   $('productForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var id = $('pfId').value, btn = $('pfSubmit');
-    var body = { name: $('pfName').value, price: $('pfPrice').value, sizes: $('pfSizes').value, description: $('pfDesc').value, active: $('pfActive').checked };
+    var body = { name: $('pfName').value, price: $('pfPrice').value, sizes: $('pfSizes').value, description: $('pfDesc').value, active: $('pfActive').checked, category: $('pfCategory').value, in_stock: $('pfStock').checked };
     var files = $('pfFiles').files;
     busy(btn, true);
     (id ? call('PUT', '/api/admin/shop/products/' + id, body).then(function () { return id; })
@@ -2214,7 +2218,7 @@
     shopState.products.forEach(function (p) {
       box.appendChild(el('div', { class: 'p-row' + (p.active ? '' : ' off') }, [
         el('span', { class: 'p-img', style: p.photo_ids.length ? "background-image:url('" + media(p.photo_ids[0], true) + "')" : '' }),
-        el('span', { class: 'p-txt' }, [el('b', { text: p.name }), el('small', { text: (p.price_cents > 0 ? dollars(p.price_cents) : 'Price coming soon') + (p.sizes.length ? ' · ' + p.sizes.join(', ') : '') + (p.active ? '' : ' · hidden') })]),
+        el('span', { class: 'p-txt' }, [el('b', { text: p.name }), el('small', { text: (p.price_cents > 0 ? dollars(p.price_cents) : 'Price coming soon') + (p.sizes.length ? ' · ' + p.sizes.join(', ') : '') + (p.in_stock === false ? ' · sold out' : '') + (p.active ? '' : ' · hidden') })]),
         el('button', { class: 'btn btn-light btn-sm', type: 'button', text: 'Edit', onclick: function () { editProduct(p); } }),
         el('button', { class: 'btn btn-ghost btn-sm', type: 'button', text: 'Delete', onclick: function () {
           if (!confirm('Delete ' + p.name + ' from the shop? Past orders keep their details.')) return;
