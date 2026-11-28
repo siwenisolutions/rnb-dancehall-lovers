@@ -968,3 +968,24 @@ video.slide{width:100%; height:100%; object-fit:cover;}
 .btn-copy.copied{background:var(--yellow); color:#141210;}
 .ticket-actions .btn-copy{background:#fff; color:#141210;}
 @media (max-width:640px){ .ticket-actions .btn{padding:12px 14px; font-size:13px;} }
+
+/* ---------- Event and ticket cards in the merch-card style ---------- */
+.ecard .mcard-img{background-color:#2a2030; background-image:linear-gradient(135deg,#5b266c,#c11fd6);}
+.ecard .mcard-img[style*="url"]{background-color:#2a2030;}
+.mcard-img .slides{position:absolute; inset:0;}
+.mcard-chips{display:flex; flex-wrap:wrap; gap:6px; pointer-events:auto; position:relative; z-index:3;}
+.mcard-chip{display:inline-flex; align-items:center; gap:6px; padding:8px 13px; border-radius:999px; border:1px solid rgba(255,255,255,.26); background:rgba(255,255,255,.12); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#fff; font:inherit; font-size:13px; font-weight:700; cursor:pointer; transition:background .15s;}
+.mcard-chip:hover{background:rgba(255,255,255,.24);}
+.mcard-chip.copied{background:var(--yellow); color:#141210; border-color:var(--yellow);}
+a.mcard-btn{display:inline-flex; align-items:center; text-decoration:none;}
+.event-grid .ecard{aspect-ratio:auto; min-height:440px; width:100%; min-width:0;}
+.ecard .mcard-img.empty span{display:none;}
+.tcard{aspect-ratio:auto; min-height:470px;}
+.tcard .mcard-body h3{font-family:'Anton',sans-serif; font-weight:400; text-transform:uppercase; font-size:clamp(30px,3.4vw,44px); line-height:1; letter-spacing:.005em;}
+@media (max-width:640px){
+  .event-grid .ecard, .tcard{min-height:430px;}
+  .ecard .mcard-body h3{font-size:19px;}
+  .tcard .mcard-body h3{font-size:30px;}
+  .ecard .mcard-meta > span:nth-child(n+2){display:inline-flex;}
+  .ecard .mcard-btn{flex:none; font-size:13px; padding:10px 14px;}
+}

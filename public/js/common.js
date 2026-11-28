@@ -301,18 +301,15 @@
 
   // ---------- event card ----------
   function eventCard(ev) {
-    var flyers = flyerStrip(ev, true);
-    flyers.appendChild(el('div', { class: 'date-badge' }, [el('b', { text: fmtDay(ev.starts_at) }), el('small', { text: fmtMonth(ev.starts_at) })]));
-    var actions = eventButtons(ev).concat([el('a', { class: 'btn btn-outline', href: '/events/' + ev.id, text: 'Details' })]);
-    return el('article', { class: 'event-card' }, [
-      flyers,
-      el('div', { class: 'body' }, [
-        el('h3', { text: ev.title }),
-        el('div', { class: 'when', text: fmtLong(ev.starts_at) }),
-        ev.venue ? el('div', { class: 'when', text: ev.venue }) : null,
-        el('div', { class: 'actions' }, actions)
-      ])
-    ]);
+    var upcoming = new Date(ev.starts_at) > new Date(Date.now() - 12 * 3600e3);
+    return photoCard({
+      url: upcoming ? ev.ticket_url : '', tablesUrl: upcoming ? ev.tables_url : '', eventId: ev.id, title: ev.title,
+      when: fmtDay(ev.starts_at) + ' ' + fmtMonth(ev.starts_at), photo: ev.cover_media_id, link: '/events/' + ev.id,
+      fallbackText: upcoming ? 'See details' : 'See photos',
+      tags: [upcoming && safeLink(ev.ticket_url) ? { text: 'Tickets on sale', cls: 'new' } : null],
+      meta: [['clock', timeOf(ev.starts_at)], ['pin', ev.venue]],
+      pill: fmtDay(ev.starts_at) + ' ' + fmtMonth(ev.starts_at)
+    });
   }
 
   // ---------- lightbox ----------
@@ -491,7 +488,10 @@
   var MC_ICONS = {
     tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
     size: '<path d="M4 7h16v10H4z"/><path d="M8 7v3M12 7v4M16 7v3"/>',
-    truck: '<path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3.5V16h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>'
+    truck: '<path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3.5V16h-7z"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
   };
   function mcIcon(n) { var s = document.createElement('span'); s.className = 'mc-ic'; s.setAttribute('aria-hidden', 'true'); s.innerHTML = '<svg viewBox="0 0 24 24">' + MC_ICONS[n] + '</svg>'; return s; }
   var MC_CATS = { clothing: 'Clothing', headwear: 'Caps & hats', accessories: 'Accessories', drinkware: 'Cups & bottles' };
@@ -526,6 +526,34 @@
       ]),
       link
     ]);
+  }
+
+  // Ticket and event cards in the same style as the merch cards: the photo or
+  // flyer fills the card; tickets in a white button, tables and copy-link as
+  // small glass buttons; tapping anywhere else opens the event.
+  function photoCard(o) {
+    var acts = ticketActions(o);
+    var primary = acts[0] && acts[0].hasAttribute('data-ticket') && /btn-primary/.test(acts[0].className) ? acts.shift() : null;
+    if (primary) { primary.className = 'mcard-btn'; }
+    else if (o.link) primary = el('a', { class: 'mcard-btn', href: o.link, text: o.fallbackText || 'See details' });
+    acts.forEach(function (b) { b.className = 'mcard-chip' + (/btn-copy/.test(b.className) ? ' btn-copy' : ''); });
+    var bg = o.bg || el('div', { class: 'mcard-img empty', 'aria-hidden': 'true' }, [el('span', { text: o.title })]);
+    if (o.photo) bg = el('div', { class: 'mcard-img', style: "background-image:url('" + mediaUrl(o.photo, true) + "')" });
+    var meta = (o.meta || []).filter(function (m) { return m && m[1]; }).map(function (m) { return el('span', null, [mcIcon(m[0]), m[1]]); });
+    return el('article', { class: 'mcard ecard' + (o.cls ? ' ' + o.cls : '') }, [
+      bg,
+      el('div', { class: 'mcard-tags' }, (o.tags || []).filter(Boolean).map(function (tg) { return el('span', { class: 'mtag' + (tg.cls ? ' ' + tg.cls : ''), text: tg.text }); })),
+      el('div', { class: 'mcard-body' }, [
+        el('h3', { text: o.title }),
+        meta.length ? el('div', { class: 'mcard-meta' }, meta) : null,
+        el('div', { class: 'mcard-foot' }, [o.pill ? el('span', { class: 'mcard-price', text: o.pill }) : null, primary]),
+        acts.length ? el('div', { class: 'mcard-chips' }, acts) : null
+      ]),
+      o.link ? el('a', { class: 'mcard-link', href: o.link, 'aria-label': o.title + ': event details' }) : null
+    ]);
+  }
+  function timeOf(iso) {
+    try { return new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Harare' }).format(new Date(iso)); } catch (e) { return ''; }
   }
 
   // ---------- One quick step before the ticket site ----------
@@ -704,7 +732,7 @@
 
   window.RNB = {
     t: t, el: el, api: api, mediaUrl: mediaUrl, fmtLong: fmtLong, fmtDay: fmtDay, fmtMonth: fmtMonth,
-    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, merchCard: merchCard, money: mcMoney, ticketActions: ticketActions, ticketIntent: ticketIntent, renderFooter: renderFooter, openUpdates: openUpdates
+    safeLink: safeLink, eventCard: eventCard, flyerStrip: flyerStrip, eventButtons: eventButtons, galleryItem: galleryItem, merchCard: merchCard, money: mcMoney, ticketActions: ticketActions, ticketIntent: ticketIntent, photoCard: photoCard, renderFooter: renderFooter, openUpdates: openUpdates
   };
 
   renderHeader();

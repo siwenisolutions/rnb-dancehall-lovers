@@ -107,7 +107,7 @@
       var title = tk.title || R.t('site_name');
       var host = '';
       try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { /* ignore */ }
-      var thumb = el('div', { class: 'ticket-thumb' + (tk.card ? ' ticket-thumb-' + tk.card : '') }, [el('span', { class: 'ticket-chip', text: R.t('ticket_chip') })]);
+      var thumb = el('div', { class: 'mcard-img ticket-photo' });
       var sub, label;
       if (tk.kind === 'event') {
         sub = R.fmtDay(tk.starts_at) + ' ' + R.fmtMonth(tk.starts_at) + (tk.venue ? ' · ' + tk.venue : '');
@@ -120,17 +120,13 @@
         slideshow(thumb, slots['ticket' + tk.card]);
       }
       var when = tk.kind === 'event' ? R.fmtDay(tk.starts_at) + ' ' + R.fmtMonth(tk.starts_at) : '';
-      var actions = R.ticketActions({ url: url, tablesUrl: tk.tables_url, eventId: tk.event_id, card: tk.card, title: title, when: when,
-        ticketText: label + ' →' });
-      return el('article', { class: 'ticket-card' }, [
-        thumb,
-        el('a', { class: 'ticket-cover', href: url, target: '_blank', rel: 'noopener', 'data-ticket': '', 'aria-label': title + ': get tickets (opens ' + host + ')' }),
-        el('div', { class: 'ticket-body' }, [
-          el('div', { class: 'ticket-sub', text: sub }),
-          el('h3', { text: title }),
-          el('div', { class: 'ticket-actions' }, actions)
-        ])
-      ]);
+      return R.photoCard({
+        url: url, tablesUrl: tk.tables_url, eventId: tk.event_id, card: tk.card, title: title, when: when, bg: thumb,
+        ticketText: label + ' →', link: tk.kind === 'event' ? '/events/' + tk.event_id : '', cls: 'tcard',
+        tags: [{ text: R.t('ticket_chip') || 'Tickets on sale', cls: 'new' }, tk.country ? { text: (tk.flag ? tk.flag + ' ' : '') + tk.country } : null],
+        meta: tk.kind === 'event' ? [['pin', tk.venue]] : [['pin', sub]],
+        pill: when || null
+      });
     }).filter(Boolean);
     var section = document.getElementById('tickets');
     section.hidden = cards.length === 0;
