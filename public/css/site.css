@@ -845,9 +845,17 @@ video.slide{width:100%; height:100%; object-fit:cover;}
   .mcard-body h3{font-size:15px;}
   .mcard-meta{font-size:11px; gap:4px 10px;}
   .mcard-meta > span:nth-child(n+2){display:none;}
-  .mcard-foot{flex-direction:column; align-items:stretch; gap:6px;}
-  .mcard-price{justify-content:center; padding:7px 10px; font-size:14px;}
-  .mcard-btn{padding:9px 10px; font-size:13px;}
+  .mcard-foot{gap:6px;}
+  .mcard-price{padding:8px 10px; font-size:13px; flex:none;}
+  .mcard-price.soon{font-size:12px; text-transform:capitalize;}
+  .mcard-price .mp-long{display:none;}
+  .mcard-btn{padding:9px 8px; font-size:12px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;}
+  .shop-grid > .mcard:only-child{grid-column:1/-1; aspect-ratio:4/4.4;}
+  .shop-grid > .mcard:only-child .mcard-body h3{font-size:20px;}
+  .shop-grid > .mcard:only-child .mp-long{display:inline;}
+  .shop-grid > .mcard:only-child .mcard-price.soon{text-transform:none;}
+  .shop-grid > .mcard:only-child .mcard-price{font-size:14px; padding:10px 16px;}
+  .shop-grid > .mcard:only-child .mcard-btn{font-size:14px; padding:11px 16px; flex:none;}
   .mtag{font-size:10px; padding:5px 8px;}
   .mcard-img.empty{padding-top:28%;}
   .mcard-img.empty span{font-size:18px;}

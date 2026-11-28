@@ -522,7 +522,7 @@
         el('h3', { text: p.name }),
         el('div', { class: 'mcard-meta' }, meta),
         el('div', { class: 'mcard-foot' }, [
-          el('span', { class: 'mcard-price' + (priced ? '' : ' soon'), text: priced ? mcMoney(p.price_cents) : 'Price soon' }),
+          el('span', { class: 'mcard-price' + (priced ? '' : ' soon') }, priced ? [mcMoney(p.price_cents)] : [el('span', { class: 'mp-long', text: 'Price ' }), 'soon']),
           btn
         ])
       ]),
